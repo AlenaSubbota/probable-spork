@@ -20,7 +20,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./chaptify
+          context: .
           push: true
           tags: alenasubbota/chaptify-web:latest
           # Передаем ключи как аргументы сборки, чтобы Next.js их "впек"
