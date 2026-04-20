@@ -1,39 +1,46 @@
-import Image from 'next/image';
 import Link from 'next/link';
 
 interface NovelCardProps {
-  id: number;
+  id: string;
   title: string;
-  coverUrl?: string;
-  rating: number;
-  chaptersCount: number;
-  translatorName: string;
-  isHot?: boolean;
+  translator: string;
+  metaInfo: string;
+  rating: string;
+  placeholderClass: string;
+  placeholderText: React.ReactNode;
+  flagText?: string;
+  flagClass?: string;
 }
 
-// Экспорт должен совпадать с импортом в page.tsx
-export const NovelCard = ({ id, title, coverUrl, rating, chaptersCount, translatorName, isHot }: NovelCardProps) => {
+export default function NovelCard({
+  id,
+  title,
+  translator,
+  metaInfo,
+  rating,
+  placeholderClass,
+  placeholderText,
+  flagText,
+  flagClass
+}: NovelCardProps) {
   return (
-    <Link href={`/novel/${id}`} className="group flex flex-col gap-2">
-      <div className="relative aspect-[3/4] rounded-[12px] overflow-hidden bg-[var(--bg-soft)] shadow-sm transition-all group-hover:-translate-y-1 group-hover:shadow-md">
-        {coverUrl ? (
-          <Image 
-            src={coverUrl} 
-            alt={title} 
-            fill 
-            sizes="(max-width: 768px) 50vw, 16vw"
-            className="object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
-            No cover
-          </div>
+    <Link href={`/novel/${id}`} className="novel-card">
+      <div className="novel-cover">
+        <div className={`placeholder ${placeholderClass}`}>
+          {placeholderText}
+        </div>
+        <span className="rating-chip">
+          <span className="star">★</span>{rating}
+        </span>
+        <button className="bookmark-btn" aria-label="В закладки">♥</button>
+        {flagText && (
+          <span className={`flag ${flagClass || ''}`}>{flagText}</span>
         )}
       </div>
-      <div className="text-[13px] font-bold leading-tight line-clamp-2">{title}</div>
-      <div className="text-[11px] text-gray-500">
-        <span className="text-[var(--accent)] font-bold">{translatorName}</span> • {chaptersCount} гл.
+      <div className="novel-title">{title}</div>
+      <div className="novel-meta">
+        <span className="by">{translator}</span> · {metaInfo}
       </div>
     </Link>
   );
-};
+}
