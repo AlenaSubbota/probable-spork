@@ -1,10 +1,71 @@
-export default function Beta() {
+import { createClient } from '@/utils/supabase/server';
+import { NovelCard } from '@/components/NovelCard';
+
+export default async function HomePage() {
+  const supabase = await createClient();
+
+  // 1. Запрос популярных новелл
+  const { data: popularNovels } = await supabase
+    .from('novels')
+    .select('*, profiles(username)')
+    .order('rating', { ascending: false })
+    .limit(6);
+
+  // 2. Запрос новых глав (имитация ленты)
+  const { data: newUpdates } = await supabase
+    .from('chapters')
+    .select('*, novels(*, profiles(username))')
+    .order('created_at', { ascending: false })
+    .limit(6);
+
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-8 text-center font-serif">
-      <h1 className="text-3xl font-bold mb-4">Chaptify скоро откроется</h1>
-      <p className="text-lg">
-        Сейчас сайт в закрытой бете. Читать новеллы можно на <a href="https://tene.fun" className="text-blue-600 underline">tene.fun</a>.
-      </p>
+    <main className="container py-8">
+      {/* Hero Banner на основе макета */}
+      <section className="hero-grid grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+        <div className="md:col-span-2 p-7 rounded-[var(--radius)] bg-gradient-to-br from-[#EFE1CE] to-[#D9BFA6] flex flex-col justify-end min-h-[220px]">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--accent-hover)] mb-2">Новое на Chaptify</span>
+          <h1 className="text-3xl font-serif mb-2">Два переводчика — одна платформа</h1>
+          <p className="text-[var(--ink-soft)] max-w-md mb-4">
+            Прогресс чтения синхронизируется с приложением в Telegram.
+          </p>
+          <div className="flex gap-3">
+            <button className="px-5 py-2 bg-[var(--accent)] text-white rounded-lg font-bold">Открыть каталог</button>
+          </div>
+        </div>
+        
+        {/* Статистика переводчиков из макета */}
+        <div className="flex flex-col gap-5">
+           <div className="p-5 rounded-[var(--radius)] bg-[var(--surface)] border border-[var(--border)]">
+              <span className="note">Алёна</span>
+              <h3 className="text-lg font-serif mt-2">42 новеллы</h3>
+           </div>
+           <div className="p-5 rounded-[var(--radius)] bg-[var(--surface)] border border-[var(--border)]">
+              <span className="note bg-[#E3EBD6] text-[#4C6A34]">Иван</span>
+              <h3 className="text-lg font-serif mt-2">17 новелл</h3>
+           </div>
+        </div>
+      </section>
+
+      {/* Сетка популярных новелл */}
+      <section className="mb-10">
+        <div className="flex justify-between items-baseline mb-4">
+          <h2 className="text-2xl font-serif">Популярное</h2>
+          <Link href="/catalog" className="text-[var(--accent)] font-semibold text-sm">Смотреть все →</Link>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-5">
+          {popularNovels?.map((novel) => (
+            <NovelCard 
+              key={novel.id}
+              id={novel.id}
+              title={novel.title}
+              coverUrl={novel.image_url}
+              rating={novel.rating || 0}
+              chaptersCount={novel.chapters_count || 0}
+              translatorName={novel.profiles?.username || 'Алёна'}
+            />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
