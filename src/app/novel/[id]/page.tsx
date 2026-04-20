@@ -10,23 +10,26 @@ export default async function NovelPage({ params }: PageProps) {
   const supabase = await createClient();
   const resolvedParams = await params;
 
+  // 1. Получаем данные новеллы из представления novels_view
   const { data: novel, error: novelError } = await supabase
     .from('novels_view')
     .select('*')
     .eq('firebase_id', resolvedParams.id)
     .single();
 
-  if (novelError || !novel) notFound();
+  if (novelError || !novel) {
+    notFound();
+  }
 
+  // 2. Получаем список глав
   const { data: chapters } = await supabase
     .from('chapters')
     .select('id, chapter_number, is_paid, published_at, like_count')
     .eq('novel_id', novel.id)
     .order('chapter_number', { ascending: false });
 
-  // Формируем правильную ссылку на обложку из Supabase Storage
-  // Если в БД уже лежит полная ссылка (http...), оставляем её. 
-  // Если просто имя файла — собираем путь к бакету 'covers'.
+  // 3. Формируем URL обложки согласно твоему требованию
+  // База: covers/11.webp -> Итог: https://tene.fun/storage/v1/object/public/covers/covers/11.webp
   const getCoverUrl = (path: string | null) => {
     if (!path) return null;
     if (path.startsWith('http')) return path;
@@ -38,11 +41,11 @@ export default async function NovelPage({ params }: PageProps) {
 
   return (
     <main className="container section">
+      {/* Навигация/Хлебные крошки */}
       <div className="section-head" style={{ marginBottom: '32px' }}>
          <Link href="/" className="more">← В каталог</Link>
       </div>
 
-      {/* Используем кастомную сетку, чтобы обложка не была огромной */}
       <div className="novel-details-layout" style={{ 
         display: 'grid', 
         gridTemplateColumns: 'minmax(250px, 300px) 1fr', 
@@ -50,7 +53,7 @@ export default async function NovelPage({ params }: PageProps) {
         alignItems: 'start' 
       }}>
         
-        {/* Левая колонка: фиксированная ширина для обложки */}
+        {/* Левая колонка: Обложка и статистика */}
         <aside>
           <div className="novel-cover" style={{ width: '100%', height: 'auto', aspectRatio: '3/4', position: 'relative' }}>
             {coverUrl ? (
@@ -79,7 +82,7 @@ export default async function NovelPage({ params }: PageProps) {
           </button>
         </aside>
 
-        {/* Правая колонка: гибкая ширина для контента */}
+        {/* Правая колонка: Описание и список глав */}
         <article>
           <h1 style={{ fontSize: '32px', marginBottom: '12px', fontFamily: 'var(--font-lora)' }}>{novel.title}</h1>
           
@@ -93,7 +96,12 @@ export default async function NovelPage({ params }: PageProps) {
 
           <div className="card" style={{ marginBottom: '40px' }}>
             <h3 style={{ marginBottom: '16px' }}>О чем эта история</h3>
-            <p style={{ lineHeight: '1.7', color: 'var(--ink-soft)' }}>{novel.description}</p>
+            {/* Исправление для HTML-тегов: используем dangerouslySetInnerHTML */}
+            <div 
+              className="novel-description-content"
+              style={{ lineHeight: '1.7', color: 'var(--ink-soft)' }}
+              dangerouslySetInnerHTML={{ __html: novel.description || 'Описание отсутствует.' }}
+            />
             <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
               <strong style={{ color: 'var(--ink)' }}>Жанры:</strong> {genresList}
             </div>
