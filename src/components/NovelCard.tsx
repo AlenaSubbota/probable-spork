@@ -11,33 +11,28 @@ interface NovelCardProps {
   isHot?: boolean;
 }
 
+// Экспорт должен совпадать с импортом в page.tsx
 export const NovelCard = ({ id, title, coverUrl, rating, chaptersCount, translatorName, isHot }: NovelCardProps) => {
   return (
-    <Link href={`/novel/${id}`} className="novel-card group flex flex-col gap-2">
-      <div className="novel-cover relative aspect-[3/4] rounded-[12px] overflow-hidden bg-[var(--accent-soft)] shadow-sm transition-all group-hover:-translate-y-1 group-hover:shadow-md">
+    <Link href={`/novel/${id}`} className="group flex flex-col gap-2">
+      <div className="relative aspect-[3/4] rounded-[12px] overflow-hidden bg-[var(--bg-soft)] shadow-sm transition-all group-hover:-translate-y-1 group-hover:shadow-md">
         {coverUrl ? (
           <Image 
             src={coverUrl} 
             alt={title} 
             fill 
+            sizes="(max-width: 768px) 50vw, 16vw"
             className="object-cover"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-center p-3 text-[var(--surface)] font-serif bg-gradient-to-br from-[#8C5A3C] to-[#C9A35F]">
-            {title}
+          <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
+            No cover
           </div>
         )}
-        <span className="absolute top-2 left-2 bg-black/55 backdrop-blur-md text-white px-2 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1">
-          <span className="text-[var(--gold)]">★</span>{rating.toFixed(1)}
-        </span>
-        {isHot && <span className="absolute bottom-2 left-2 bg-[var(--accent)] text-white px-2 py-1 rounded-md text-[10px] font-bold uppercase">HOT</span>}
       </div>
-      <div className="novel-title text-[13.5px] font-semibold leading-snug line-clamp-2 text-[var(--ink)]">
-        {title}
-      </div>
-      <div className="novel-meta text-[11.5px] text-[var(--ink-mute)] flex gap-2 items-center">
-        <span className="text-[var(--accent)] font-semibold">{translatorName}</span>
-        <span>· {chaptersCount} гл.</span>
+      <div className="text-[13px] font-bold leading-tight line-clamp-2">{title}</div>
+      <div className="text-[11px] text-gray-500">
+        <span className="text-[var(--accent)] font-bold">{translatorName}</span> • {chaptersCount} гл.
       </div>
     </Link>
   );
