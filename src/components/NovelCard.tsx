@@ -10,6 +10,7 @@ interface NovelCardProps {
   placeholderText: React.ReactNode;
   flagText?: string;
   flagClass?: string;
+  coverUrl?: string | null; // <-- Добавили новый проп
 }
 
 export default function NovelCard({
@@ -21,14 +22,26 @@ export default function NovelCard({
   placeholderClass,
   placeholderText,
   flagText,
-  flagClass
+  flagClass,
+  coverUrl // <-- Не забываем вытащить его из пропсов
 }: NovelCardProps) {
   return (
     <Link href={`/novel/${id}`} className="novel-card">
       <div className="novel-cover">
-        <div className={`placeholder ${placeholderClass}`}>
-          {placeholderText}
-        </div>
+        
+        {/* Проверяем: если есть обложка — рисуем img, иначе placeholder */}
+        {coverUrl ? (
+          <img 
+            src={coverUrl} 
+            alt={title} 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+        ) : (
+          <div className={`placeholder ${placeholderClass}`}>
+            {placeholderText}
+          </div>
+        )}
+
         <span className="rating-chip">
           <span className="star">★</span>{rating}
         </span>
