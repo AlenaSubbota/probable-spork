@@ -81,12 +81,17 @@ export default async function AdminDashboard() {
             Аналитика
           </Link>
           <Link href="/admin/payouts" className="btn btn-ghost">
-            💳 Выплаты
+            💳 Настройки выплат
           </Link>
           {isAdmin && (
-            <Link href="/admin/news" className="btn btn-ghost">
-              📢 Новости
-            </Link>
+            <>
+              <Link href="/admin/all-payouts" className="btn btn-ghost">
+                💰 Выплаты переводчикам
+              </Link>
+              <Link href="/admin/news" className="btn btn-ghost">
+                📢 Новости
+              </Link>
+            </>
           )}
           <Link href="/admin/novels/new" className="btn btn-primary">
             + Новелла
