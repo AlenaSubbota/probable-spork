@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
+import UserAvatar from '@/components/UserAvatar';
 import QuoteCollection, { type Quote } from '@/components/profile/QuoteCollection';
 import ReadingStreak, { type ActivityDay } from '@/components/profile/ReadingStreak';
 import BookDiet from '@/components/profile/BookDiet';
@@ -26,6 +27,7 @@ export default async function ProfilePage() {
     email?: string | null;
     translator_slug?: string | null;
     translator_display_name?: string | null;
+    avatar_url?: string | null;
   };
 
   const isAdmin = profile.is_admin === true || profile.role === 'admin';
@@ -169,13 +171,12 @@ export default async function ProfilePage() {
 
   const displayName =
     profile.translator_display_name ?? profile.user_name ?? profile.email ?? 'Читатель';
-  const avatarInitial = displayName.trim().charAt(0).toUpperCase() || '?';
 
   return (
     <main className="container section">
       {/* Шапка профиля */}
       <div className="profile-hero">
-        <div className="big-avatar">{avatarInitial}</div>
+        <UserAvatar avatarUrl={profile.avatar_url} name={displayName} size={84} />
         <div style={{ flex: 1 }}>
           <h2>{displayName}</h2>
           <div className="handle">
@@ -192,11 +193,16 @@ export default async function ProfilePage() {
             )}
           </div>
         </div>
-        {isTranslator && (
-          <Link href="/admin" className="btn btn-ghost">
-            Админка
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link href="/profile/settings" className="btn btn-ghost">
+            ⚙ Настройки
           </Link>
-        )}
+          {isTranslator && (
+            <Link href="/admin" className="btn btn-ghost">
+              Админка
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Статистика */}

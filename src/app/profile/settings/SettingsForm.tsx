@@ -1,0 +1,240 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
+import AvatarPicker from '@/components/AvatarPicker';
+
+interface SettingsValues {
+  user_name: string;
+  email: string | null;
+  telegram_id: number | null;
+  avatar_url: string | null;
+  translator_display_name: string;
+  translator_avatar_url: string | null;
+  translator_about: string;
+  payout_boosty_url: string;
+  show_reading_publicly: boolean;
+}
+
+interface Props {
+  userId: string;
+  isTranslator: boolean;
+  telegramPhotoUrl: string | null;
+  initial: SettingsValues;
+}
+
+export default function SettingsForm({
+  userId,
+  isTranslator,
+  telegramPhotoUrl,
+  initial,
+}: Props) {
+  const router = useRouter();
+  const [values, setValues] = useState<SettingsValues>(initial);
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
+
+  const set = <K extends keyof SettingsValues>(k: K, v: SettingsValues[K]) =>
+    setValues((p) => ({ ...p, [k]: v }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMsg(null);
+
+    const supabase = createClient();
+
+    const payload: Record<string, unknown> = {
+      user_name: values.user_name.trim() || null,
+      avatar_url: values.avatar_url,
+    };
+    if (isTranslator) {
+      payload.translator_display_name = values.translator_display_name.trim() || null;
+      payload.translator_avatar_url = values.translator_avatar_url;
+      payload.translator_about = values.translator_about.trim() || null;
+      payload.payout_boosty_url = values.payout_boosty_url.trim() || null;
+    }
+    // Приватность хранится в profiles.settings jsonb
+    payload.settings = {
+      show_reading_publicly: values.show_reading_publicly,
+    };
+
+    const { error } = await supabase.rpc('update_my_settings', {
+      data_to_update: payload,
+    });
+
+    setSubmitting(false);
+    if (error) {
+      setMsg({ text: 'Не сохранилось: ' + error.message, tone: 'err' });
+    } else {
+      setMsg({ text: '✓ Сохранено', tone: 'ok' });
+      router.refresh();
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="admin-form">
+      {/* Аватар */}
+      <section className="settings-block">
+        <h2>Аватар</h2>
+        <AvatarPicker
+          userId={userId}
+          name={values.user_name || 'U'}
+          telegramPhotoUrl={telegramPhotoUrl}
+          value={values.avatar_url}
+          onChange={(v) => set('avatar_url', v)}
+        />
+      </section>
+
+      {/* Имя и контакты */}
+      <section className="settings-block">
+        <h2>Имя и контакты</h2>
+        <div className="form-field">
+          <label title="Имя, которое видно в комментариях, профиле, сообщениях.">
+            Отображаемое имя
+          </label>
+          <input
+            className="form-input"
+            value={values.user_name}
+            onChange={(e) => set('user_name', e.target.value)}
+            maxLength={60}
+            placeholder="Как тебя называть"
+          />
+        </div>
+
+        {values.email && (
+          <div className="form-field">
+            <label>Email</label>
+            <input
+              className="form-input"
+              value={values.email}
+              disabled
+              style={{ opacity: 0.6 }}
+            />
+            <div className="form-hint">Email меняется через /login и magic link. Пиши в поддержку.</div>
+          </div>
+        )}
+
+        {values.telegram_id && (
+          <div className="form-field">
+            <label>Telegram</label>
+            <input
+              className="form-input"
+              value={`id: ${values.telegram_id}`}
+              disabled
+              style={{ opacity: 0.6 }}
+            />
+            <div className="form-hint">Привязка к Telegram управляется через @tenebrisverbot.</div>
+          </div>
+        )}
+      </section>
+
+      {/* Приватность */}
+      <section className="settings-block">
+        <h2>Приватность</h2>
+        <label className="rs-switch" style={{ height: 'auto', padding: 14 }}>
+          <input
+            type="checkbox"
+            checked={values.show_reading_publicly}
+            onChange={(e) => set('show_reading_publicly', e.target.checked)}
+          />
+          <div>
+            <div className="rs-switch-title">Показывать мою историю чтения другим</div>
+            <div className="rs-switch-sub">
+              Если выключено — друзья и другие пользователи не увидят что ты сейчас читаешь,
+              сколько новелл открыл_а, стрик и диету. Комментарии и цитаты под спойлером всё
+              равно остаются публичными.
+            </div>
+          </div>
+        </label>
+      </section>
+
+      {/* Блок переводчика */}
+      {isTranslator && (
+        <section className="settings-block">
+          <h2>Страница переводчика</h2>
+          <p style={{ color: 'var(--ink-mute)', fontSize: 13.5, marginTop: -8, marginBottom: 14 }}>
+            Это видно на твоей публичной странице <code>/t/slug</code>.
+          </p>
+
+          <div className="form-field">
+            <label title="Красивое имя — как подписываешься как переводчик. Можно отличаться от обычного.">
+              Переводческий псевдоним
+            </label>
+            <input
+              className="form-input"
+              value={values.translator_display_name}
+              onChange={(e) => set('translator_display_name', e.target.value)}
+              maxLength={80}
+              placeholder="Например: Алёна Субботина"
+            />
+          </div>
+
+          <div className="form-field">
+            <label title="Отдельный аватар для публичной страницы переводчика (можно тот же, что и личный).">
+              Аватар для публичной страницы
+            </label>
+            <AvatarPicker
+              userId={userId}
+              name={values.translator_display_name || values.user_name || 'T'}
+              telegramPhotoUrl={telegramPhotoUrl}
+              value={values.translator_avatar_url}
+              onChange={(v) => set('translator_avatar_url', v)}
+            />
+          </div>
+
+          <div className="form-field">
+            <label title="Пара абзацев о себе: что переводишь, что любишь, как связаться.">
+              О себе
+            </label>
+            <textarea
+              className="form-textarea"
+              rows={4}
+              value={values.translator_about}
+              onChange={(e) => set('translator_about', e.target.value)}
+              maxLength={600}
+              placeholder="Привет, я перевожу ромфэнтези и слайсы на русский. Открыта к коллаборациям."
+            />
+          </div>
+
+          <div className="form-field">
+            <label>Ссылка на Boosty</label>
+            <input
+              type="url"
+              className="form-input"
+              value={values.payout_boosty_url}
+              onChange={(e) => set('payout_boosty_url', e.target.value)}
+              placeholder="https://boosty.to/alenasubbota"
+            />
+            <div className="form-hint">
+              Настройки Tribute webhook — на странице{' '}
+              <a href="/admin/payouts" className="more">/admin/payouts</a>.
+            </div>
+          </div>
+        </section>
+      )}
+
+      {msg && (
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: msg.tone === 'ok' ? '#E3EBD6' : '#F0DCD5',
+            color: msg.tone === 'ok' ? '#4C6A34' : '#8C4032',
+            fontSize: 13.5,
+            marginBottom: 12,
+          }}
+        >
+          {msg.text}
+        </div>
+      )}
+
+      <div className="admin-form-footer">
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
+          {submitting ? 'Сохраняем…' : 'Сохранить'}
+        </button>
+      </div>
+    </form>
+  );
+}
