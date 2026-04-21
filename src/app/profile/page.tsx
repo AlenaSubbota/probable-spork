@@ -126,7 +126,7 @@ export default async function ProfilePage() {
   try {
     const { data } = await supabase
       .from('user_quotes')
-      .select('id, novel_id, chapter_number, quote_text, note, created_at')
+      .select('id, novel_id, chapter_number, quote_text, note, created_at, is_public')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -152,6 +152,7 @@ export default async function ProfilePage() {
           created_at: q.created_at,
           novel_firebase_id: nov.firebase_id,
           novel_title: nov.title,
+          is_public: !!q.is_public,
         });
       }
     }
