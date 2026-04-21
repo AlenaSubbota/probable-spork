@@ -6,14 +6,19 @@ export default async function SiteHeader() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let userName: string | null = null;
+  let role: string = 'user';
+
   if (user) {
     const { data } = await supabase
       .from('profiles')
-      .select('user_name')
+      .select('user_name, role')
       .eq('id', user.id)
       .maybeSingle();
     userName = data?.user_name ?? null;
+    role = data?.role ?? 'user';
   }
+
+  const isTranslator = role === 'translator' || role === 'admin';
 
   return (
     <header className="site-header">
@@ -34,9 +39,25 @@ export default async function SiteHeader() {
 
         <div className="header-actions">
           {user ? (
-            <Link href="/profile" className="btn btn-ghost">
-              {userName ?? 'Профиль'}
-            </Link>
+            <>
+              {isTranslator ? (
+                <>
+                  <Link href="/admin/novels/new" className="btn btn-ghost">
+                    + Новелла
+                  </Link>
+                  <Link href="/admin" className="btn btn-ghost">
+                    Админка
+                  </Link>
+                </>
+              ) : (
+                <Link href="/translator/apply" className="btn btn-ghost">
+                  Стать переводчиком
+                </Link>
+              )}
+              <Link href="/profile" className="btn btn-primary">
+                {userName ?? 'Профиль'}
+              </Link>
+            </>
           ) : (
             <Link href="/login" className="btn btn-primary">
               Войти

@@ -47,6 +47,8 @@ export default async function NovelPage({ params }: PageProps) {
   const supabase = await createClient();
   const { id } = await params;
 
+  const { data: { user } } = await supabase.auth.getUser();
+
   const { data: novel, error: novelError } = await supabase
     .from('novels_view')
     .select('*')
@@ -54,6 +56,14 @@ export default async function NovelPage({ params }: PageProps) {
     .single();
 
   if (novelError || !novel) notFound();
+
+  const { data: viewerProfile } = user
+    ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    : { data: null };
+
+  const canEdit =
+    !!user &&
+    (novel.translator_id === user.id || viewerProfile?.role === 'admin');
 
   // Параллельные запросы
   const [
@@ -226,6 +236,23 @@ export default async function NovelPage({ params }: PageProps) {
               <button className="btn btn-ghost" type="button">
                 ♥ В закладки
               </button>
+              {canEdit && (
+                <>
+                  <Link
+                    href={`/admin/novels/${novel.firebase_id}/chapters/new`}
+                    className="btn btn-ghost"
+                    style={{ borderColor: 'var(--accent-soft)', color: 'var(--accent)' }}
+                  >
+                    + Добавить главу
+                  </Link>
+                  <Link
+                    href={`/admin/novels/${novel.firebase_id}/edit`}
+                    className="btn btn-ghost"
+                  >
+                    Редактировать
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -284,13 +311,24 @@ export default async function NovelPage({ params }: PageProps) {
                 <span className={`tag-price ${chapter.is_paid ? 'paid' : 'free'}`}>
                   {chapter.is_paid ? '10 монет' : 'Бесплатно'}
                 </span>
-                <Link
-                  href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
-                  className={chapter.is_paid ? 'btn btn-ghost' : 'btn btn-primary'}
-                  style={{ height: 32, padding: '0 14px', fontSize: 13 }}
-                >
-                  {chapter.is_paid ? 'Купить' : 'Читать'}
-                </Link>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {canEdit && (
+                    <Link
+                      href={`/admin/novels/${novel.firebase_id}/chapters/${chapter.chapter_number}/edit`}
+                      className="btn btn-ghost"
+                      style={{ height: 32, padding: '0 10px', fontSize: 12 }}
+                    >
+                      Править
+                    </Link>
+                  )}
+                  <Link
+                    href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
+                    className={chapter.is_paid ? 'btn btn-ghost' : 'btn btn-primary'}
+                    style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+                  >
+                    {chapter.is_paid ? 'Купить' : 'Читать'}
+                  </Link>
+                </div>
               </div>
             );
           })}

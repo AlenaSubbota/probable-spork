@@ -9,7 +9,7 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         getAll: () => req.cookies.getAll(),
-        setAll: (list) => list.forEach(c => res.cookies.set(c)),
+        setAll: (list) => list.forEach((c) => res.cookies.set(c)),
       },
     }
   );
@@ -17,22 +17,38 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await sb.auth.getUser();
   const path = req.nextUrl.pathname;
 
-  // Публично: /login, /beta, /_next, статика
-  if (path.startsWith('/login') || path.startsWith('/beta') ||
-      path.startsWith('/_next') || path.startsWith('/auth')) return res;
+  // Публично без авторизации
+  if (
+    path.startsWith('/login') ||
+    path.startsWith('/_next') ||
+    path.startsWith('/auth')
+  ) {
+    return res;
+  }
 
   if (!user) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  const { data: profile } = await sb.from('profiles')
-    .select('role').eq('id', user.id).maybeSingle();
-
-  // Если нет роли 'admin' или 'translator', отправляем на заглушку
-  if (!profile || !['admin', 'translator'].includes(profile.role)) {
-    return NextResponse.redirect(new URL('/beta', req.url));
+  // Эти пути доступны любому залогиненному пользователю
+  if (path.startsWith('/translator/apply')) {
+    return res;
   }
-  
+
+  const { data: profile } = await sb
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const role = profile?.role;
+
+  // В бета-режиме всё доступно только переводчикам и админу.
+  // Обычные пользователи → форма заявки.
+  if (!role || !['admin', 'translator'].includes(role)) {
+    return NextResponse.redirect(new URL('/translator/apply', req.url));
+  }
+
   return res;
 }
 
