@@ -89,8 +89,28 @@ export default async function BookmarksPage({
   // Подтягиваем новеллы
   const { data: novelsData } = await supabase
     .from('novels_view')
-    .select('id, firebase_id, title, author, cover_url, chapter_count, is_completed')
+    .select('id, firebase_id, title, author, cover_url, chapter_count, is_completed, translator_id')
     .in('firebase_id', firebaseIds);
+
+  // Slugs переводчиков — отдельным запросом, чтобы делать имя кликабельным.
+  const translatorIds = Array.from(
+    new Set(
+      (novelsData ?? [])
+        .map((n) => n.translator_id)
+        .filter((x): x is string => !!x)
+    )
+  );
+  const slugMap = new Map<string, string>();
+  if (translatorIds.length > 0) {
+    const { data: trProfiles } = await supabase
+      .from('profiles')
+      .select('id, translator_slug, user_name')
+      .in('id', translatorIds);
+    for (const p of trProfiles ?? []) {
+      const slug = p.translator_slug || p.user_name;
+      if (slug) slugMap.set(p.id, slug);
+    }
+  }
 
   const lastRead = profile.last_read ?? {};
 
@@ -108,6 +128,7 @@ export default async function BookmarksPage({
       title: n.title,
       cover_url: n.cover_url,
       author: n.author,
+      translator_slug: n.translator_id ? slugMap.get(n.translator_id) ?? null : null,
       status,
       chapter_count: total,
       last_chapter_read: lastChapter,
