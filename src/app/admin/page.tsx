@@ -2,8 +2,14 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
-import { MODERATION_LABELS, TRANSLATION_STATUS_LABELS } from '@/lib/admin';
+import {
+  MODERATION_LABELS,
+  MODERATION_TONE,
+  TRANSLATION_STATUS_LABELS,
+  type ModerationStatus,
+} from '@/lib/admin';
 import AdminApplications from './AdminApplications';
+import SubmitForReviewButton from '@/components/admin/SubmitForReviewButton';
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -36,11 +42,21 @@ export default async function AdminDashboard() {
   // Мои новеллы (или все для админа)
   let novelsQuery = supabase
     .from('novels_view')
-    .select('id, firebase_id, title, cover_url, chapter_count, is_completed, translator_id, moderation_status, translation_status, latest_chapter_published_at');
+    .select('id, firebase_id, title, cover_url, chapter_count, is_completed, translator_id, moderation_status, translation_status, latest_chapter_published_at, rejection_reason');
   if (!isAdmin) {
     novelsQuery = novelsQuery.eq('translator_id', user.id);
   }
   const { data: novels } = await novelsQuery.order('latest_chapter_published_at', { ascending: false, nullsFirst: false });
+
+  // Сколько новелл сейчас висит на модерации (только для админа — бейдж в шапке)
+  let pendingCount = 0;
+  if (isAdmin) {
+    const { count } = await supabase
+      .from('novels')
+      .select('id', { count: 'exact', head: true })
+      .eq('moderation_status', 'pending');
+    pendingCount = count ?? 0;
+  }
 
   // Заявки в переводчики (только для админа)
   let applications: Array<{
@@ -85,6 +101,28 @@ export default async function AdminDashboard() {
           </Link>
           {isAdmin && (
             <>
+              <Link
+                href="/admin/moderation"
+                className="btn btn-ghost"
+                style={{ position: 'relative' }}
+              >
+                🛡 Модерация
+                {pendingCount > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 6,
+                      padding: '1px 7px',
+                      background: 'var(--rose)',
+                      color: '#fff',
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {pendingCount}
+                  </span>
+                )}
+              </Link>
               <Link href="/admin/all-payouts" className="btn btn-ghost">
                 💰 Выплаты переводчикам
               </Link>
@@ -120,48 +158,66 @@ export default async function AdminDashboard() {
             </div>
           ) : (
             <div className="admin-novel-list">
-              {novels.map((n) => (
-                <div key={n.id} className="admin-novel-row">
-                  <div className="admin-novel-cover">
-                    {n.cover_url ? (
-                      <img src={getCoverUrl(n.cover_url) ?? ''} alt={n.title} />
-                    ) : (
-                      <div className="placeholder p1" style={{ fontSize: 10 }}>
+              {novels.map((n) => {
+                const status = (n.moderation_status ?? 'published') as ModerationStatus;
+                const tone = MODERATION_TONE[status];
+                const canSubmit = status === 'draft' || status === 'rejected';
+                return (
+                  <div key={n.id} className="admin-novel-row">
+                    <div className="admin-novel-cover">
+                      {n.cover_url ? (
+                        <img src={getCoverUrl(n.cover_url) ?? ''} alt={n.title} />
+                      ) : (
+                        <div className="placeholder p1" style={{ fontSize: 10 }}>
+                          {n.title}
+                        </div>
+                      )}
+                    </div>
+                    <div className="admin-novel-body">
+                      <Link
+                        href={`/novel/${n.firebase_id}`}
+                        className="admin-novel-title"
+                      >
                         {n.title}
+                      </Link>
+                      <div className="admin-novel-meta">
+                        <span className={`mod-badge mod-badge--${tone}`}>
+                          {MODERATION_LABELS[status]}
+                        </span>
+                        <span> · {n.chapter_count ?? 0} гл.</span>
+                        <span>
+                          {' · '}
+                          {TRANSLATION_STATUS_LABELS[(n.translation_status ?? 'ongoing') as keyof typeof TRANSLATION_STATUS_LABELS]}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                  <div className="admin-novel-body">
-                    <Link
-                      href={`/novel/${n.firebase_id}`}
-                      className="admin-novel-title"
-                    >
-                      {n.title}
-                    </Link>
-                    <div className="admin-novel-meta">
-                      {n.chapter_count ?? 0} гл. ·{' '}
-                      {MODERATION_LABELS[(n.moderation_status ?? 'published') as keyof typeof MODERATION_LABELS]} ·{' '}
-                      {TRANSLATION_STATUS_LABELS[(n.translation_status ?? 'ongoing') as keyof typeof TRANSLATION_STATUS_LABELS]}
+                      {status === 'rejected' && n.rejection_reason && (
+                        <div className="admin-novel-reject">
+                          <strong>Причина отказа:</strong> {n.rejection_reason}
+                        </div>
+                      )}
+                    </div>
+                    <div className="admin-novel-actions">
+                      {canSubmit && !isAdmin && (
+                        <SubmitForReviewButton novelId={n.id} compact />
+                      )}
+                      <Link
+                        href={`/admin/novels/${n.firebase_id}/chapters/new`}
+                        className="btn btn-primary"
+                        style={{ height: 34 }}
+                      >
+                        + Глава
+                      </Link>
+                      <Link
+                        href={`/admin/novels/${n.firebase_id}/edit`}
+                        className="btn btn-ghost"
+                        style={{ height: 34 }}
+                      >
+                        Редактировать
+                      </Link>
                     </div>
                   </div>
-                  <div className="admin-novel-actions">
-                    <Link
-                      href={`/admin/novels/${n.firebase_id}/chapters/new`}
-                      className="btn btn-primary"
-                      style={{ height: 34 }}
-                    >
-                      + Глава
-                    </Link>
-                    <Link
-                      href={`/admin/novels/${n.firebase_id}/edit`}
-                      className="btn btn-ghost"
-                      style={{ height: 34 }}
-                    >
-                      Редактировать
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

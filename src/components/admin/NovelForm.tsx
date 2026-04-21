@@ -56,9 +56,10 @@ const EMPTY: NovelFormValues = {
 interface Props {
   initial?: Partial<NovelFormValues> & { descriptionHtml?: string };
   mode: 'create' | 'edit';
+  isAdmin?: boolean;
 }
 
-export default function NovelForm({ initial, mode }: Props) {
+export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
   const router = useRouter();
   const [values, setValues] = useState<NovelFormValues>(() => {
     const merged = { ...EMPTY, ...initial };
@@ -128,13 +129,15 @@ export default function NovelForm({ initial, mode }: Props) {
 
     if (mode === 'create') {
       const firebase_id = makeSlug(values.title);
+      // Админ сразу публикует. Переводчик — в draft, потом отдельно жмёт
+      // «отправить на модерацию». До одобрения читатели новеллу не видят.
       const { data, error: insertError } = await supabase
         .from('novels')
         .insert({
           firebase_id,
           ...payload,
           translator_id: user.id,
-          moderation_status: 'published',
+          moderation_status: isAdmin ? 'published' : 'draft',
         })
         .select('firebase_id')
         .single();

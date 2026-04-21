@@ -48,17 +48,20 @@ export default async function TranslatorPage({ params }: PageProps) {
   // Новеллы переводчика:
   //  - Приоритет: novels.translator_id === profile.id (после миграции 001)
   //  - Fallback: novels.author = displayName (legacy)
+  // Публичный профиль переводчика: показываем только опубликованные.
   const { data: novelsById } = await supabase
     .from('novels_view')
     .select('id, firebase_id, title, author, cover_url, genres, average_rating, rating_count, chapter_count, is_completed')
-    .eq('translator_id', profile.id);
+    .eq('translator_id', profile.id)
+    .eq('moderation_status', 'published');
 
   let novels = novelsById ?? [];
   if (novels.length === 0 && profile.user_name) {
     const { data: novelsByAuthor } = await supabase
       .from('novels_view')
       .select('id, firebase_id, title, author, cover_url, genres, average_rating, rating_count, chapter_count, is_completed')
-      .ilike('author', profile.user_name);
+      .ilike('author', profile.user_name)
+      .eq('moderation_status', 'published');
     novels = novelsByAuthor ?? [];
   }
 

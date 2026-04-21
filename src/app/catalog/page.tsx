@@ -48,12 +48,14 @@ export default async function CatalogPage({
   const to = from + PAGE_SIZE - 1;
 
   // ---- Запрос каталога ----
+  // Скрываем черновики/на модерации/отклонённые от читателей.
   let query = supabase
     .from('novels_view')
     .select(
       'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description',
       { count: 'exact' }
-    );
+    )
+    .eq('moderation_status', 'published');
 
   if (params.status === 'completed') query = query.eq('is_completed', true);
   if (params.status === 'ongoing')   query = query.eq('is_completed', false);
@@ -88,7 +90,8 @@ export default async function CatalogPage({
   // ---- Список жанров для сайдбара (считаем по всему каталогу, без фильтров) ----
   const { data: allForGenres } = await supabase
     .from('novels_view')
-    .select('genres');
+    .select('genres')
+    .eq('moderation_status', 'published');
 
   const genreMap: Record<string, number> = {};
   (allForGenres ?? []).forEach((n) => {

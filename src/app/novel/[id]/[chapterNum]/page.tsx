@@ -18,11 +18,26 @@ export default async function ChapterPage({ params }: PageProps) {
 
   const { data: novel } = await supabase
     .from('novels')
-    .select('id, title, firebase_id, translator_id')
+    .select('id, title, firebase_id, translator_id, moderation_status')
     .eq('firebase_id', id)
     .single();
 
   if (!novel) notFound();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Неопубликованные новеллы: читать главы могут только переводчик / админ
+  if (novel.moderation_status !== 'published') {
+    if (!user) notFound();
+    const { data: viewer } = await supabase
+      .from('profiles')
+      .select('role, is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+    const v = viewer as { role?: string; is_admin?: boolean } | null;
+    const isAdmin = v?.is_admin === true || v?.role === 'admin';
+    if (!isAdmin && novel.translator_id !== user.id) notFound();
+  }
 
   const { data: chapter } = await supabase
     .from('chapters')
@@ -32,8 +47,6 @@ export default async function ChapterPage({ params }: PageProps) {
     .single();
 
   if (!chapter) notFound();
-
-  const { data: { user } } = await supabase.auth.getUser();
 
   // Проверяем доступ. Если глава бесплатная — сразу пускаем.
   // Иначе пробуем RPC can_read_chapter (после миграции 001). Если RPC нет
