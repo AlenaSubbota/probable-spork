@@ -6639,6 +6639,165 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-color: var(--accent-soft);
 }
 
+/* ---------- Analytics: top supporters ---------- */
+
+.supporters-section {
+  margin: 20px 0;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.supporters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.supporter-row {
+  display: grid;
+  grid-template-columns: 32px 40px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: inherit;
+  transition: background .1s;
+}
+.supporter-row:hover {
+  background: var(--accent-wash);
+}
+.supporter-rank {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--ink-mute);
+  font-size: 15px;
+  text-align: center;
+}
+.supporter-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--accent), var(--rose));
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 16px;
+}
+.supporter-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.supporter-body { min-width: 0; }
+.supporter-name {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+.supporter-bar {
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.supporter-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--rose));
+  border-radius: inherit;
+}
+.supporter-meta {
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+.supporters-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+/* ---------- Analytics: funnel modal ---------- */
+
+.funnel-modal-card {
+  max-width: 600px;
+}
+.funnel-modal-body {
+  padding: 22px 22px 24px;
+}
+.funnel-modal-sub {
+  margin: 0 0 16px;
+  color: var(--ink-mute);
+  font-size: 13px;
+}
+.funnel-loading {
+  padding: 30px 0;
+  text-align: center;
+  color: var(--ink-mute);
+}
+.funnel-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.funnel-stats > div {
+  padding: 10px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  text-align: center;
+}
+.funnel-stat-label {
+  font-size: 11px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.funnel-stat-value {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.funnel-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 160px;
+  padding: 8px 0;
+  overflow-x: auto;
+}
+.funnel-bar {
+  flex: 1 0 8px;
+  min-width: 4px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  cursor: default;
+}
+.funnel-bar-fill {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+  border-radius: 2px 2px 0 0;
+}
+.funnel-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.funnel-hint {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  line-height: 1.5;
+}
+
 /* ---------- Reader: theme overrides (light/sepia/dark) ---------- */
 
 /* sepia — тёплая состаренная бумага, меньше синего света */

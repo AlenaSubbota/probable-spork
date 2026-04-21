@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import PeriodCard from '@/components/analytics/PeriodCard';
 import TopMoments, { type Moment } from '@/components/analytics/TopMoments';
 import NovelsTable, { type NovelMetrics } from '@/components/analytics/NovelsTable';
+import TopSupporters, { type Supporter } from '@/components/analytics/TopSupporters';
 
 interface PageProps {
   searchParams: Promise<{ period?: string }>;
@@ -246,6 +247,31 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
 
   const periodLabel = `за ${PERIOD_LABELS[period]}`;
 
+  // --- Топ-supporters (кто больше всех платит переводчику за период) ---
+  // Админу показываем агрегат по всей платформе (вызываем для каждого translator_id?
+  // пока — не показываем, фича именно для переводчика про его читателей).
+  let topSupporters: Supporter[] = [];
+  if (!isAdmin) {
+    try {
+      const { data } = await supabase.rpc('translator_top_supporters', {
+        p_translator: user.id,
+        p_since: periodStart.toISOString(),
+        p_limit: 5,
+      });
+      if (Array.isArray(data)) {
+        topSupporters = data.map((r: Record<string, unknown>) => ({
+          user_id: String(r.user_id),
+          user_name: (r.user_name as string) ?? 'Читатель',
+          avatar_url: (r.avatar_url as string | null) ?? null,
+          total_coins: Number(r.total_coins ?? 0),
+          chapter_count: Number(r.chapter_count ?? 0),
+        }));
+      }
+    } catch {
+      // миграция 022 не накачена
+    }
+  }
+
   // --- «К выплате» — только для переводчика (не админа) ---
   let pendingPayout: {
     since: string | null;
@@ -370,7 +396,15 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
       {/* Киллер-фича #2: автоматические находки */}
       <TopMoments moments={moments} />
 
-      {/* Киллер-фича #3: тепловая карта по новеллам */}
+      {/* Топ читателей — кто больше всех занёс монет переводчику */}
+      {topSupporters.length > 0 && (
+        <TopSupporters
+          supporters={topSupporters}
+          periodLabel={PERIOD_LABELS[period]}
+        />
+      )}
+
+      {/* Киллер-фича #3: тепловая карта по новеллам + воронка drop-off */}
       <NovelsTable novels={novelMetrics} periodLabel={PERIOD_LABELS[period]} />
 
       {/* Подсказка про данные */}

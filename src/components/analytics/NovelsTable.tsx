@@ -1,4 +1,8 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
+import FunnelModal from './FunnelModal';
 
 export interface NovelMetrics {
   id: number;
@@ -20,7 +24,10 @@ interface Props {
 
 // Таблица-«тепловая карта» по каждой новелле переводчика.
 // Колонки раскрашены относительно самой горячей новеллы.
+// На каждой строке — кнопка «Воронка», открывает drop-off модалку.
 export default function NovelsTable({ novels, periodLabel }: Props) {
+  const [funnelNovel, setFunnelNovel] = useState<NovelMetrics | null>(null);
+
   if (novels.length === 0) return null;
 
   const maxViews = Math.max(1, ...novels.map((n) => n.total_views));
@@ -52,6 +59,7 @@ export default function NovelsTable({ novels, periodLabel }: Props) {
               <th className="num">Покупок</th>
               <th className="num">Рейтинг</th>
               <th className="num">Подписчиков</th>
+              <th className="num">Воронка</th>
             </tr>
           </thead>
           <tbody>
@@ -89,11 +97,35 @@ export default function NovelsTable({ novels, periodLabel }: Props) {
                     <span style={{ color: 'var(--ink-mute)' }}>0</span>
                   )}
                 </td>
+                <td className="num">
+                  <button
+                    type="button"
+                    className="chip"
+                    onClick={() => setFunnelNovel(n)}
+                    disabled={n.chapters_total === 0}
+                    title={
+                      n.chapters_total === 0
+                        ? 'Глав пока нет'
+                        : 'Открыть график drop-off'
+                    }
+                  >
+                    📉
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {funnelNovel && (
+        <FunnelModal
+          novelId={funnelNovel.id}
+          novelTitle={funnelNovel.title}
+          totalChapters={funnelNovel.chapters_total}
+          onClose={() => setFunnelNovel(null)}
+        />
+      )}
     </section>
   );
 }
