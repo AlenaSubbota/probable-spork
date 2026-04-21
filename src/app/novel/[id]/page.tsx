@@ -2,30 +2,22 @@ import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import NovelCard from '@/components/NovelCard';
+import FirstChapterPreview from '@/components/FirstChapterPreview';
+import SimilarByReaders from '@/components/SimilarByReaders';
+import ReleasePace from '@/components/ReleasePace';
+import { getCoverUrl } from '@/lib/format';
+import { formatReadingTime } from '@/lib/catalog';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-function getCoverUrl(path: string | null) {
-  if (!path) return null;
-  if (path.startsWith('http')) return path;
-  return `https://tene.fun/storage/v1/object/public/covers/${path}`;
-}
-
 function formatChapterDate(published: string | null) {
   if (!published) return '';
   const date = new Date(published);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays <= 0) {
-    return `сегодня, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  }
-  if (diffDays === 1) {
-    return `вчера, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  }
+  const diffDays = Math.floor((Date.now() - date.getTime()) / 86_400_000);
+  if (diffDays <= 0) return `сегодня, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+  if (diffDays === 1) return `вчера, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
   if (diffDays < 7) return `${diffDays} дн. назад`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)} нед. назад`;
   return date.toLocaleDateString('ru-RU');
@@ -33,10 +25,22 @@ function formatChapterDate(published: string | null) {
 
 function formatCount(n: number | null | undefined) {
   if (!n) return '0';
-  if (n >= 1000) {
-    return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`.replace('.0', '');
-  }
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`.replace('.0', '');
   return n.toLocaleString('ru-RU');
+}
+
+// Текст первого абзаца без html, подрезанный до ~280 символов.
+function extractFirstParagraph(html: string, limit = 280): string {
+  const text = html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= limit) return text;
+  const slice = text.slice(0, limit);
+  const lastSpace = slice.lastIndexOf(' ');
+  return (lastSpace > limit / 2 ? slice.slice(0, lastSpace) : slice) + '…';
 }
 
 export default async function NovelPage({ params }: PageProps) {
@@ -51,29 +55,64 @@ export default async function NovelPage({ params }: PageProps) {
 
   if (novelError || !novel) notFound();
 
-  const { data: chaptersDesc } = await supabase
-    .from('chapters')
-    .select('id, chapter_number, title, is_paid, published_at')
-    .eq('novel_id', novel.id)
-    .order('chapter_number', { ascending: false });
+  // Параллельные запросы
+  const [
+    { data: chaptersDesc },
+    { data: similarByReaders },
+    { data: paceRaw },
+  ] = await Promise.all([
+    supabase
+      .from('chapters')
+      .select('id, chapter_number, is_paid, published_at, content_path')
+      .eq('novel_id', novel.id)
+      .order('chapter_number', { ascending: false }),
+    supabase
+      .rpc('get_similar_novels_by_readers', { p_novel_id: novel.id, p_limit: 6 }),
+    supabase
+      .rpc('get_release_pace', { p_novel_id: novel.id, p_days: 90 }),
+  ]);
 
   const chapters = chaptersDesc ?? [];
-  const firstChapterNumber =
-    chapters.length > 0 ? chapters[chapters.length - 1].chapter_number : 1;
+  const totalChapters = chapters.length;
+  const firstChapter = chapters.length > 0 ? chapters[chapters.length - 1] : null;
 
-  const { data: similarNovels } = novel.author
-    ? await supabase
-        .from('novels_view')
-        .select('*')
-        .eq('author', novel.author)
-        .neq('firebase_id', novel.firebase_id)
-        .limit(6)
-    : { data: [] };
+  // Fallback на «просто новеллы того же автора», если коллаборативки ещё нет
+  let fallbackSimilar: unknown[] = [];
+  if ((!similarByReaders || similarByReaders.length === 0) && novel.author) {
+    const { data } = await supabase
+      .from('novels_view')
+      .select('*')
+      .eq('author', novel.author)
+      .neq('firebase_id', novel.firebase_id)
+      .limit(6);
+    fallbackSimilar = data ?? [];
+  }
+
+  // Подтягиваем превью первого абзаца
+  let previewText = '';
+  let previewMinutes = 0;
+  if (firstChapter?.content_path) {
+    try {
+      const { data: fileData } = await supabase.storage
+        .from('chapter_content')
+        .download(firstChapter.content_path);
+      if (fileData) {
+        const rawHtml = await fileData.text();
+        previewText = extractFirstParagraph(rawHtml, 320);
+        // ~1500 символов на минуту чтения
+        const charCount = rawHtml.replace(/<[^>]+>/g, '').length;
+        previewMinutes = Math.max(1, Math.round(charCount / 1500));
+      }
+    } catch {
+      // молча — превью необязательно
+    }
+  }
 
   const coverUrl = getCoverUrl(novel.cover_url);
   const genres: string[] = Array.isArray(novel.genres) ? novel.genres : [];
   const primaryGenre = genres[0];
   const authorInitial = (novel.author || 'A').trim().charAt(0).toUpperCase();
+  const firstChapterNumber = firstChapter?.chapter_number ?? 1;
 
   return (
     <main>
@@ -97,7 +136,7 @@ export default async function NovelPage({ params }: PageProps) {
               )}
               <span className="rating-chip">
                 <span className="star">★</span>
-                {novel.average_rating > 0 ? novel.average_rating.toFixed(1) : '—'}
+                {novel.average_rating > 0 ? Number(novel.average_rating).toFixed(1) : '—'}
               </span>
             </div>
           </div>
@@ -115,6 +154,11 @@ export default async function NovelPage({ params }: PageProps) {
               >
                 {novel.is_completed ? 'Завершена' : 'Обновляется'}
               </span>
+              {novel.chapter_count > 0 && (
+                <span className="note" style={{ background: 'var(--bg-soft)', color: 'var(--ink-soft)' }}>
+                  {formatReadingTime(novel.chapter_count)}
+                </span>
+              )}
             </div>
 
             <h1>{novel.title}</h1>
@@ -129,7 +173,7 @@ export default async function NovelPage({ params }: PageProps) {
               <div className="metric">
                 <div className="val">
                   <span className="star">★</span>{' '}
-                  {novel.average_rating > 0 ? novel.average_rating.toFixed(1) : '—'}
+                  {novel.average_rating > 0 ? Number(novel.average_rating).toFixed(1) : '—'}
                 </div>
                 <div className="label">
                   {novel.rating_count || 0}{' '}
@@ -137,7 +181,7 @@ export default async function NovelPage({ params }: PageProps) {
                 </div>
               </div>
               <div className="metric">
-                <div className="val">{chapters.length}</div>
+                <div className="val">{totalChapters}</div>
                 <div className="label">глав</div>
               </div>
               <div className="metric">
@@ -177,7 +221,7 @@ export default async function NovelPage({ params }: PageProps) {
                 href={`/novel/${novel.firebase_id}/${firstChapterNumber}`}
                 className="btn btn-primary"
               >
-                Читать с {firstChapterNumber}-й главы
+                Читать с 1-й главы
               </Link>
               <button className="btn btn-ghost" type="button">
                 ♥ В закладки
@@ -193,29 +237,44 @@ export default async function NovelPage({ params }: PageProps) {
           </div>
         )}
 
+        {/* Киллер-фича #1 — предпросмотр первой главы */}
+        {previewText && (
+          <FirstChapterPreview
+            novelFirebaseId={novel.firebase_id}
+            firstChapterNumber={firstChapterNumber}
+            previewText={previewText}
+            readingMinutes={previewMinutes}
+          />
+        )}
+
+        {/* Киллер-фича #3 — темп перевода */}
+        {paceRaw && paceRaw.length > 0 && (
+          <ReleasePace
+            days={paceRaw.map((d: { day: string; chapters: number }) => ({
+              day: d.day,
+              chapters: d.chapters,
+            }))}
+            totalChapters={totalChapters}
+            isCompleted={!!novel.is_completed}
+          />
+        )}
+
         <div className="chapter-list">
           <div className="chapter-list-head">
-            <h3>Главы ({chapters.length})</h3>
+            <h3>Главы ({totalChapters})</h3>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Сортировка:</span>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                style={{ height: 32, padding: '0 12px', fontSize: 13 }}
-              >
+              <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
                 Новые сверху
-              </button>
+              </span>
             </div>
           </div>
 
-          {chapters.length === 0 && (
+          {totalChapters === 0 && (
             <div style={{ padding: 20, color: 'var(--ink-mute)' }}>Глав пока нет.</div>
           )}
 
           {chapters.map((chapter) => {
-            const displayTitle = chapter.title
-              ? `Глава ${chapter.chapter_number}. ${chapter.title}`
-              : `Глава ${chapter.chapter_number}`;
+            const displayTitle = `Глава ${chapter.chapter_number}`;
             return (
               <div key={chapter.id} className="chapter-item">
                 <div>
@@ -237,23 +296,39 @@ export default async function NovelPage({ params }: PageProps) {
           })}
         </div>
 
-        {similarNovels && similarNovels.length > 0 && (
+        {/* Киллер-фича #2 — созвучие читателей */}
+        {similarByReaders && similarByReaders.length > 0 && (
+          <SimilarByReaders novels={similarByReaders} />
+        )}
+
+        {/* Фолбэк: «От этого же автора», если коллаборативка пустая */}
+        {(!similarByReaders || similarByReaders.length === 0) && fallbackSimilar.length > 0 && (
           <>
             <div className="section-head">
               <h2>Похожее от {novel.author}</h2>
             </div>
             <div className="novel-grid">
-              {similarNovels.map((n, index) => (
+              {(fallbackSimilar as Array<{
+                id: number;
+                firebase_id: string;
+                title: string;
+                author: string | null;
+                cover_url: string | null;
+                average_rating: number | null;
+                rating_count: number | null;
+                chapter_count: number | null;
+              }>).map((n, index) => (
                 <NovelCard
                   key={n.id}
                   id={n.firebase_id}
                   title={n.title}
                   translator={n.author || 'Автор'}
                   metaInfo={`${n.rating_count || 0} оценок`}
-                  rating={n.average_rating ? n.average_rating.toFixed(1) : '—'}
+                  rating={n.average_rating ? Number(n.average_rating).toFixed(1) : '—'}
                   coverUrl={getCoverUrl(n.cover_url)}
                   placeholderClass={`p${(index % 8) + 1}`}
                   placeholderText={n.title.substring(0, 16)}
+                  chapterCount={n.chapter_count}
                 />
               ))}
             </div>
