@@ -472,6 +472,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 12px;
   color: var(--ink-soft);
 }
+.tag--link {
+  cursor: pointer;
+  transition: all .15s;
+  text-decoration: none;
+}
+.tag--link:hover {
+  background: var(--accent-wash);
+  border-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Focus-mode в читалке — управляется через класс на активном абзаце */
+.reader-wrapper.focus-mode .novel-content > * {
+  transition: opacity .25s, filter .25s;
+  opacity: 0.28;
+}
+.reader-wrapper.focus-mode .novel-content > .focus-active {
+  opacity: 1;
+}
 
 .desc {
   background: var(--surface);
@@ -1286,17 +1305,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .novel-content {
   position: relative;
-}
-.novel-content p:first-child {
-  text-indent: 0 !important;
-}
-.novel-content p:first-child::first-letter {
-  font-family: var(--font-serif);
-  font-size: 3.2em;
-  float: left;
-  line-height: 0.9;
-  padding: 0.08em 0.1em 0 0;
-  color: var(--accent);
 }
 
 /* ---------- reader settings panel (side drawer) ---------- */
@@ -4844,6 +4852,173 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--leaf);
   color: #fff;
 }
+
+/* ---------- BBCode editor ---------- */
+
+.bbcode-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bbcode-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.bbcode-btn {
+  min-width: 32px;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.bbcode-btn:hover {
+  background: var(--accent-wash);
+  border-color: var(--accent-soft);
+  color: var(--accent);
+}
+.bbcode-btn.active {
+  background: var(--accent);
+  color: var(--surface-2);
+  border-color: var(--accent);
+}
+.bbcode-body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+}
+.bbcode-body.with-preview {
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 760px) {
+  .bbcode-body.with-preview { grid-template-columns: 1fr; }
+}
+.bbcode-textarea {
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+  color: var(--ink);
+}
+.bbcode-preview {
+  padding: 14px 18px;
+  background: var(--surface);
+  max-height: 640px;
+  overflow-y: auto;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Chapter editor — теперь full-width (no more split) */
+.chapter-form .chapter-editor {
+  display: block;
+}
+
+/* 3-in-a-row fields */
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 8px;
+}
+@media (max-width: 720px) {
+  .form-row-3 { grid-template-columns: 1fr; }
+}
+.form-label-sub {
+  color: var(--ink-mute);
+  font-weight: 400;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 4px;
+}
+
+/* ---------- bulk chapter upload ---------- */
+
+.bulk-upload { max-width: 1100px; }
+.bulk-instruct {
+  padding: 18px 22px;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.bulk-instruct strong {
+  color: var(--ink);
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.bulk-instruct ul { margin: 0; padding-left: 20px; }
+.bulk-instruct li { margin-bottom: 3px; }
+.bulk-instruct code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+}
+
+.bulk-preview {
+  margin-top: 24px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.bulk-preview-head {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.bulk-preview-empty { color: var(--ink-mute); font-size: 13px; }
+.bulk-preview-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.bulk-preview-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--bg-soft);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.bulk-preview-num { font-weight: 600; color: var(--ink); }
+.bulk-preview-meta { color: var(--ink-mute); font-size: 12px; }
 
 /* ---------- misc ---------- */
 

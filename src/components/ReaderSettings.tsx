@@ -14,7 +14,8 @@ interface Props {
   settings: ReaderSettings;
   onChange: (next: ReaderSettings) => void;
   onClose: () => void;
-  sleepTimerMin: number | null;          // null — выключен, 0 — истёк, >0 — активен (осталось минут)
+  selectedPreset: number | null;     // какой пресет выбран (для подсветки)
+  sleepMinLeft: number | null;       // осталось минут (для подписи), null = выключен
   onSleepTimerSet: (min: number | null) => void;
 }
 
@@ -23,7 +24,8 @@ export default function ReaderSettings({
   settings,
   onChange,
   onClose,
-  sleepTimerMin,
+  selectedPreset,
+  sleepMinLeft,
   onSleepTimerSet,
 }: Props) {
   if (!open) return null;
@@ -181,7 +183,7 @@ export default function ReaderSettings({
             <div className="rs-pair">
               <button
                 type="button"
-                className={`chip${sleepTimerMin === null ? ' active' : ''}`}
+                className={`chip${selectedPreset === null ? ' active' : ''}`}
                 onClick={() => onSleepTimerSet(null)}
               >
                 Выкл
@@ -190,16 +192,16 @@ export default function ReaderSettings({
                 <button
                   key={m}
                   type="button"
-                  className={`chip${sleepTimerMin !== null && sleepTimerMin > 0 && sleepTimerMin <= m ? ' active' : ''}`}
+                  className={`chip${selectedPreset === m ? ' active' : ''}`}
                   onClick={() => onSleepTimerSet(m)}
                 >
                   {m} мин
                 </button>
               ))}
             </div>
-            {sleepTimerMin !== null && sleepTimerMin > 0 && (
+            {selectedPreset !== null && sleepMinLeft !== null && sleepMinLeft > 0 && (
               <div className="rs-timer-sub">
-                Остановимся через {sleepTimerMin} мин.
+                Остановимся через {sleepMinLeft} мин.
               </div>
             )}
           </div>

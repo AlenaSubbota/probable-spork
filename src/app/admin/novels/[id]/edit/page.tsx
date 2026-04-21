@@ -66,12 +66,20 @@ export default async function EditNovelPage({ params }: PageProps) {
           <h1>{novel.title}</h1>
           <p className="admin-head-sub">Параметры, жанры, описание, глоссарий.</p>
         </div>
-        <Link
-          href={`/admin/novels/${novel.firebase_id}/chapters/new`}
-          className="btn btn-primary"
-        >
-          + Добавить главу
-        </Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link
+            href={`/admin/novels/${novel.firebase_id}/chapters/bulk`}
+            className="btn btn-ghost"
+          >
+            📚 Массовая загрузка
+          </Link>
+          <Link
+            href={`/admin/novels/${novel.firebase_id}/chapters/new`}
+            className="btn btn-primary"
+          >
+            + Одна глава
+          </Link>
+        </div>
       </header>
 
       <NovelForm
@@ -83,12 +91,16 @@ export default async function EditNovelPage({ params }: PageProps) {
           title_original: novel.title_original,
           title_en: novel.title_en,
           author: novel.author,
+          author_original: novel.author_original ?? null,
+          author_en: novel.author_en ?? null,
           country: novel.country as Country | null,
           age_rating: novel.age_rating as AgeRating | null,
           translation_status: (novel.translation_status as TranslationStatus) ?? 'ongoing',
           is_completed: !!novel.is_completed,
           release_year: novel.release_year,
-          description: novel.description ?? '',
+          // Форма хранит BB-код; передаём HTML как descriptionHtml для конвертации
+          descriptionHtml: novel.description ?? '',
+          description: '',
           cover_url: novel.cover_url,
           genres: Array.isArray(novel.genres) ? (novel.genres as string[]) : [],
         }}

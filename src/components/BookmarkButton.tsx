@@ -46,7 +46,14 @@ export default function BookmarkButton({ novelFirebaseId, initialStatus }: Props
       current[novelFirebaseId] = nextStatus;
     }
 
-    await supabase.from('profiles').update({ bookmarks: current }).eq('id', user.id);
+    // RLS на profiles запрещает прямой UPDATE; идём через security-definer RPC tene
+    const { error } = await supabase.rpc('update_my_profile', {
+      data_to_update: { bookmarks: current },
+    });
+    if (error) {
+      alert('Не получилось сохранить закладку: ' + error.message);
+      return;
+    }
     router.refresh();
   };
 
