@@ -84,6 +84,12 @@ export default async function NovelPage({ params }: PageProps) {
 
   const canEdit = !!user && (novel.translator_id === user.id || viewerIsAdmin);
 
+  // Скрываем неопубликованные новеллы от посторонних. Переводчик и админ
+  // видят draft/pending/rejected, чтобы подготовить карточку и нажать «на модерацию».
+  if (novel.moderation_status !== 'published' && !canEdit) {
+    notFound();
+  }
+
   // Профиль переводчика для блока «Переводчик»
   let translatorProfile: {
     slug: string | null;

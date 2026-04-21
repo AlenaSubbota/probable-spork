@@ -29,6 +29,13 @@ export const MODERATION_LABELS: Record<ModerationStatus, string> = {
   published: 'Опубликовано',
   rejected: 'Отклонено',
 };
+// tone: для CSS-класса (цветная плашка)
+export const MODERATION_TONE: Record<ModerationStatus, 'muted' | 'gold' | 'leaf' | 'rose'> = {
+  draft: 'muted',
+  pending: 'gold',
+  published: 'leaf',
+  rejected: 'rose',
+};
 
 // Единый список жанров — переводчики могут только выбирать из него.
 // Добавление произвольных жанров запрещено, чтобы не было разнобоя.

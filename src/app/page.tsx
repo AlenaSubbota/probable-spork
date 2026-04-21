@@ -31,15 +31,18 @@ export default async function HomePage() {
   ] = await Promise.all([
     supabase
       .from('novels_view')
-      .select('id, firebase_id, title, cover_url, genres'),
+      .select('id, firebase_id, title, cover_url, genres')
+      .eq('moderation_status', 'published'),
     supabase
       .from('novels_view')
       .select('*')
+      .eq('moderation_status', 'published')
       .order('average_rating', { ascending: false })
       .limit(6),
     supabase
       .from('novels_view')
       .select('*')
+      .eq('moderation_status', 'published')
       .order('latest_chapter_published_at', { ascending: false })
       .limit(6),
   ]);

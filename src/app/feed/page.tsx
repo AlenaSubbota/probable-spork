@@ -79,12 +79,14 @@ export default async function FeedPage({
   const chapters = (chaptersData ?? []) as ChapterFeedRow[];
 
   // --- Подтягиваем novel-info одним запросом ---
+  // Читатели в ленте видят только published — остальные главы просто не рендерим.
   const novelIds = Array.from(new Set(chapters.map((c) => c.novel_id)));
   const { data: novelsData } = novelIds.length
     ? await supabase
         .from('novels_view')
         .select('id, firebase_id, title, author, cover_url, chapter_count, translator_id')
         .in('id', novelIds)
+        .eq('moderation_status', 'published')
     : { data: [] as Array<{ id: number; firebase_id: string; title: string; author: string | null; cover_url: string | null; chapter_count: number | null; translator_id: string | null }> };
 
   const novelMap = new Map((novelsData ?? []).map((n) => [n.id, n]));
