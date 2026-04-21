@@ -96,6 +96,9 @@ export default async function AdminDashboard() {
           <Link href="/admin/analytics" className="btn btn-ghost">
             Аналитика
           </Link>
+          <Link href="/admin/schedule" className="btn btn-ghost">
+            📅 Расписание
+          </Link>
           <Link href="/admin/payouts" className="btn btn-ghost">
             💳 Настройки выплат
           </Link>
