@@ -1,5 +1,4 @@
 import { createClient } from '@/utils/supabase/server';
-import WeeklyHero from '@/components/WeeklyHero';
 import GenreChips from '@/components/GenreChips';
 import NovelCard from '@/components/NovelCard';
 import MoodPicker from '@/components/MoodPicker';
@@ -8,8 +7,13 @@ import MyShelfStrip, { type ShelfItem } from '@/components/MyShelfStrip';
 import ForgottenNovels, { type ForgottenItem } from '@/components/ForgottenNovels';
 import LatestNews from '@/components/news/LatestNews';
 import type { NewsItem } from '@/components/news/NewsCard';
+import ReadingNow, { type ReadingNowItem } from '@/components/home/ReadingNow';
+import CommentsFeed, { type CommentFeedItem } from '@/components/home/CommentsFeed';
+import NovelPoll, { type PollOptionResult } from '@/components/home/NovelPoll';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
+
+const AGE_RE = /^\d{1,2}\+$/;
 
 const FORGOTTEN_DAYS = 14;
 
@@ -17,33 +21,11 @@ export default async function HomePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
   const [
-    { count: newChaptersCount },
-    { count: totalChaptersCount },
-    { count: totalNovelsCount },
-    { data: latestChapterRaw },
     { data: allNovelsRaw },
     { data: popularNovels },
     { data: recentNovels },
   ] = await Promise.all([
-    supabase
-      .from('chapters')
-      .select('*', { count: 'exact', head: true })
-      .gte('published_at', weekAgo),
-    supabase
-      .from('chapters')
-      .select('*', { count: 'exact', head: true }),
-    supabase
-      .from('novels')
-      .select('*', { count: 'exact', head: true }),
-    supabase
-      .from('chapters')
-      .select('chapter_number, novel_id')
-      .order('published_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     supabase
       .from('novels_view')
       .select('id, firebase_id, title, cover_url, genres'),
@@ -58,31 +40,6 @@ export default async function HomePage() {
       .order('latest_chapter_published_at', { ascending: false })
       .limit(6),
   ]);
-
-  // Последняя глава
-  let latestChapter: {
-    novelTitle: string;
-    novelFirebaseId: string;
-    chapterNumber: number;
-    chapterTitle: null;
-  } | null = null;
-
-  if (latestChapterRaw?.novel_id) {
-    const { data: latestNovel } = await supabase
-      .from('novels')
-      .select('firebase_id, title')
-      .eq('id', latestChapterRaw.novel_id)
-      .maybeSingle();
-
-    if (latestNovel) {
-      latestChapter = {
-        novelTitle: latestNovel.title,
-        novelFirebaseId: latestNovel.firebase_id,
-        chapterNumber: latestChapterRaw.chapter_number,
-        chapterTitle: null,
-      };
-    }
-  }
 
   // Жанры
   const genreMap: Record<string, number> = {};
@@ -263,30 +220,183 @@ export default async function HomePage() {
     // миграция 009 не накачена — блок новостей просто не показывается
   }
 
+  // ---- «Сейчас читают»: юзеры с last_read за последние 30 минут ----
+  let readingNowItems: ReadingNowItem[] = [];
+  let totalReadersNow = 0;
+  try {
+    const freshSinceMs = Date.now() - 30 * 60 * 1000;
+    // Берём до 200 свежих профилей, у кого last_read модифицирован недавно
+    const { data: activeProfiles } = await supabase
+      .from('profiles')
+      .select('id, last_read')
+      .not('last_read', 'is', null)
+      .limit(200);
+
+    // Считаем уникальных юзеров по novel_id, берём самый свежий chapter_id
+    const counter = new Map<
+      number,
+      { readers: Set<string>; lastChapter: number }
+    >();
+    for (const row of activeProfiles ?? []) {
+      const lr = (row as { last_read?: Record<string, { novelId: number; chapterId: number; timestamp: string }> }).last_read;
+      if (!lr) continue;
+      for (const entry of Object.values(lr)) {
+        if (!entry?.timestamp) continue;
+        const ts = new Date(entry.timestamp).getTime();
+        if (Number.isNaN(ts) || ts < freshSinceMs) continue;
+        const nid = entry.novelId;
+        let bucket = counter.get(nid);
+        if (!bucket) {
+          bucket = { readers: new Set(), lastChapter: entry.chapterId };
+          counter.set(nid, bucket);
+        }
+        bucket.readers.add(row.id as string);
+        if (entry.chapterId > bucket.lastChapter) bucket.lastChapter = entry.chapterId;
+      }
+    }
+
+    const novelIds = Array.from(counter.keys());
+    if (novelIds.length > 0) {
+      const { data: novelsData } = await supabase
+        .from('novels')
+        .select('id, firebase_id, title, cover_url')
+        .in('id', novelIds);
+      const allReaderIds = new Set<string>();
+      for (const b of counter.values()) for (const r of b.readers) allReaderIds.add(r);
+      totalReadersNow = allReaderIds.size;
+
+      readingNowItems = (novelsData ?? [])
+        .map((n) => {
+          const b = counter.get(n.id)!;
+          return {
+            novel_id: n.id,
+            firebase_id: n.firebase_id,
+            title: n.title,
+            cover_url: n.cover_url,
+            readers_now: b.readers.size,
+            last_chapter_read: b.lastChapter,
+          };
+        })
+        .sort((a, b) => b.readers_now - a.readers_now)
+        .slice(0, 6);
+    }
+  } catch {
+    // молча — блок не критичен
+  }
+
+  // ---- Лента свежих комментариев (без спойлеров на главной) ----
+  let commentsFeed: CommentFeedItem[] = [];
+  try {
+    const { data: comments } = await supabase
+      .from('comments')
+      .select('id, user_name, text, created_at, novel_id, chapter_number')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (comments && comments.length > 0) {
+      const novelIds = Array.from(new Set(comments.map((c) => c.novel_id)));
+      const { data: novelsForComments } = await supabase
+        .from('novels')
+        .select('id, firebase_id, title')
+        .in('id', novelIds);
+      const novelMap = new Map(
+        (novelsForComments ?? []).map((n) => [n.id, n])
+      );
+      commentsFeed = comments
+        .map((c) => {
+          const n = novelMap.get(c.novel_id);
+          if (!n) return null;
+          return {
+            id: c.id,
+            user_name: c.user_name,
+            text: c.text,
+            created_at: c.created_at,
+            novel_firebase_id: n.firebase_id,
+            novel_title: n.title,
+            chapter_number: c.chapter_number,
+          } satisfies CommentFeedItem;
+        })
+        .filter((x): x is CommentFeedItem => x !== null)
+        .slice(0, 8);
+    }
+  } catch {
+    // ok
+  }
+
+  // ---- Активный опрос (голосование за новую новеллу) ----
+  let pollData: {
+    id: number;
+    title: string;
+    description: string | null;
+    options: PollOptionResult[];
+    myVoteOptionId: number | null;
+  } | null = null;
+  try {
+    const { data: polls } = await supabase
+      .from('polls')
+      .select('id, title, description, ends_at')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const poll = polls?.[0];
+    if (poll) {
+      const [{ data: options }, { data: myVote }] = await Promise.all([
+        supabase.rpc('poll_results', { p_poll: poll.id }),
+        user
+          ? supabase
+              .from('poll_votes')
+              .select('option_id')
+              .eq('poll_id', poll.id)
+              .eq('user_id', user.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      if (Array.isArray(options)) {
+        pollData = {
+          id: poll.id,
+          title: poll.title,
+          description: poll.description ?? null,
+          options: options as PollOptionResult[],
+          myVoteOptionId:
+            (myVote as { option_id?: number } | null)?.option_id ?? null,
+        };
+      }
+    }
+  } catch {
+    // миграция 013 не накачена
+  }
+
   return (
     <main>
-      <WeeklyHero
-        newChaptersThisWeek={newChaptersCount ?? 0}
-        totalChapters={totalChaptersCount ?? 0}
-        totalNovels={totalNovelsCount ?? 0}
-        latestChapter={latestChapter}
-        translators={[
-          { name: 'Алёна', count: newChaptersCount ?? 0, tint: 'coffee' },
-        ]}
-      />
+      {/* HERO: что реально читают прямо сейчас */}
+      <ReadingNow items={readingNowItems} totalReadersNow={totalReadersNow} />
 
       <MyShelfStrip items={shelfItems} totalCount={shelfTotal} />
 
       {/* Новости админа */}
       <LatestNews items={latestNews} unreadCount={unreadNewsCount} />
 
-      {/* Киллер-фича #1 — настроение */}
+      {/* Выбор по настроению */}
       <MoodPicker />
 
-      {/* Киллер-фича #3 — забытое */}
+      {/* Голосование за следующую новеллу */}
+      {pollData && (
+        <NovelPoll
+          pollId={pollData.id}
+          pollTitle={pollData.title}
+          pollDescription={pollData.description}
+          options={pollData.options}
+          myVoteOptionId={pollData.myVoteOptionId}
+          isAuthed={!!user}
+        />
+      )}
+
+      {/* Забытое */}
       <ForgottenNovels items={forgottenItems} />
 
       <ContinueReadingShelf items={continueItems} />
+
+      {/* Лента свежих комментариев */}
+      <CommentsFeed comments={commentsFeed} />
 
       <GenreChips genres={topGenres} total={allNovelsRaw?.length ?? 0} />
 

@@ -483,13 +483,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: var(--accent);
 }
 
-/* Focus-mode в читалке — управляется через класс на активном абзаце */
-.reader-wrapper.focus-mode .novel-content > * {
-  transition: opacity .25s, filter .25s;
-  opacity: 0.28;
+/* Focus-mode в читалке — управляется классом .focus-active на активном абзаце.
+   Выбираем все текстовые блоки (включая вложенные в blockquote и т.п.),
+   активному задаём opacity: 1 через !important чтобы победить specificity. */
+.reader-wrapper.focus-mode .novel-content p,
+.reader-wrapper.focus-mode .novel-content h1,
+.reader-wrapper.focus-mode .novel-content h2,
+.reader-wrapper.focus-mode .novel-content h3,
+.reader-wrapper.focus-mode .novel-content blockquote {
+  transition: opacity .25s;
+  opacity: 0.25;
 }
-.reader-wrapper.focus-mode .novel-content > .focus-active {
-  opacity: 1;
+.reader-wrapper.focus-mode .novel-content .focus-active {
+  opacity: 1 !important;
 }
 
 .desc {
@@ -5649,6 +5655,446 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .user-avatar {
   position: relative;
+}
+
+/* ---------- adult gate ---------- */
+
+.adult-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(43, 32, 23, 0.75);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.adult-gate-card {
+  max-width: 480px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 32px;
+  text-align: center;
+  box-shadow: 0 24px 48px rgba(43, 32, 23, 0.3);
+}
+.adult-gate-badge {
+  display: inline-block;
+  padding: 4px 14px;
+  background: var(--rose);
+  color: #fff;
+  border-radius: 999px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  margin-bottom: 14px;
+  letter-spacing: 0.06em;
+}
+.adult-gate-card h2 {
+  font-family: var(--font-serif);
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+.adult-gate-title {
+  font-style: italic;
+  color: var(--ink-soft);
+  margin: 0 0 18px;
+  font-size: 14px;
+}
+.adult-gate-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+.adult-gate-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border-radius: 10px;
+  margin: 16px 0 20px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+}
+.adult-gate-check input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+.adult-gate-hint {
+  color: var(--ink-mute);
+  font-size: 11.5px;
+  display: block;
+  margin-top: 2px;
+}
+.adult-gate-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Age badge в правом верхнем углу карточки */
+.age-badge-card {
+  position: absolute;
+  top: 8px;
+  right: 40px;
+  padding: 2px 7px;
+  background: var(--rose);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- NovelCard hover tooltip ---------- */
+
+.novel-card-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  width: 280px;
+  max-width: 80vw;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(43, 32, 23, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity .18s, transform .18s;
+  z-index: 15;
+  color: var(--ink);
+  text-align: left;
+  white-space: normal;
+}
+.novel-card:hover .novel-card-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+.novel-card-tooltip-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+.novel-card-tooltip-title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 14.5px;
+  line-height: 1.3;
+}
+.novel-card-tooltip-body {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.novel-card-tooltip-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.novel-card-tooltip-genre {
+  padding: 2px 8px;
+  background: var(--bg-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.novel-card-tooltip-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* На мобильных hover не работает — скрываем тултип вовсе */
+@media (hover: none) {
+  .novel-card-tooltip { display: none; }
+}
+
+/* ---------- Homepage: Reading Now ---------- */
+
+.reading-now .reading-now-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #5BA876;
+  box-shadow: 0 0 0 4px rgba(91, 168, 118, 0.2);
+  animation: pulse-online 2s infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.reading-now-count {
+  margin-left: 10px;
+  padding: 1px 10px;
+  background: rgba(91, 168, 118, 0.12);
+  border-radius: 999px;
+  font-size: 12px;
+  color: #4C6A34;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  vertical-align: middle;
+}
+.reading-now-empty {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 18px 22px;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--ink-mute);
+  font-size: 14px;
+}
+.reading-now-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 14px;
+}
+.reading-now-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: inherit;
+}
+.reading-now-cover {
+  position: relative;
+  aspect-ratio: 3/4;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-sm);
+  transition: transform .2s, box-shadow .2s;
+}
+.reading-now-card:hover .reading-now-cover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+.reading-now-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.reading-now-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: rgba(20, 14, 8, 0.72);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.reading-now-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- Homepage: Comments feed ---------- */
+
+.comments-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+.comments-feed-item {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: inherit;
+  transition: border-color .15s;
+}
+.comments-feed-item:hover {
+  border-color: var(--accent-soft);
+  background: var(--accent-wash);
+}
+.comments-feed-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--rose));
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 15px;
+}
+.comments-feed-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.comments-feed-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.comments-feed-time {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.comments-feed-text {
+  margin: 4px 0 6px;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.comments-feed-where {
+  font-size: 11.5px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ---------- Homepage: Novel Poll ---------- */
+
+.poll-card {
+  padding: 22px 24px;
+  background: linear-gradient(135deg, var(--surface), var(--accent-wash));
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+}
+.poll-title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.poll-description {
+  margin: 0 0 16px;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.poll-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.poll-option {
+  position: relative;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.poll-option:hover {
+  border-color: var(--accent-soft);
+}
+.poll-option.chosen {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+.poll-option-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(140, 90, 60, 0.08);
+  transition: width .35s ease-out;
+  z-index: 0;
+}
+.poll-option.chosen .poll-option-fill {
+  background: rgba(140, 90, 60, 0.18);
+}
+.poll-option-row {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.poll-option-cover {
+  width: 48px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  flex-shrink: 0;
+}
+.poll-option-cover img,
+.poll-option-cover .placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.poll-option-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+.poll-option-check {
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-left: 6px;
+}
+.poll-option-desc {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+.poll-option-ext {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--accent);
+}
+.poll-option-ext:hover { text-decoration: underline; }
+.poll-option-stats {
+  text-align: right;
+  min-width: 60px;
+}
+.poll-option-pct {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1;
+}
+.poll-option-votes {
+  font-size: 11px;
+  color: var(--ink-mute);
+  margin-top: 2px;
 }
 
 /* ---------- misc ---------- */

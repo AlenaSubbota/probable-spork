@@ -162,8 +162,16 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
 
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
+    // При включении/выключении фокуса — пересчитываем активный абзац сразу
+    // (иначе при первом включении без скролла всё просто серое и ничего не
+    // подсвечено).
+    const focusToggleObserver = new MutationObserver(() => onScroll());
+    const rw = contentRef.current?.closest('.reader-wrapper');
+    if (rw) focusToggleObserver.observe(rw, { attributes: true, attributeFilter: ['class'] });
+
     return () => {
       window.removeEventListener('scroll', onScroll);
+      focusToggleObserver.disconnect();
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
         paragraphs[lastActiveId].classList.remove('focus-active');
