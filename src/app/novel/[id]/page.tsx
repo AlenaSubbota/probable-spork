@@ -147,7 +147,7 @@ export default async function NovelPage({ params }: PageProps) {
   ] = await Promise.all([
     supabase
       .from('chapters')
-      .select('id, chapter_number, is_paid, published_at, content_path')
+      .select('id, chapter_number, is_paid, price_coins, published_at, content_path')
       .eq('novel_id', novel.id)
       .order('chapter_number', { ascending: false }),
     supabase
@@ -159,6 +159,22 @@ export default async function NovelPage({ params }: PageProps) {
   const chapters = chaptersDesc ?? [];
   const totalChapters = chapters.length;
   const firstChapter = chapters.length > 0 ? chapters[chapters.length - 1] : null;
+
+  // Какие главы уже куплены текущим читателем — для подсветки в списке.
+  // RPC из миграции 018; если её ещё нет, тихо падаем и не подсвечиваем.
+  let purchasedChapters: Set<number> = new Set();
+  if (user) {
+    try {
+      const { data: purchased } = await supabase.rpc('my_purchased_chapters', {
+        p_novel: novel.id,
+      });
+      if (Array.isArray(purchased)) {
+        purchasedChapters = new Set(purchased as number[]);
+      }
+    } catch {
+      // миграция 018 не накачена
+    }
+  }
 
   // Fallback на «просто новеллы того же автора», если коллаборативки ещё нет
   let fallbackSimilar: unknown[] = [];
@@ -411,14 +427,34 @@ export default async function NovelPage({ params }: PageProps) {
 
           {chapters.map((chapter) => {
             const displayTitle = `Глава ${chapter.chapter_number}`;
+            const isOwned = purchasedChapters.has(chapter.chapter_number);
+            const price = chapter.price_coins ?? 10;
             return (
-              <div key={chapter.id} className="chapter-item">
+              <div
+                key={chapter.id}
+                className={`chapter-item${isOwned ? ' chapter-item--owned' : ''}`}
+              >
                 <div>
-                  <div className="title">{displayTitle}</div>
+                  <div className="title">
+                    {displayTitle}
+                    {isOwned && (
+                      <span className="chapter-owned-badge" title="Ты купил эту главу">
+                        ✓ куплено
+                      </span>
+                    )}
+                  </div>
                   <div className="date">{formatChapterDate(chapter.published_at)}</div>
                 </div>
-                <span className={`tag-price ${chapter.is_paid ? 'paid' : 'free'}`}>
-                  {chapter.is_paid ? '10 монет' : 'Бесплатно'}
+                <span
+                  className={`tag-price ${
+                    chapter.is_paid ? (isOwned ? 'owned' : 'paid') : 'free'
+                  }`}
+                >
+                  {chapter.is_paid
+                    ? isOwned
+                      ? `✓ ${price} монет`
+                      : `${price} ${pluralCoins(price)}`
+                    : 'Бесплатно'}
                 </span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {canEdit && (
@@ -432,10 +468,12 @@ export default async function NovelPage({ params }: PageProps) {
                   )}
                   <Link
                     href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
-                    className={chapter.is_paid ? 'btn btn-ghost' : 'btn btn-primary'}
+                    className={
+                      !chapter.is_paid || isOwned ? 'btn btn-primary' : 'btn btn-ghost'
+                    }
                     style={{ height: 32, padding: '0 14px', fontSize: 13 }}
                   >
-                    {chapter.is_paid ? 'Купить' : 'Читать'}
+                    {chapter.is_paid ? (isOwned ? 'Читать' : 'Купить') : 'Читать'}
                   </Link>
                 </div>
               </div>
@@ -484,4 +522,13 @@ export default async function NovelPage({ params }: PageProps) {
       </section>
     </main>
   );
+}
+
+function pluralCoins(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'монет';
+  if (mod10 === 1) return 'монета';
+  if (mod10 >= 2 && mod10 <= 4) return 'монеты';
+  return 'монет';
 }

@@ -593,7 +593,26 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .chapter-item .tag-price.free { background: #E7EDDE; color: var(--leaf); }
 .chapter-item .tag-price.paid { background: var(--accent-wash); color: var(--accent-hover); }
-.chapter-item .tag-price.owned { background: #E6DCC8; color: var(--ink-soft); }
+.chapter-item .tag-price.owned { background: #e8f3e4; color: #3f7a3a; }
+
+/* Уже купленная глава — мягкая акцентная подсветка всей строки,
+   чтобы читатель одним взглядом видел что ему доступно. */
+.chapter-item--owned {
+  background: linear-gradient(90deg, rgba(232, 243, 228, 0.45), transparent 60%);
+}
+.chapter-owned-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  background: #e8f3e4;
+  color: #3f7a3a;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
 
 /* ---------- profile ---------- */
 

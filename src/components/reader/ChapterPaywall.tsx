@@ -38,10 +38,8 @@ export default function ChapterPaywall({
     setBusy(true);
     const supabase = createClient();
     const { data, error: rpcError } = await supabase.rpc('buy_chapter', {
-      p_user: (await supabase.auth.getUser()).data.user?.id,
       p_novel: novelId,
       p_chapter: chapterNumber,
-      p_price: chapterPrice,
     });
 
     if (rpcError) {
@@ -49,8 +47,23 @@ export default function ChapterPaywall({
       setBusy(false);
       return;
     }
-    if (data === false) {
-      setError('Не хватает монет. Пополни баланс.');
+    // RPC возвращает jsonb: { ok, error?, price?, balance?, already_owned? }
+    const res = (data ?? {}) as {
+      ok?: boolean;
+      error?: string;
+      price?: number;
+      balance?: number;
+    };
+    if (!res.ok) {
+      const msg =
+        res.error === 'insufficient_balance'
+          ? `Не хватает монет: нужно ${res.price}, на счету ${res.balance}.`
+          : res.error === 'chapter_is_free'
+          ? 'Эта глава стала бесплатной — обнови страницу.'
+          : res.error === 'not_authenticated'
+          ? 'Сначала войди в аккаунт.'
+          : res.error ?? 'Не удалось купить главу.';
+      setError(msg);
       setBusy(false);
       return;
     }
