@@ -516,6 +516,29 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           />
         )}
 
+        {Array.isArray(novel.external_links) && novel.external_links.length > 0 && (
+          <section className="external-links-block">
+            <h3 className="external-links-title">Оригинал</h3>
+            <div className="external-links-list">
+              {(novel.external_links as Array<{ label: string; url: string }>).map(
+                (link, i) =>
+                  link.url ? (
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="external-link"
+                    >
+                      <span>{link.label || hostnameOf(link.url)}</span>
+                      <span className="external-link-arrow" aria-hidden="true">↗</span>
+                    </a>
+                  ) : null
+              )}
+            </div>
+          </section>
+        )}
+
         <div className="chapter-list">
           <div className="chapter-list-head">
             <h3>Главы ({totalChapters})</h3>
@@ -722,6 +745,14 @@ function formatScheduled(iso: string | null): string {
     });
   }
   return d.toLocaleDateString('ru-RU');
+}
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
 }
 
 function pluralCoins(n: number): string {

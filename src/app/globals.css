@@ -6538,6 +6538,76 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 500;
 }
 
+/* ---------- Novel page: external links block ---------- */
+
+.external-links-block {
+  margin: 24px 0;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.external-links-title {
+  margin: 0 0 10px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.external-links-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink);
+  transition: border-color .1s, color .1s;
+}
+.external-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.external-link-arrow {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.external-link:hover .external-link-arrow {
+  color: var(--accent);
+}
+
+/* ---------- Admin: external links editor in NovelForm ---------- */
+
+.external-links-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.external-link-row {
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+@media (max-width: 720px) {
+  .external-link-row {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+  }
+  .external-link-row > input:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ---------- Reader: inline glossary ---------- */
 
 .glossary-term {
