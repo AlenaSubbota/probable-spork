@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
+import UserAvatar from './UserAvatar';
 
 export default async function SiteHeader() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   let userName: string | null = null;
+  let avatarUrl: string | null = null;
   let isTranslator = false;
   let coinBalance: number | null = null;
   let unreadDm = 0;
@@ -13,7 +15,6 @@ export default async function SiteHeader() {
   let unreadNews = 0;
 
   if (user) {
-    // select('*') чтобы работать без миграции 001 (legacy is_admin) и с ней (role, coin_balance)
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -25,8 +26,10 @@ export default async function SiteHeader() {
         role?: string;
         is_admin?: boolean;
         coin_balance?: number | null;
+        avatar_url?: string | null;
       };
       userName = p.user_name ?? null;
+      avatarUrl = p.avatar_url ?? null;
       isTranslator =
         p.is_admin === true || p.role === 'translator' || p.role === 'admin';
       if (typeof p.coin_balance === 'number') coinBalance = p.coin_balance;
@@ -121,8 +124,12 @@ export default async function SiteHeader() {
                   {coinBalance.toLocaleString('ru-RU')}
                 </Link>
               )}
-              <Link href="/profile" className="btn btn-primary">
-                {userName ?? 'Профиль'}
+              <Link
+                href="/profile"
+                className="btn btn-primary header-profile-btn"
+              >
+                <UserAvatar avatarUrl={avatarUrl} name={userName} size={24} />
+                <span>{userName ?? 'Профиль'}</span>
               </Link>
             </>
           ) : (

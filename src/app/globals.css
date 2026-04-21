@@ -5538,6 +5538,119 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin-top: 10px;
 }
 
+/* ---------- profile settings ---------- */
+
+.settings-block {
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+.settings-block h2 {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  margin: 0 0 14px;
+}
+
+/* AvatarPicker */
+.avatar-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.avatar-picker-preview-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.avatar-picker-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg-soft);
+  border: 3px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.avatar-picker-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-picker-preview-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 40px;
+  font-weight: 700;
+}
+.avatar-picker-hint {
+  color: var(--ink-mute);
+  font-size: 12.5px;
+}
+
+.avatar-picker-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.avatar-picker-body {
+  padding: 14px 16px;
+  background: var(--bg-soft);
+  border-radius: 10px;
+}
+
+.avatar-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 56px);
+  gap: 10px;
+}
+@media (max-width: 480px) {
+  .avatar-preset-grid { grid-template-columns: repeat(4, 48px); }
+}
+.avatar-preset {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.avatar-preset:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-sm);
+}
+.avatar-preset.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+
+/* Header profile button with avatar */
+.header-profile-btn {
+  padding-left: 6px !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.header-profile-btn .user-avatar {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.user-avatar {
+  position: relative;
+}
+
 /* ---------- misc ---------- */
 
 .note {

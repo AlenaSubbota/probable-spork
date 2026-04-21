@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
+import UserAvatar from '@/components/UserAvatar';
 import FriendshipButton from '@/components/social/FriendshipButton';
 import { detectReadingNow, type FriendshipStatus } from '@/lib/social';
 import { timeAgo } from '@/lib/format';
@@ -38,13 +39,19 @@ export default async function PublicUserProfile({ params }: PageProps) {
     translator_slug?: string | null;
     translator_display_name?: string | null;
     translator_avatar_url?: string | null;
+    avatar_url?: string | null;
+    settings?: { show_reading_publicly?: boolean } | null;
   };
 
   const isSelf = viewer?.id === p.id;
   const displayName = p.translator_display_name || p.user_name || 'Читатель';
-  const avatarInitial = displayName.trim().charAt(0).toUpperCase() || '?';
   const isAdmin = p.is_admin === true || p.role === 'admin';
   const isTranslator = isAdmin || p.role === 'translator';
+
+  // Приватность: если выключено — скрываем last_read и статы от чужих.
+  // Владелец своего профиля и админ видят всегда.
+  const showReading =
+    isSelf || isAdmin || p.settings?.show_reading_publicly !== false;
 
   // Friendship status
   let friendshipStatus: FriendshipStatus = 'none';
@@ -61,10 +68,10 @@ export default async function PublicUserProfile({ params }: PageProps) {
     }
   }
 
-  // --- Киллер-фича #1: общие новеллы ---
+  // --- Киллер-фича #1: общие новеллы (требует доступ к last_read обоих) ---
   let sharedReadsCount = 0;
   let sharedTitles: string[] = [];
-  if (viewer && !isSelf && p.last_read) {
+  if (viewer && !isSelf && p.last_read && showReading) {
     const { data: viewerProfile } = await supabase
       .from('profiles')
       .select('last_read, bookmarks')
@@ -89,8 +96,10 @@ export default async function PublicUserProfile({ params }: PageProps) {
     }
   }
 
-  // --- Читает сейчас / когда был активен ---
-  const readingNow = detectReadingNow(p.last_read ?? null);
+  // --- Читает сейчас / когда был активен (только если пользователь разрешил) ---
+  const readingNow = showReading
+    ? detectReadingNow(p.last_read ?? null)
+    : { state: 'away' as const, timestamp: null, entry: null };
   let readingNovelInfo: { title: string; firebase_id: string } | null = null;
   if (readingNow.state === 'reading' && readingNow.entry) {
     const { data: n } = await supabase
@@ -101,23 +110,25 @@ export default async function PublicUserProfile({ params }: PageProps) {
     if (n) readingNovelInfo = n as { title: string; firebase_id: string };
   }
 
-  // Общая статистика
-  const totalReads = p.last_read ? Object.keys(p.last_read).length : 0;
-  const bookmarksCount = Array.isArray(p.bookmarks)
-    ? (p.bookmarks as unknown[]).length
-    : p.bookmarks && typeof p.bookmarks === 'object'
-    ? Object.keys(p.bookmarks as Record<string, unknown>).length
+  // Общая статистика (только если разрешено показывать)
+  const totalReads = showReading && p.last_read ? Object.keys(p.last_read).length : 0;
+  const bookmarksCount = showReading
+    ? Array.isArray(p.bookmarks)
+      ? (p.bookmarks as unknown[]).length
+      : p.bookmarks && typeof p.bookmarks === 'object'
+      ? Object.keys(p.bookmarks as Record<string, unknown>).length
+      : 0
     : 0;
 
   return (
     <main className="container section">
       <div className="user-profile-hero">
-        <div className="user-profile-avatar">
-          {p.translator_avatar_url ? (
-            <img src={p.translator_avatar_url} alt="" />
-          ) : (
-            <span>{avatarInitial}</span>
-          )}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <UserAvatar
+            avatarUrl={p.translator_avatar_url ?? p.avatar_url}
+            name={displayName}
+            size={100}
+          />
           {readingNow.state === 'reading' && (
             <span className="user-profile-online-dot" title="Читает прямо сейчас" />
           )}

@@ -732,6 +732,45 @@ RPC:
 ### Про быстрый онбординг Boosty — честный ответ в FAQ
 Рекомендация новым переводчикам: **бери Tribute**, настройка 2 минуты, работает автоматически. Boosty — только если уже накоплена аудитория там; авто-сверки не будет, подтверждаешь платежи вручную по коду в комментарии. Это записано в ответах раздела «Переводчикам».
 
+## Итерация 18 — настройки профиля
+
+### Новая страница `/profile/settings`
+Всё, что юзер меняет сам, без помощи админа:
+- Аватар (через `AvatarPicker` — см. ниже)
+- Отображаемое имя (`user_name`)
+- Email / Telegram ID — read-only с пометкой, что меняются через бота или magic-link
+- Переключатель приватности «Показывать мою историю чтения другим» (`profiles.settings.show_reading_publicly`)
+- Для переводчика — отдельная секция: `translator_display_name`, отдельный аватар публичной страницы, `translator_about`, `payout_boosty_url`
+
+Ссылка «⚙ Настройки» добавлена в `/profile`.
+
+### 3 киллер-фичи
+
+1. **Три способа выбрать аватар** (`src/components/AvatarPicker.tsx`):
+   - **Загрузить файл** — до 3 МБ, jpg/png/webp, в bucket `avatars/<user_id>/<timestamp>-<rand>.ext`
+   - **Выбрать готовый** — 8 предустановленных градиентных пресетов с твоей первой буквой. One-click для тех, кто не хочет искать фото.
+   - **Из Telegram** — если юзер логинился через TG, `photo_url` из `user_metadata` подтягивается. Одна кнопка «Использовать это фото».
+2. **Круглое превью в реальном времени** — меняешь аватар → сразу видишь, как будет выглядеть в круглой рамке. Без сохранения.
+3. **Приватность чтения** — переключатель реально действует: на `/u/[id]` скрываются `last_read`, закладки, «читает сейчас», совпадения по вкусам. Владелец и админ видят всегда.
+
+### Миграция 012 — `migrations/012_profile_settings.sql`
+- `profiles.avatar_url text` — универсальное поле аватара
+- RPC `update_my_settings(data_to_update jsonb)` — security-definer, обновляет строго безопасный набор полей (`user_name`, `avatar_url`, `translator_*`, `payout_boosty_url`, `settings`). RLS на profiles продолжает запрещать прямой UPDATE.
+- Bucket `avatars` с public SELECT и INSERT/UPDATE/DELETE только в свою папку (`avatars/<auth.uid()>/...`)
+
+### Новые компоненты
+- `src/components/UserAvatar.tsx` — универсальный рендер аватара. 3 режима: `image` (URL), `preset` (CSS-градиент), `initial` (первая буква на градиенте). Используется в `SiteHeader`, `/profile`, `/u/[id]`.
+- `src/components/AvatarPicker.tsx` — пикер с тремя табами.
+- `src/lib/avatar.ts` — `describeAvatar()`, `resolveAvatarUrl()`, `AVATAR_PRESETS` палитра.
+
+### Интеграции
+- `SiteHeader`: рядом с именем теперь мини-аватар 24px
+- `/profile`: статичная big-avatar → `<UserAvatar size=84>`. Кнопка «⚙ Настройки» рядом с «Админка».
+- `/u/[id]`: аватар из `translator_avatar_url ?? avatar_url`, уважает `show_reading_publicly`
+
+### Что ещё стоит сделать следом
+Пройти по `/friends`, `/messages`, `ContinueReadingShelf`, `NotificationsClient` — везде заменить руками нарисованные инициалы на `<UserAvatar>` для консистентности.
+
 ## Предстоит
 
 ### Миграции — накатить на Supabase в порядке
