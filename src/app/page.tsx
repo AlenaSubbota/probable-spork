@@ -2,10 +2,14 @@ import { createClient } from '@/utils/supabase/server';
 import WeeklyHero from '@/components/WeeklyHero';
 import GenreChips from '@/components/GenreChips';
 import NovelCard from '@/components/NovelCard';
+import MoodPicker from '@/components/MoodPicker';
 import ContinueReadingShelf, { type ContinueItem } from '@/components/ContinueReadingShelf';
 import MyShelfStrip, { type ShelfItem } from '@/components/MyShelfStrip';
+import ForgottenNovels, { type ForgottenItem } from '@/components/ForgottenNovels';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
+
+const FORGOTTEN_DAYS = 14;
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -13,7 +17,6 @@ export default async function HomePage() {
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Параллельно получаем всё что нужно для страницы
   const [
     { count: newChaptersCount },
     { count: totalChaptersCount },
@@ -54,7 +57,7 @@ export default async function HomePage() {
       .limit(6),
   ]);
 
-  // Находим новеллу для последней главы
+  // Последняя глава
   let latestChapter: {
     novelTitle: string;
     novelFirebaseId: string;
@@ -79,7 +82,7 @@ export default async function HomePage() {
     }
   }
 
-  // Агрегируем жанры из всех новелл
+  // Жанры
   const genreMap: Record<string, number> = {};
   allNovelsRaw?.forEach((n) => {
     const gs = n.genres;
@@ -98,6 +101,7 @@ export default async function HomePage() {
   let continueItems: ContinueItem[] = [];
   let shelfItems: ShelfItem[] = [];
   let shelfTotal = 0;
+  let forgottenItems: ForgottenItem[] = [];
 
   if (user) {
     const { data: profile } = await supabase
@@ -107,40 +111,76 @@ export default async function HomePage() {
       .maybeSingle();
 
     if (profile) {
-      // «Продолжить чтение» из last_read: { [novel_id]: { novelId, chapterId, timestamp } }
       type LastReadEntry = { novelId: number; chapterId: number; timestamp: string };
       const lastRead = (profile.last_read || {}) as Record<string, LastReadEntry>;
-      const lastReadEntries = Object.values(lastRead)
+      const lastReadValues = Object.values(lastRead);
+
+      // --- Продолжить чтение (последние 10 по времени) ---
+      const recentReads = [...lastReadValues]
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 10);
 
-      if (lastReadEntries.length > 0) {
-        const novelIds = lastReadEntries.map((e) => e.novelId);
-        const { data: continueNovels } = await supabase
-          .from('novels')
-          .select('id, firebase_id, title, cover_url')
-          .in('id', novelIds);
+      // --- Забытое (14+ дней назад, <90% прогресса) ---
+      const forgottenThreshold = Date.now() - FORGOTTEN_DAYS * 24 * 60 * 60 * 1000;
+      const forgottenCandidates = lastReadValues
+        .filter((v) => new Date(v.timestamp).getTime() < forgottenThreshold)
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 10);
 
-        const novelMap: Record<string, { firebase_id: string; title: string; cover_url: string | null }> = {};
-        for (const n of continueNovels ?? []) {
-          novelMap[String(n.id)] = n;
-        }
+      // Собираем все novel_id одним запросом
+      const allIds = Array.from(
+        new Set([
+          ...recentReads.map((v) => v.novelId),
+          ...forgottenCandidates.map((v) => v.novelId),
+        ])
+      );
 
-        for (const entry of lastReadEntries) {
-          const novel = novelMap[String(entry.novelId)];
-          if (!novel) continue;
-          continueItems.push({
-            firebase_id: novel.firebase_id,
-            title: novel.title,
-            cover_url: novel.cover_url,
-            chapterNumber: entry.chapterId,
-            totalChapters: null,
-            lastReadAt: entry.timestamp,
-          });
+      let novelById: Record<string, { id: number; firebase_id: string; title: string; cover_url: string | null; chapter_count: number }> = {};
+      if (allIds.length > 0) {
+        const { data: novelsData } = await supabase
+          .from('novels_view')
+          .select('id, firebase_id, title, cover_url, chapter_count')
+          .in('id', allIds);
+        for (const n of novelsData ?? []) {
+          novelById[String(n.id)] = n;
         }
       }
 
-      // «Моя полка» из bookmarks: { [firebase_id]: status } или массив firebase_id
+      for (const entry of recentReads) {
+        const n = novelById[String(entry.novelId)];
+        if (!n) continue;
+        continueItems.push({
+          firebase_id: n.firebase_id,
+          title: n.title,
+          cover_url: n.cover_url,
+          chapterNumber: entry.chapterId,
+          totalChapters: n.chapter_count ?? null,
+          lastReadAt: entry.timestamp,
+        });
+      }
+
+      for (const entry of forgottenCandidates) {
+        const n = novelById[String(entry.novelId)];
+        if (!n || !n.chapter_count) continue;
+        const progress = n.chapter_count > 0 ? entry.chapterId / n.chapter_count : 1;
+        if (progress >= 0.9) continue; // уже почти дочитал
+        const days = Math.floor(
+          (Date.now() - new Date(entry.timestamp).getTime()) / (24 * 60 * 60 * 1000)
+        );
+        forgottenItems.push({
+          firebase_id: n.firebase_id,
+          novel_id: n.id,
+          title: n.title,
+          cover_url: n.cover_url,
+          chapterNumber: entry.chapterId,
+          totalChapters: n.chapter_count,
+          lastReadAt: entry.timestamp,
+          daysForgotten: days,
+        });
+        if (forgottenItems.length >= 4) break;
+      }
+
+      // --- Полка (bookmarks) ---
       const bookmarks = profile.bookmarks;
       let bookmarkIds: string[] = [];
       if (Array.isArray(bookmarks)) {
@@ -178,11 +218,18 @@ export default async function HomePage() {
       />
 
       <MyShelfStrip items={shelfItems} totalCount={shelfTotal} />
+
+      {/* Киллер-фича #1 — настроение */}
+      <MoodPicker />
+
+      {/* Киллер-фича #3 — забытое */}
+      <ForgottenNovels items={forgottenItems} />
+
       <ContinueReadingShelf items={continueItems} />
 
       <GenreChips genres={topGenres} total={allNovelsRaw?.length ?? 0} />
 
-      {/* Секция: Популярное */}
+      {/* Популярное */}
       <section className="container section">
         <div className="section-head">
           <h2>Популярное</h2>
@@ -200,13 +247,14 @@ export default async function HomePage() {
               coverUrl={getCoverUrl(novel.cover_url)}
               placeholderClass={`p${(index % 8) + 1}`}
               placeholderText={novel.title.substring(0, 10) + '...'}
+              chapterCount={novel.chapter_count}
               flagText={novel.average_rating > 4.8 ? 'HOT' : undefined}
             />
           ))}
         </div>
       </section>
 
-      {/* Секция: Новые главы */}
+      {/* Новые главы */}
       <section className="container section">
         <div className="section-head">
           <h2>Новые главы</h2>
@@ -228,6 +276,7 @@ export default async function HomePage() {
                 coverUrl={getCoverUrl(novel.cover_url)}
                 placeholderClass={`p${(index % 8) + 1}`}
                 placeholderText={novel.title.substring(0, 10) + '...'}
+                chapterCount={novel.chapter_count}
               />
             );
           })}
