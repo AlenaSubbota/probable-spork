@@ -5,6 +5,7 @@ import NovelCard from '@/components/NovelCard';
 import FirstChapterPreview from '@/components/FirstChapterPreview';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import ReleasePace from '@/components/ReleasePace';
+import BookmarkButton from '@/components/BookmarkButton';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
 
@@ -61,8 +62,24 @@ export default async function NovelPage({ params }: PageProps) {
     ? await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
     : { data: null };
 
-  const vp = viewerProfile as { role?: string; is_admin?: boolean } | null;
+  const vp = viewerProfile as {
+    role?: string;
+    is_admin?: boolean;
+    bookmarks?: unknown;
+  } | null;
   const viewerIsAdmin = vp?.is_admin === true || vp?.role === 'admin';
+
+  // Текущий статус в закладках для переключателя
+  let bookmarkStatus: string | null = null;
+  if (vp?.bookmarks) {
+    const bm = vp.bookmarks;
+    if (Array.isArray(bm)) {
+      if ((bm as string[]).includes(novel.firebase_id)) bookmarkStatus = 'reading';
+    } else if (typeof bm === 'object') {
+      const s = (bm as Record<string, unknown>)[novel.firebase_id];
+      if (typeof s === 'string') bookmarkStatus = s;
+    }
+  }
 
   const canEdit = !!user && (novel.translator_id === user.id || viewerIsAdmin);
 
@@ -264,9 +281,12 @@ export default async function NovelPage({ params }: PageProps) {
               >
                 Читать с 1-й главы
               </Link>
-              <button className="btn btn-ghost" type="button">
-                ♥ В закладки
-              </button>
+              {user && (
+                <BookmarkButton
+                  novelFirebaseId={novel.firebase_id}
+                  initialStatus={bookmarkStatus}
+                />
+              )}
               {canEdit && (
                 <>
                   <Link
