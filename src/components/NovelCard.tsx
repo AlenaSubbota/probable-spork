@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { formatReadingTime } from '@/lib/catalog';
 
 interface NovelCardProps {
   id: string;
@@ -10,7 +11,8 @@ interface NovelCardProps {
   placeholderText: React.ReactNode;
   flagText?: string;
   flagClass?: string;
-  coverUrl?: string | null; // <-- Добавили новый проп
+  coverUrl?: string | null;
+  chapterCount?: number | null;
 }
 
 export default function NovelCard({
@@ -23,18 +25,17 @@ export default function NovelCard({
   placeholderText,
   flagText,
   flagClass,
-  coverUrl // <-- Не забываем вытащить его из пропсов
+  coverUrl,
+  chapterCount,
 }: NovelCardProps) {
   return (
     <Link href={`/novel/${id}`} className="novel-card">
       <div className="novel-cover">
-        
-        {/* Проверяем: если есть обложка — рисуем img, иначе placeholder */}
         {coverUrl ? (
-          <img 
-            src={coverUrl} 
-            alt={title} 
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          <img
+            src={coverUrl}
+            alt={title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : (
           <div className={`placeholder ${placeholderClass}`}>
@@ -48,6 +49,11 @@ export default function NovelCard({
         <button className="bookmark-btn" aria-label="В закладки">♥</button>
         {flagText && (
           <span className={`flag ${flagClass || ''}`}>{flagText}</span>
+        )}
+        {chapterCount != null && chapterCount > 0 && (
+          <span className="reading-time-badge" title={`${chapterCount} глав`}>
+            {formatReadingTime(chapterCount)}
+          </span>
         )}
       </div>
       <div className="novel-title">{title}</div>
