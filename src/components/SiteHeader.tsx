@@ -8,6 +8,7 @@ export default async function SiteHeader() {
   let userName: string | null = null;
   let isTranslator = false;
   let coinBalance: number | null = null;
+  let unreadDm = 0;
 
   if (user) {
     // select('*') чтобы работать без миграции 001 (legacy is_admin) и с ней (role, coin_balance)
@@ -28,6 +29,14 @@ export default async function SiteHeader() {
         p.is_admin === true || p.role === 'translator' || p.role === 'admin';
       if (typeof p.coin_balance === 'number') coinBalance = p.coin_balance;
     }
+
+    // Непрочитанные сообщения (RPC из миграции 006)
+    try {
+      const { data: count } = await supabase.rpc('unread_dm_count');
+      if (typeof count === 'number') unreadDm = count;
+    } catch {
+      // миграция 006 ещё не накачена
+    }
   }
 
   return (
@@ -42,6 +51,13 @@ export default async function SiteHeader() {
           <Link href="/catalog">Каталог</Link>
           <Link href="/feed">Лента</Link>
           {user && <Link href="/bookmarks">Полка</Link>}
+          {user && <Link href="/friends">Друзья</Link>}
+          {user && (
+            <Link href="/messages" className="nav-with-badge">
+              Сообщения
+              {unreadDm > 0 && <span className="nav-unread">{unreadDm}</span>}
+            </Link>
+          )}
         </nav>
 
         <form action="/search" method="get" className="search-box">
