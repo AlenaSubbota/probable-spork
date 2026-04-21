@@ -78,41 +78,84 @@ export default function SearchClient() {
     const supabase = createClient();
     const pattern = `%${q.replace(/[%_]/g, '\\$&')}%`;
 
-    // Параллельно: поиск по новеллам + по глоссарию
-    const [novelsRes, glossaryRes] = await Promise.all([
-      supabase
-        .from('novels_view')
-        .select(
-          'id, firebase_id, title, title_en, title_original, author, cover_url, genres, average_rating, chapter_count'
-        )
-        .or(
-          [
-            `title.ilike.${pattern}`,
-            `title_en.ilike.${pattern}`,
-            `title_original.ilike.${pattern}`,
-            `author.ilike.${pattern}`,
-            `description.ilike.${pattern}`,
-          ].join(',')
-        )
-        .limit(20),
-      supabase
+    // Пытаемся идти через trigram RPC (нечёткий поиск, ловит опечатки
+    // и ранжирует по similarity). Если миграция 021 ещё не накачена —
+    // silently падаем на обычный ilike.
+    let novelsData: Record<string, unknown>[] | null = null;
+    let usedTrgm = false;
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc(
+        'search_novels_trgm',
+        { p_q: q, p_lim: 20 }
+      );
+      if (!rpcErr && Array.isArray(rpcData)) {
+        novelsData = rpcData as Record<string, unknown>[];
+        usedTrgm = true;
+      }
+    } catch {
+      // падаем в ilike ниже
+    }
+
+    let glossaryRes: { data: Array<{ novel_id: number; term_original: string; term_translation: string; category: string | null }> | null };
+
+    if (!usedTrgm) {
+      const [novelsRes, gRes] = await Promise.all([
+        supabase
+          .from('novels_view')
+          .select(
+            'id, firebase_id, title, title_en, title_original, author, cover_url, genres, average_rating, chapter_count'
+          )
+          .eq('moderation_status', 'published')
+          .or(
+            [
+              `title.ilike.${pattern}`,
+              `title_en.ilike.${pattern}`,
+              `title_original.ilike.${pattern}`,
+              `author.ilike.${pattern}`,
+              `description.ilike.${pattern}`,
+            ].join(',')
+          )
+          .limit(20),
+        supabase
+          .from('novel_glossaries')
+          .select('novel_id, term_original, term_translation, category')
+          .or(`term_original.ilike.${pattern},term_translation.ilike.${pattern}`)
+          .limit(20),
+      ]);
+      novelsData = novelsRes.data as Record<string, unknown>[] | null;
+      glossaryRes = gRes;
+    } else {
+      const gRes = await supabase
         .from('novel_glossaries')
         .select('novel_id, term_original, term_translation, category')
         .or(`term_original.ilike.${pattern},term_translation.ilike.${pattern}`)
-        .limit(20),
-    ]);
+        .limit(20);
+      glossaryRes = gRes;
+    }
 
-    const novelHits: NovelHit[] = (novelsRes.data ?? []).map((n) => {
+    const novelHits: NovelHit[] = (novelsData ?? []).map((n) => {
       const nq = norm(q);
+      const title = (n.title as string | null) ?? '';
+      const titleEn = (n.title_en as string | null) ?? null;
+      const titleOrig = (n.title_original as string | null) ?? null;
+      const author = (n.author as string | null) ?? null;
       let matched_field = 'Название';
-      if (n.title && norm(n.title).includes(nq)) matched_field = 'Название';
-      else if (n.title_en && norm(n.title_en).includes(nq)) matched_field = 'English';
-      else if (n.title_original && norm(n.title_original).includes(nq)) matched_field = 'Оригинал';
-      else if (n.author && norm(n.author).includes(nq)) matched_field = 'Автор';
-      else matched_field = 'Описание';
+      if (title && norm(title).includes(nq)) matched_field = 'Название';
+      else if (titleEn && norm(titleEn).includes(nq)) matched_field = 'English';
+      else if (titleOrig && norm(titleOrig).includes(nq)) matched_field = 'Оригинал';
+      else if (author && norm(author).includes(nq)) matched_field = 'Автор';
+      else matched_field = usedTrgm ? 'Похоже на запрос' : 'Описание';
       return {
-        ...n,
+        id: n.id as number,
+        firebase_id: n.firebase_id as string,
+        title,
+        title_en: titleEn,
+        title_original: titleOrig,
+        author,
+        cover_url: (n.cover_url as string | null) ?? null,
         genres: Array.isArray(n.genres) ? (n.genres as string[]) : null,
+        average_rating: (n.average_rating as number | null) ?? null,
+        chapter_count: (n.chapter_count as number | null) ?? null,
         matched_field,
       };
     });
