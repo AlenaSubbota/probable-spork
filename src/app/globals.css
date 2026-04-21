@@ -5020,6 +5020,178 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .bulk-preview-num { font-weight: 600; color: var(--ink); }
 .bulk-preview-meta { color: var(--ink-mute); font-size: 12px; }
 
+/* ---------- news ---------- */
+
+.news-head { padding: 20px 0 12px; }
+
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 32px;
+}
+
+.latest-news-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.latest-news-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 9px;
+  background: var(--accent);
+  color: var(--surface-2);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  vertical-align: middle;
+  letter-spacing: 0.03em;
+}
+
+.news-card {
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius);
+  transition: border-color .15s, box-shadow .15s;
+}
+.news-card:hover { box-shadow: var(--shadow-sm); }
+.news-card--compact {
+  padding: 16px 18px;
+}
+
+/* Цветовые акценты по типам */
+.news-card--accent { border-left-color: var(--accent); }
+.news-card--leaf   { border-left-color: var(--leaf); }
+.news-card--gold   { border-left-color: var(--gold); }
+.news-card--rose   { border-left-color: var(--rose); }
+.news-card--muted  { border-left-color: var(--border-strong); }
+
+.news-card-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.news-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: var(--bg-soft);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.news-card--accent .news-type { background: var(--accent-wash); color: var(--accent-hover); }
+.news-card--leaf   .news-type { background: #E3EBD6; color: #4C6A34; }
+.news-card--gold   .news-type { background: #F6EAD0; color: #8A6B1E; }
+.news-card--rose   .news-type { background: #F0DCD5; color: #8C4032; }
+.news-type-emoji { font-size: 14px; line-height: 1; }
+
+.news-pinned {
+  font-size: 14px;
+  opacity: 0.7;
+}
+.news-time {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+}
+.news-card-title {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  margin: 4px 0 10px;
+  line-height: 1.25;
+}
+.news-card--compact .news-card-title {
+  font-size: 17px;
+  margin-bottom: 6px;
+}
+.news-card-title a {
+  color: var(--ink);
+}
+.news-card-title a:hover {
+  color: var(--accent);
+}
+
+.news-card-body {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.news-card-body p:first-child { margin-top: 0; }
+.news-card-body p:last-child  { margin-bottom: 0; }
+
+.news-card-more {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.news-card-more:hover { text-decoration: underline; }
+
+/* Attached novel mini-card */
+.news-attached {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: inherit;
+  transition: all .15s;
+}
+.news-attached:hover {
+  background: var(--accent-wash);
+  border-color: var(--accent-soft);
+}
+.news-attached-cover {
+  width: 44px;
+  height: 60px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+}
+.news-attached-cover img,
+.news-attached-cover .placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.news-attached-body {
+  flex: 1;
+  min-width: 0;
+}
+.news-attached-label {
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.news-attached-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-top: 1px;
+}
+.news-attached-cta {
+  font-size: 11.5px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
 /* ---------- misc ---------- */
 
 .note {

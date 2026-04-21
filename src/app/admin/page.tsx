@@ -80,6 +80,11 @@ export default async function AdminDashboard() {
           <Link href="/admin/analytics" className="btn btn-ghost">
             Аналитика
           </Link>
+          {isAdmin && (
+            <Link href="/admin/news" className="btn btn-ghost">
+              📢 Новости
+            </Link>
+          )}
           <Link href="/admin/novels/new" className="btn btn-primary">
             + Новелла
           </Link>

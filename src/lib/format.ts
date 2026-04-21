@@ -6,11 +6,19 @@ export function getCoverUrl(path: string | null | undefined) {
   if (!path) return null;
   if (path.startsWith('http')) return path;
 
-  // Новые загрузки (UUID-like или timestamp-like имена) лежат в Supabase Storage
+  // В старой базе tene cover_url часто лежит с префиксом «covers/» —
+  // не добавляем его повторно, только кодируем имя файла.
+  if (path.startsWith('covers/')) {
+    const filename = path.slice('covers/'.length);
+    return `https://tene.fun/covers/${encodeURIComponent(filename)}`;
+  }
+
+  // Новые загрузки через CoverUpload: UUID-like или timestamp-rand имена → Supabase Storage
   if (UUID_RE.test(path) || UPLOAD_RE.test(path)) {
     return `https://tene.fun/storage/v1/object/public/covers/${encodeURIComponent(path)}`;
   }
-  // Старые обложки tene живут по прямому пути /covers/имя.ext
+
+  // Старые обложки tene — прямое имя файла в /covers/
   return `https://tene.fun/covers/${encodeURIComponent(path)}`;
 }
 
