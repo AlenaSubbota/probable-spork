@@ -58,12 +58,13 @@ export default async function NovelPage({ params }: PageProps) {
   if (novelError || !novel) notFound();
 
   const { data: viewerProfile } = user
-    ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    ? await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
     : { data: null };
 
-  const canEdit =
-    !!user &&
-    (novel.translator_id === user.id || viewerProfile?.role === 'admin');
+  const vp = viewerProfile as { role?: string; is_admin?: boolean } | null;
+  const viewerIsAdmin = vp?.is_admin === true || vp?.role === 'admin';
+
+  const canEdit = !!user && (novel.translator_id === user.id || viewerIsAdmin);
 
   // Параллельные запросы
   const [

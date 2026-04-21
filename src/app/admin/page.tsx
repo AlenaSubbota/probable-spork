@@ -12,15 +12,26 @@ export default async function AdminDashboard() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, translator_slug, translator_display_name')
+    .select('*')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (!profile || !['translator', 'admin'].includes(profile.role)) {
+  const p = profile as {
+    role?: string;
+    is_admin?: boolean;
+    translator_slug?: string | null;
+    translator_display_name?: string | null;
+  } | null;
+
+  const role = p?.role;
+  const isAdminLegacy = p?.is_admin === true;
+  const isTranslator = isAdminLegacy || role === 'translator' || role === 'admin';
+
+  if (!isTranslator) {
     redirect('/translator/apply');
   }
 
-  const isAdmin = profile.role === 'admin';
+  const isAdmin = isAdminLegacy || role === 'admin';
 
   // Мои новеллы (или все для админа)
   let novelsQuery = supabase
@@ -57,8 +68,8 @@ export default async function AdminDashboard() {
         <div>
           <h1>
             Админка
-            {!isAdmin && profile.translator_display_name && (
-              <span className="admin-head-who"> · {profile.translator_display_name}</span>
+            {!isAdmin && p?.translator_display_name && (
+              <span className="admin-head-who"> · {p.translator_display_name}</span>
             )}
           </h1>
           <p className="admin-head-sub">
