@@ -91,6 +91,9 @@ export default async function AdminDashboard() {
               <Link href="/admin/news" className="btn btn-ghost">
                 📢 Новости
               </Link>
+              <Link href="/admin/polls" className="btn btn-ghost">
+                🗳 Опросы
+              </Link>
             </>
           )}
           <Link href="/admin/novels/new" className="btn btn-primary">

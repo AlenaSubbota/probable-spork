@@ -103,10 +103,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .main-nav {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
   font-size: 14px;
   font-weight: 500;
   color: var(--ink-soft);
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 .main-nav a.active,
@@ -115,7 +117,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 .search-box {
-  flex: 1;
+  flex: 1 1 240px;
+  min-width: 200px;
   max-width: 420px;
   position: relative;
   margin-left: auto;
@@ -778,6 +781,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   box-shadow: var(--shadow-md);
 }
 .continue-card .mini-cover img { width: 100%; height: 100%; object-fit: cover; }
+.continue-card .body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .continue-card .body .title {
   font-size: 12.5px;
   font-weight: 600;
@@ -787,10 +795,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Fix: фиксированная высота, чтобы прогресс не скакал при разных длинах */
+  min-height: calc(1.3em * 2);
+  max-height: calc(1.3em * 2);
 }
 .continue-card .body .meta {
   font-size: 11px;
   color: var(--ink-mute);
+  margin-top: 0;
+}
+.continue-card .progress {
+  /* Фиксированная позиция — всегда под мета-строкой */
+  flex-shrink: 0;
   margin-top: 2px;
 }
 
@@ -5862,14 +5878,23 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .reading-now-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 14px;
+  /* Обложки мелкие, в hero влезает ряд из 6–8, а не три во весь экран. */
+  grid-template-columns: repeat(auto-fill, minmax(92px, 110px));
+  justify-content: start;
+  gap: 14px 12px;
+}
+@media (max-width: 540px) {
+  .reading-now-grid {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 10px;
+  }
 }
 .reading-now-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
   color: inherit;
+  min-width: 0;
 }
 .reading-now-cover {
   position: relative;
@@ -5891,21 +5916,21 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .reading-now-badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 6px;
+  left: 6px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
+  gap: 3px;
+  padding: 2px 7px;
   background: rgba(20, 14, 8, 0.72);
   backdrop-filter: blur(4px);
   color: #fff;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 .reading-now-title {
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--ink);
   line-height: 1.3;
@@ -5920,26 +5945,27 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .comments-feed {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 .comments-feed-item {
   display: grid;
-  grid-template-columns: 40px 1fr;
-  gap: 12px;
-  padding: 14px 16px;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: inherit;
-  transition: border-color .15s;
+  transition: border-color .15s, background .15s;
 }
 .comments-feed-item:hover {
   border-color: var(--accent-soft);
   background: var(--accent-wash);
 }
 .comments-feed-avatar {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent), var(--rose));
   display: grid;
@@ -5947,36 +5973,52 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: #fff;
   font-family: var(--font-serif);
   font-weight: 700;
-  font-size: 15px;
+  font-size: 13px;
 }
-.comments-feed-head {
+.comments-feed-body {
+  min-width: 0;
+}
+.comments-feed-line {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  line-height: 1.3;
 }
 .comments-feed-author {
-  font-size: 13px;
   font-weight: 600;
   color: var(--ink);
+}
+.comments-feed-sep {
+  color: var(--ink-mute);
+  font-size: 11px;
+}
+.comments-feed-novel {
+  color: var(--accent);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+.comments-feed-ch {
+  color: var(--ink-soft);
+  font-size: 12px;
 }
 .comments-feed-time {
   font-size: 11px;
   color: var(--ink-mute);
+  margin-top: 2px;
 }
-.comments-feed-text {
-  margin: 4px 0 6px;
-  font-size: 13px;
-  color: var(--ink);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.comments-feed-arrow {
+  font-size: 14px;
+  color: var(--ink-mute);
+  transition: transform .15s, color .15s;
 }
-.comments-feed-where {
-  font-size: 11.5px;
+.comments-feed-item:hover .comments-feed-arrow {
+  transform: translateX(3px);
   color: var(--accent);
-  font-weight: 500;
 }
 
 /* ---------- Homepage: Novel Poll ---------- */
@@ -6109,4 +6151,261 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   letter-spacing: .05em;
   text-transform: uppercase;
   display: inline-block;
+}
+
+/* ---------- Homepage: Stories strip ---------- */
+
+.stories-section {
+  padding-top: 18px;
+  padding-bottom: 8px;
+}
+.stories-strip {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 4px 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+.stories-strip::-webkit-scrollbar {
+  height: 4px;
+}
+.stories-strip::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+.stories-bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+  width: 76px;
+  scroll-snap-align: start;
+}
+.stories-ring {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  padding: 3px;
+  display: grid;
+  place-items: center;
+  transition: transform .15s;
+}
+.stories-bubble:hover .stories-ring {
+  transform: scale(1.04);
+}
+.stories-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--surface);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--surface);
+}
+.stories-inner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.stories-inner-letter {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.stories-label {
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: var(--ink-soft);
+  text-align: center;
+  max-width: 76px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.stories-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 14, 8, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 100;
+  animation: fade-in .15s ease-out;
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.stories-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 20px;
+  overflow: hidden;
+  color: #fff;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+}
+.stories-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+}
+.stories-modal-image {
+  aspect-ratio: 4/5;
+  max-height: 55vh;
+  overflow: hidden;
+}
+.stories-modal-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.stories-modal-body {
+  padding: 20px 22px 24px;
+}
+.stories-modal-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+.stories-modal-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.88);
+  margin: 0 0 18px;
+  white-space: pre-wrap;
+}
+.stories-modal-cta {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ---------- Homepage: Quote of the day ---------- */
+
+.quote-card {
+  position: relative;
+  padding: 28px 28px 22px;
+  background: linear-gradient(135deg, var(--accent-wash), var(--surface));
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.quote-mark {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  font-family: var(--font-serif);
+  font-size: 110px;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.22;
+  pointer-events: none;
+}
+.quote-text {
+  position: relative;
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0 0 14px;
+  font-style: italic;
+  white-space: pre-wrap;
+}
+.quote-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.quote-author {
+  font-weight: 600;
+  color: var(--ink);
+}
+.quote-sep {
+  color: var(--ink-mute);
+}
+.quote-source {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ---------- Admin: Subtabs (News / Polls / ...) ---------- */
+
+.admin-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 18px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+.admin-subtab {
+  padding: 8px 14px;
+  border-radius: 10px 10px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  transform: translateY(1px);
+}
+.admin-subtab:hover {
+  color: var(--accent);
+}
+.admin-subtab.active {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
+/* ---------- Admin: Poll form ---------- */
+
+.poll-options-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.poll-option-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.poll-option-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.poll-option-editor-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: .05em;
 }

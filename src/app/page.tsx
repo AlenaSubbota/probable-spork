@@ -10,6 +10,8 @@ import type { NewsItem } from '@/components/news/NewsCard';
 import ReadingNow, { type ReadingNowItem } from '@/components/home/ReadingNow';
 import CommentsFeed, { type CommentFeedItem } from '@/components/home/CommentsFeed';
 import NovelPoll, { type PollOptionResult } from '@/components/home/NovelPoll';
+import StoriesStrip, { type StoryItem } from '@/components/home/StoriesStrip';
+import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
 
@@ -322,6 +324,41 @@ export default async function HomePage() {
     // ok
   }
 
+  // ---- Stories (верхняя ленточка, как в Instagram) ----
+  let stories: StoryItem[] = [];
+  try {
+    const { data: storiesRaw } = await supabase
+      .from('stories')
+      .select(
+        'id, title, text, image_url, bg_gradient, action_link, button_text, type, items, sort_order, created_at'
+      )
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false })
+      .limit(12);
+    stories = (storiesRaw ?? []) as StoryItem[];
+  } catch {
+    // таблицы нет — блок тихо не рендерится
+  }
+
+  // ---- Цитата дня ----
+  let quoteOfTheDay: QuoteItem | null = null;
+  try {
+    const { data: quoteRows } = await supabase.rpc('random_public_quote');
+    const q = Array.isArray(quoteRows) ? quoteRows[0] : null;
+    if (q) {
+      quoteOfTheDay = {
+        id: q.id,
+        quote_text: q.quote_text,
+        chapter_number: q.chapter_number,
+        author_name: q.author_name,
+        novel_title: q.novel_title,
+        novel_firebase_id: q.novel_firebase_id,
+      };
+    }
+  } catch {
+    // миграция 014 не накачена
+  }
+
   // ---- Активный опрос (голосование за новую новеллу) ----
   let pollData: {
     id: number;
@@ -367,6 +404,9 @@ export default async function HomePage() {
 
   return (
     <main>
+      {/* Instagram-style stories вверху */}
+      <StoriesStrip stories={stories} />
+
       {/* HERO: что реально читают прямо сейчас */}
       <ReadingNow items={readingNowItems} totalReadersNow={totalReadersNow} />
 
@@ -374,6 +414,9 @@ export default async function HomePage() {
 
       {/* Новости админа */}
       <LatestNews items={latestNews} unreadCount={unreadNewsCount} />
+
+      {/* Цитата дня — случайная публичная */}
+      <QuoteOfTheDay quote={quoteOfTheDay} />
 
       {/* Выбор по настроению */}
       <MoodPicker />
