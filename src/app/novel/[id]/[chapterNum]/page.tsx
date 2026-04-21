@@ -46,6 +46,25 @@ export default async function ChapterPage({ params }: PageProps) {
 
   if (!chapter) notFound();
 
+  // Черновики и запланированные главы видит только переводчик / админ.
+  // Остальным — 404 (как будто главы просто не существует).
+  const publishedMs = chapter.published_at
+    ? new Date(chapter.published_at).getTime()
+    : null;
+  const isDraftOrScheduled =
+    publishedMs === null || publishedMs > Date.now();
+  if (isDraftOrScheduled) {
+    if (!user) notFound();
+    const { data: viewerRoleRow } = await supabase
+      .from('profiles')
+      .select('role, is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+    const vr = viewerRoleRow as { role?: string; is_admin?: boolean } | null;
+    const viewerIsAdminHere = vr?.is_admin === true || vr?.role === 'admin';
+    if (!viewerIsAdminHere && novel.translator_id !== user.id) notFound();
+  }
+
   // Проверяем доступ. Если глава бесплатная — сразу пускаем.
   // Иначе пробуем RPC can_read_chapter (после миграции 001). Если RPC нет
   // или бросает ошибку — фоллбэк: пускаем всех (не ломаем beta-флоу tene).
@@ -162,21 +181,35 @@ export default async function ChapterPage({ params }: PageProps) {
     finalContent = '<p><em>Текст главы отсутствует.</em></p>';
   }
 
-  // Соседние главы
-  const [{ data: prevChapter }, { data: nextChapter }] = await Promise.all([
-    supabase
-      .from('chapters')
-      .select('chapter_number')
-      .eq('novel_id', novel.id)
-      .eq('chapter_number', num - 1)
-      .maybeSingle(),
-    supabase
-      .from('chapters')
-      .select('chapter_number')
-      .eq('novel_id', novel.id)
-      .eq('chapter_number', num + 1)
-      .maybeSingle(),
+  // Соседние главы. Читатели не должны переходить в черновики/запланированные:
+  // берём ближайшие видимые, не обязательно соседние по номеру.
+  const nowIso = new Date().toISOString();
+  const prevQuery = supabase
+    .from('chapters')
+    .select('chapter_number')
+    .eq('novel_id', novel.id)
+    .lt('chapter_number', num)
+    .order('chapter_number', { ascending: false })
+    .limit(1);
+  const nextQuery = supabase
+    .from('chapters')
+    .select('chapter_number')
+    .eq('novel_id', novel.id)
+    .gt('chapter_number', num)
+    .order('chapter_number', { ascending: true })
+    .limit(1);
+  if (isDraftOrScheduled) {
+    // владелец в предпросмотре — видит всё, чтобы переходить между draft/scheduled
+  } else {
+    prevQuery.not('published_at', 'is', null).lte('published_at', nowIso);
+    nextQuery.not('published_at', 'is', null).lte('published_at', nowIso);
+  }
+  const [{ data: prevRow }, { data: nextRow }] = await Promise.all([
+    prevQuery.maybeSingle(),
+    nextQuery.maybeSingle(),
   ]);
+  const prevChapter = prevRow;
+  const nextChapter = nextRow;
 
   return (
     <div className="reader-page">
@@ -191,6 +224,26 @@ export default async function ChapterPage({ params }: PageProps) {
       </header>
 
       <main className="reader-main">
+        {isDraftOrScheduled && (
+          <div className="preview-banner" role="status">
+            <span className="preview-banner-icon" aria-hidden="true">
+              {publishedMs === null ? '📝' : '⏰'}
+            </span>
+            <div>
+              <div className="preview-banner-title">
+                {publishedMs === null
+                  ? 'Это черновик'
+                  : 'Запланированная публикация'}
+              </div>
+              <div className="preview-banner-sub">
+                {publishedMs === null
+                  ? 'Главу видишь только ты. Читателям она откроется, когда переключишь статус в редакторе.'
+                  : `Откроется читателям ${new Date(chapter.published_at!).toLocaleString('ru-RU')}`}
+              </div>
+            </div>
+          </div>
+        )}
+
         <h1 className="reader-title">Глава {chapter.chapter_number}</h1>
 
         <ReaderContent

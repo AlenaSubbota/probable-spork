@@ -61,9 +61,13 @@ export default async function FeedPage({
     shelfNovelIds = (shelfNovels ?? []).map((n) => n.id);
   }
 
+  // Скрываем черновики (published_at IS NULL) и будущие публикации.
+  const nowIsoFeed = new Date().toISOString();
   let chaptersQuery = supabase
     .from('chapters')
     .select('id, chapter_number, is_paid, published_at, novel_id', { count: 'exact' })
+    .not('published_at', 'is', null)
+    .lte('published_at', nowIsoFeed)
     .order('published_at', { ascending: false, nullsFirst: false })
     .range(from, to);
   if (mineOnly) {

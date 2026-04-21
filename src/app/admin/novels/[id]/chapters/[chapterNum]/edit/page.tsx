@@ -36,7 +36,7 @@ export default async function EditChapterPage({ params }: PageProps) {
 
   const { data: chapter } = await supabase
     .from('chapters')
-    .select('chapter_number, is_paid, content_path, price_coins')
+    .select('chapter_number, is_paid, content_path, price_coins, published_at')
     .eq('novel_id', novel.id)
     .eq('chapter_number', num)
     .single();
@@ -80,6 +80,7 @@ export default async function EditChapterPage({ params }: PageProps) {
           content,
           is_paid: !!chapter.is_paid,
           price_coins: chapter.price_coins ?? 10,
+          published_at: chapter.published_at ?? null,
         }}
       />
     </main>
