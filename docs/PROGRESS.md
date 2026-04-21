@@ -279,6 +279,52 @@
 - На странице новеллы статичная `♥ В закладки` заменена на рабочий `BookmarkButton`
 - Компонент читает текущий статус из `profiles.bookmarks` и подсвечивает активный пункт в dropdown
 
+## Итерация 8 — регистрация и вход через Telegram, Google, Яндекс, email
+
+### Контекст
+Поскольку chaptify и tene **живут на одной БД Supabase**, отдельного переноса аккаунтов не требуется: один раз войдя на chaptify под тем же Telegram/email, пользователь автоматически попадает в свой tene-аккаунт со всеми закладками, монетами, подписками, прогрессом чтения.
+
+### Страницы
+- **`/register`** (новая) — регистрация, middleware пускает без авторизации
+- **`/login`** (переписана) — та же форма, другой заголовок и дефолтный режим
+
+Оба используют общий компонент `src/components/auth/AuthForm.tsx` (mode = 'login' | 'register').
+
+### Методы входа
+
+1. **Telegram Login Widget** — `src/components/auth/TelegramLoginWidget.tsx`. Подгружает официальный telegram-widget.js, callback отправляется на существующий `auth-service` в репозитории `server` (эндпоинт `/auth/telegram`, принимает `widgetData`). Сервис валидирует HMAC-подпись от Telegram, находит или создаёт аккаунт по `telegram_id`, возвращает Supabase-сессию. Клиент делает `supabase.auth.setSession()`.
+2. **Google OAuth** — `supabase.auth.signInWithOAuth({ provider: 'google' })`. Нужен native Google provider включённым в Supabase Auth dashboard.
+3. **Яндекс** — кнопка-заглушка. Supabase не имеет native Yandex-провайдера. Реализация потребует custom OIDC в Auth + эндпоинт в auth-service (как Telegram), либо внешний OAuth-proxy. Отложено.
+4. **Email + пароль** — стандартный `signUp` / `signInWithPassword`.
+5. **Magic link** — `supabase.auth.signInWithOtp({ email })`. Войти по ссылке из письма без пароля.
+
+### 3 киллер-фичи
+
+1. **Telegram в один клик** — главная кнопка сверху, без ввода паролей. Работает через уже существующий рабочий auth-service tene.
+2. **Баннер «Есть аккаунт на tene.fun?»** — `src/components/auth/MigrationHint.tsx`. Явно подсказывает пользователю, что можно войти под старыми данными и ничего не потерять.
+3. **Magic link** — вкладка «✉ Magic link» в email-форме: ввёл email → получил ссылку → вошёл. Пароль помнить не надо.
+
+### Изменения в репозитории `server`
+- `auth-service/index.js`: в `allowedOrigins` добавлены `https://chaptify.ru`, `https://www.chaptify.ru`, `http://localhost:3000`. Один и тот же сервис теперь обслуживает оба сайта.
+
+### Нужно настроить во внешних системах
+
+1. **BotFather (Telegram)**
+   - `/mybots` → выбрать бота `@tenebrisverbot` → Bot Settings → Domain
+   - Добавить домен `chaptify.ru`. Без этого виджет не загрузится на chaptify.ru.
+2. **Google Cloud Console**
+   - В существующем OAuth-клиенте добавить `https://chaptify.ru` в Authorized JavaScript origins
+   - Добавить `https://<supabase-url>/auth/v1/callback` в Authorized redirect URIs (уже должно быть для tene)
+3. **Supabase Auth settings**
+   - Site URL добавить `https://chaptify.ru` (через admin API или dashboard)
+   - Для magic link: настроить SMTP (или Supabase-встроенный отправитель)
+4. **Env vars для chaptify-web** (в .env.production или Portainer):
+   - `NEXT_PUBLIC_TG_BOT_USERNAME=tenebrisverbot`
+   - `NEXT_PUBLIC_AUTH_API_URL=https://tene.fun` (или где слушает auth-service)
+
+### Изменения middleware
+- `/register` добавлен в список публично доступных путей (наравне с `/login`)
+
 ## Предстоит
 
 ### Миграции — накатить на Supabase в порядке
