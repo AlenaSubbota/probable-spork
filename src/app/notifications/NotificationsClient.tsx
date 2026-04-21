@@ -37,14 +37,19 @@ const FILTERS: Array<{ key: string; label: string }> = [
 
 function iconFor(type: string): string {
   switch (type) {
-    case 'message':         return '✉';
-    case 'friend_request':  return '👋';
-    case 'friend_accepted': return '🤝';
-    case 'comment_reply':   return '💬';
-    case 'comment_like':    return '❤';
-    case 'new_subscriber':  return '💝';
-    case 'new_chapter':     return '📖';
-    default:                return '🔔';
+    case 'message':                          return '✉';
+    case 'friend_request':                   return '👋';
+    case 'friend_accepted':                  return '🤝';
+    case 'comment_reply':                    return '💬';
+    case 'comment_like':                     return '❤';
+    case 'new_subscriber':                   return '💝';
+    case 'new_chapter':                      return '📖';
+    case 'novel_pending':                    return '🛡';
+    case 'novel_approved':                   return '✅';
+    case 'novel_rejected':                   return '⚠';
+    case 'translator_application_approved':  return '🎉';
+    case 'translator_application_rejected':  return '📋';
+    default:                                 return '🔔';
   }
 }
 
