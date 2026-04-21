@@ -218,7 +218,7 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
   WITH my AS (
     SELECT n.*,
            COALESCE(p.translator_display_name, p.user_name) AS a_name,
-           COALESCE(p.translator_avatar_url, p.user_avatar_url) AS a_avatar
+           p.translator_avatar_url AS a_avatar
     FROM public.notifications n
     LEFT JOIN public.profiles p ON p.id = n.actor_id
     WHERE n.user_id = auth.uid()

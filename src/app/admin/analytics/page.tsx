@@ -246,6 +246,37 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
 
   const periodLabel = `за ${PERIOD_LABELS[period]}`;
 
+  // --- «К выплате» — только для переводчика (не админа) ---
+  let pendingPayout: {
+    since: string | null;
+    coinsGross: number;
+    chapterCount: number;
+    uniqueBuyers: number;
+  } | null = null;
+  if (!isAdmin) {
+    try {
+      const { data } = await supabase.rpc('translator_earnings_pending', {
+        p_translator: user.id,
+      });
+      if (data && typeof data === 'object') {
+        const d = data as {
+          since: string;
+          coins_gross: number;
+          chapter_count: number;
+          unique_buyers: number;
+        };
+        pendingPayout = {
+          since: d.since,
+          coinsGross: Number(d.coins_gross ?? 0),
+          chapterCount: Number(d.chapter_count ?? 0),
+          uniqueBuyers: Number(d.unique_buyers ?? 0),
+        };
+      }
+    } catch {
+      // миграция 011 не накачена
+    }
+  }
+
   return (
     <main className="container admin-page admin-page--wide">
       <div className="admin-breadcrumbs">
@@ -275,6 +306,38 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
           ))}
         </div>
       </header>
+
+      {/* Блок «К выплате» — только для переводчика */}
+      {pendingPayout && pendingPayout.coinsGross > 0 && (
+        <div className="pending-payout">
+          <div className="pending-payout-head">
+            <span className="pending-payout-emoji" aria-hidden="true">💰</span>
+            <div>
+              <div className="pending-payout-label">К выплате (накоплено)</div>
+              <div className="pending-payout-amount">
+                {pendingPayout.coinsGross.toLocaleString('ru-RU')} монет ≈{' '}
+                {pendingPayout.coinsGross.toLocaleString('ru-RU')} ₽
+              </div>
+              <div className="pending-payout-sub">
+                {pendingPayout.chapterCount}{' '}
+                {plural(pendingPayout.chapterCount, 'глава', 'главы', 'глав')}{' '}
+                куплено · {pendingPayout.uniqueBuyers}{' '}
+                {plural(
+                  pendingPayout.uniqueBuyers,
+                  'читатель',
+                  'читателя',
+                  'читателей'
+                )}{' '}
+                заплатили
+              </div>
+            </div>
+          </div>
+          <div className="pending-payout-note">
+            Админ переводит деньги раз в месяц. Настрой способ выплаты в{' '}
+            <Link href="/admin/payouts" className="more">/admin/payouts</Link>.
+          </div>
+        </div>
+      )}
 
       {/* Основные метрики */}
       <div className="period-cards">
