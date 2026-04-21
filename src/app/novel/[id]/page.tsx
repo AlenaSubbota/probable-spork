@@ -66,6 +66,27 @@ export default async function NovelPage({ params }: PageProps) {
 
   const canEdit = !!user && (novel.translator_id === user.id || viewerIsAdmin);
 
+  // Slug переводчика для ссылки на /t/[slug]
+  let translatorSlug: string | null = null;
+  if (novel.translator_id) {
+    const { data: tp } = await supabase
+      .from('profiles')
+      .select('translator_slug, user_name')
+      .eq('id', novel.translator_id)
+      .maybeSingle();
+    const p = tp as { translator_slug?: string | null; user_name?: string | null } | null;
+    translatorSlug = p?.translator_slug || p?.user_name || null;
+  }
+  if (!translatorSlug && novel.author) {
+    const { data: tp } = await supabase
+      .from('profiles')
+      .select('translator_slug, user_name')
+      .ilike('user_name', novel.author)
+      .maybeSingle();
+    const p = tp as { translator_slug?: string | null; user_name?: string | null } | null;
+    translatorSlug = p?.translator_slug || p?.user_name || null;
+  }
+
   // Параллельные запросы
   const [
     { data: chaptersDesc },
@@ -218,12 +239,21 @@ export default async function NovelPage({ params }: PageProps) {
                   <div className="name">{novel.author}</div>
                   <div className="role">Переводчик</div>
                 </div>
-                <span
-                  className="btn btn-ghost"
-                  style={{ pointerEvents: 'none', opacity: 0.6 }}
-                >
-                  Профиль
-                </span>
+                {translatorSlug ? (
+                  <Link
+                    href={`/t/${translatorSlug}`}
+                    className="btn btn-ghost"
+                  >
+                    Профиль →
+                  </Link>
+                ) : (
+                  <span
+                    className="btn btn-ghost"
+                    style={{ pointerEvents: 'none', opacity: 0.6 }}
+                  >
+                    Профиль
+                  </span>
+                )}
               </div>
             )}
 

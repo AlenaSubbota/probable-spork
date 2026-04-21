@@ -36,9 +36,9 @@ export default async function SiteHeader() {
           <Link href="/feed">Лента</Link>
         </nav>
 
-        <div className="search-box">
-          <input type="search" placeholder="Поиск новеллы..." />
-        </div>
+        <form action="/search" method="get" className="search-box">
+          <input type="search" name="q" placeholder="Поиск: название, автор, персонаж…" />
+        </form>
 
         <div className="header-actions">
           {user ? (
