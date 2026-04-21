@@ -19,9 +19,9 @@ interface Props {
   stories: StoryItem[];
 }
 
-// Instagram-style ленточка сверху: круглые аватарки с градиентом.
-// По клику — модалка с картинкой + CTA (в дочитанную новеллу, в событие,
-// в подборку). Данные живут в public.stories (таблица уже есть из tene).
+// Тёплые «книжные» карточки-анонсы: короткие флеш-сообщения, как закладки.
+// Нарочно не яркие цифровые круги — переиспользуем палитру сайта
+// (кремовый/бумажный, акцентные тёплые тона). По клику модалка с CTA.
 export default function StoriesStrip({ stories }: Props) {
   const [active, setActive] = useState<StoryItem | null>(null);
 
@@ -40,29 +40,29 @@ export default function StoriesStrip({ stories }: Props) {
     <section className="container section stories-section">
       <div className="stories-strip">
         {stories.map((s) => {
-          const grad =
-            s.bg_gradient ||
-            'linear-gradient(135deg, #FFB97A, #E85A8A, #7E5BEF)';
+          const hasCover = !!s.image_url;
           return (
             <button
               key={s.id}
               type="button"
-              className="stories-bubble"
+              className={`story-tile${hasCover ? ' has-cover' : ''}`}
               onClick={() => setActive(s)}
               aria-label={s.title ?? 'История'}
+              style={
+                !hasCover && s.bg_gradient
+                  ? { background: s.bg_gradient }
+                  : undefined
+              }
             >
-              <span className="stories-ring" style={{ background: grad }}>
-                <span className="stories-inner">
-                  {s.image_url ? (
-                    <img src={s.image_url} alt="" />
-                  ) : (
-                    <span className="stories-inner-letter">
-                      {(s.title ?? '?').trim().charAt(0).toUpperCase()}
-                    </span>
-                  )}
+              {hasCover && (
+                <span className="story-tile-cover">
+                  <img src={s.image_url!} alt="" />
+                  <span className="story-tile-veil" aria-hidden="true" />
                 </span>
+              )}
+              <span className="story-tile-text">
+                <span className="story-tile-title">{s.title ?? '—'}</span>
               </span>
-              <span className="stories-label">{s.title ?? '—'}</span>
             </button>
           );
         })}
@@ -70,44 +70,50 @@ export default function StoriesStrip({ stories }: Props) {
 
       {active && (
         <div
-          className="stories-modal"
+          className="story-modal"
           role="dialog"
           aria-modal="true"
           onClick={() => setActive(null)}
         >
           <div
-            className="stories-modal-card"
+            className="story-modal-card"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background:
-                active.bg_gradient ||
-                'linear-gradient(160deg, #2a1810, #5a2a3e)',
-            }}
           >
             <button
               type="button"
-              className="stories-modal-close"
+              className="story-modal-close"
               onClick={() => setActive(null)}
               aria-label="Закрыть"
             >
               ×
             </button>
-            {active.image_url && (
-              <div className="stories-modal-image">
+            {active.image_url ? (
+              <div className="story-modal-image">
                 <img src={active.image_url} alt="" />
               </div>
+            ) : (
+              <div
+                className="story-modal-image story-modal-image--grad"
+                style={{
+                  background:
+                    active.bg_gradient ||
+                    'linear-gradient(160deg, var(--accent-soft), var(--accent))',
+                }}
+              >
+                <span>{(active.title ?? '—').trim().charAt(0).toUpperCase()}</span>
+              </div>
             )}
-            <div className="stories-modal-body">
+            <div className="story-modal-body">
               {active.title && (
-                <h3 className="stories-modal-title">{active.title}</h3>
+                <h3 className="story-modal-title">{active.title}</h3>
               )}
               {active.text && (
-                <p className="stories-modal-text">{active.text}</p>
+                <p className="story-modal-text">{active.text}</p>
               )}
               {active.action_link && (
                 <Link
                   href={active.action_link}
-                  className="btn btn-primary stories-modal-cta"
+                  className="btn btn-primary story-modal-cta"
                   onClick={() => setActive(null)}
                 >
                   {active.button_text || 'Открыть →'}

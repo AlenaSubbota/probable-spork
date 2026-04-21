@@ -6153,17 +6153,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: inline-block;
 }
 
-/* ---------- Homepage: Stories strip ---------- */
+/* ---------- Homepage: Stories strip (book-style tiles) ---------- */
 
 .stories-section {
-  padding-top: 18px;
-  padding-bottom: 8px;
+  padding-top: 8px;
+  padding-bottom: 4px;
 }
 .stories-strip {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   overflow-x: auto;
-  padding: 4px 4px 10px;
+  padding: 2px 2px 10px;
   scroll-snap-type: x proximity;
   scrollbar-width: thin;
 }
@@ -6174,69 +6174,84 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--border);
   border-radius: 999px;
 }
-.stories-bubble {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  padding: 0;
+
+/* Карточка-закладка: короткая, широкая, как корешок книги или полоска
+   букмарка. Без кричащих градиентов — палитра сайта. */
+.story-tile {
+  position: relative;
   flex: 0 0 auto;
-  width: 76px;
-  scroll-snap-align: start;
-}
-.stories-ring {
-  width: 68px;
-  height: 68px;
-  border-radius: 50%;
-  padding: 3px;
-  display: grid;
-  place-items: center;
-  transition: transform .15s;
-}
-.stories-bubble:hover .stories-ring {
-  transform: scale(1.04);
-}
-.stories-inner {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
+  width: 172px;
+  height: 58px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   background: var(--surface);
+  padding: 0;
+  cursor: pointer;
   overflow: hidden;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--surface);
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  scroll-snap-align: start;
+  color: inherit;
 }
-.stories-inner img {
+.story-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-soft);
+}
+.story-tile.has-cover {
+  color: #fff;
+}
+.story-tile-cover {
+  position: absolute;
+  inset: 0;
+}
+.story-tile-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 50%;
 }
-.stories-inner-letter {
+.story-tile-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(20, 14, 8, 0.62),
+    rgba(20, 14, 8, 0.28) 55%,
+    rgba(20, 14, 8, 0.05)
+  );
+}
+.story-tile-text {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 10px 14px;
+}
+.story-tile-title {
   font-family: var(--font-serif);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--accent);
-}
-.stories-label {
-  font-size: 11.5px;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.25;
-  color: var(--ink-soft);
-  text-align: center;
-  max-width: 76px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.stories-modal {
+/* Если нет обложки, но есть градиент — мягкий акцентный фон */
+.story-tile:not(.has-cover) {
+  color: var(--ink);
+}
+.story-tile:not(.has-cover) .story-tile-title {
+  color: inherit;
+}
+
+/* Модалка истории — совпадает по тону с карточкой, бумажная */
+.story-modal {
   position: fixed;
   inset: 0;
-  background: rgba(20, 14, 8, 0.72);
+  background: rgba(20, 14, 8, 0.6);
   backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
@@ -6248,16 +6263,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-.stories-modal-card {
+.story-modal-card {
   position: relative;
   width: 100%;
-  max-width: 420px;
-  border-radius: 20px;
+  max-width: 440px;
+  border-radius: 16px;
   overflow: hidden;
-  color: #fff;
+  background: var(--surface);
+  color: var(--ink);
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
 }
-.stories-modal-close {
+.story-modal-close {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -6265,41 +6282,190 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   height: 32px;
   border-radius: 50%;
   border: 0;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(20, 14, 8, 0.55);
   color: #fff;
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
   z-index: 2;
+  backdrop-filter: blur(4px);
 }
-.stories-modal-image {
-  aspect-ratio: 4/5;
-  max-height: 55vh;
+.story-modal-image {
+  aspect-ratio: 16/9;
+  max-height: 42vh;
   overflow: hidden;
+  background: var(--surface-2);
 }
-.stories-modal-image img {
+.story-modal-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.stories-modal-body {
-  padding: 20px 22px 24px;
+.story-modal-image--grad {
+  display: grid;
+  place-items: center;
 }
-.stories-modal-title {
+.story-modal-image--grad span {
+  font-family: var(--font-serif);
+  font-size: 68px;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.story-modal-body {
+  padding: 20px 22px 22px;
+}
+.story-modal-title {
   font-family: var(--font-serif);
   font-size: 22px;
   margin: 0 0 8px;
+  color: var(--ink);
 }
-.stories-modal-text {
+.story-modal-text {
   font-size: 14px;
   line-height: 1.55;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--ink-soft);
   margin: 0 0 18px;
   white-space: pre-wrap;
 }
-.stories-modal-cta {
+.story-modal-cta {
   width: 100%;
   justify-content: center;
+}
+
+/* ---------- Homepage: Journal strip (articles/reviews/interviews) ---------- */
+
+.journal-section {
+  /* чуть больше воздуха чем у обычных секций — блок большой */
+  padding-top: 28px;
+}
+.journal-strip {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 4px 2px 18px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+.journal-strip::-webkit-scrollbar {
+  height: 4px;
+}
+.journal-strip::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+.journal-card {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform .18s, box-shadow .18s, border-color .18s;
+  scroll-snap-align: start;
+  color: inherit;
+}
+.journal-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-soft);
+}
+.journal-card-cover {
+  aspect-ratio: 16/10;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.journal-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .3s;
+}
+.journal-card:hover .journal-card-cover img {
+  transform: scale(1.04);
+}
+.journal-card-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--accent-wash), var(--surface-2));
+  font-size: 48px;
+}
+.journal-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 16px 18px;
+}
+.journal-card-rubrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.journal-rubric {
+  display: inline-block;
+  padding: 2px 9px;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.journal-rubric--accent { background: var(--accent-wash); color: var(--accent-hover); }
+.journal-rubric--leaf   { background: #e8f3e4; color: #3f7a3a; }
+.journal-rubric--gold   { background: #fff3d6; color: #8a6415; }
+.journal-rubric--rose   { background: #fde4ea; color: #a0324a; }
+.journal-rubric--muted  { background: var(--surface-2); color: var(--ink-mute); }
+.journal-card-title {
+  font-family: var(--font-serif);
+  font-size: 16.5px;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.journal-card-subtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- News detail: article-style hero ---------- */
+
+.news-article-hero {
+  margin-bottom: 22px;
+}
+.news-article-hero-cover {
+  aspect-ratio: 21/9;
+  max-height: 380px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface-2);
+  margin-bottom: 18px;
+}
+.news-article-hero-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.news-article-subtitle {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 10px 0 0;
 }
 
 /* ---------- Homepage: Quote of the day ---------- */

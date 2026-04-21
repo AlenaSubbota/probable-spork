@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import NewsCard, { type NewsItem } from '@/components/news/NewsCard';
+import { isJournalType, newsTypeMeta } from '@/lib/news';
 import MarkSeenOnMount from '../MarkSeenOnMount';
 
 interface PageProps {
@@ -17,7 +18,7 @@ export default async function SingleNewsPage({ params }: PageProps) {
 
   const { data: news } = await supabase
     .from('news_posts')
-    .select('id, title, body, type, is_pinned, created_at, published_at, attached_novel_id, is_published')
+    .select('id, title, subtitle, body, type, cover_url, rubrics, is_pinned, created_at, published_at, attached_novel_id, is_published')
     .eq('id', numId)
     .single();
 
@@ -58,6 +59,10 @@ export default async function SingleNewsPage({ params }: PageProps) {
     attached_novel,
   };
 
+  const isJournal = isJournalType(news.type);
+  const rubrics: string[] = Array.isArray(news.rubrics) ? news.rubrics : [];
+  const typeMeta = newsTypeMeta(news.type);
+
   return (
     <main className="container section" style={{ maxWidth: 820 }}>
       <div className="admin-breadcrumbs">
@@ -65,6 +70,30 @@ export default async function SingleNewsPage({ params }: PageProps) {
         <span>/</span>
         <span>{news.title}</span>
       </div>
+
+      {isJournal && (news.cover_url || news.subtitle) && (
+        <header className="news-article-hero">
+          {news.cover_url && (
+            <div className="news-article-hero-cover">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={news.cover_url} alt="" />
+            </div>
+          )}
+          <div className="journal-card-rubrics" style={{ marginBottom: 8 }}>
+            <span className={`journal-rubric journal-rubric--${typeMeta.tone}`}>
+              {typeMeta.label}
+            </span>
+            {rubrics.map((r) => (
+              <span key={r} className="journal-rubric">
+                {r}
+              </span>
+            ))}
+          </div>
+          {news.subtitle && (
+            <p className="news-article-subtitle">{news.subtitle}</p>
+          )}
+        </header>
+      )}
 
       <NewsCard news={item} />
 

@@ -11,6 +11,7 @@ import ReadingNow, { type ReadingNowItem } from '@/components/home/ReadingNow';
 import CommentsFeed, { type CommentFeedItem } from '@/components/home/CommentsFeed';
 import NovelPoll, { type PollOptionResult } from '@/components/home/NovelPoll';
 import StoriesStrip, { type StoryItem } from '@/components/home/StoriesStrip';
+import JournalStrip, { type JournalItem } from '@/components/home/JournalStrip';
 import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
@@ -174,6 +175,7 @@ export default async function HomePage() {
       .from('news_posts')
       .select('id, title, body, type, is_pinned, created_at, published_at, attached_novel_id')
       .eq('is_published', true)
+      .not('type', 'in', '(article,review,interview)')
       .order('is_pinned', { ascending: false })
       .order('published_at', { ascending: false })
       .limit(3);
@@ -340,6 +342,30 @@ export default async function HomePage() {
     // таблицы нет — блок тихо не рендерится
   }
 
+  // ---- Журнал: статьи / обзоры / интервью (типы 'article','review','interview') ----
+  let journalItems: JournalItem[] = [];
+  try {
+    const { data: journalRaw } = await supabase
+      .from('news_posts')
+      .select('id, title, subtitle, cover_url, type, rubrics, published_at, created_at, is_published')
+      .in('type', ['article', 'review', 'interview'])
+      .eq('is_published', true)
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .limit(10);
+    journalItems = (journalRaw ?? []).map((n) => ({
+      id: n.id,
+      title: n.title,
+      subtitle: n.subtitle ?? null,
+      cover_url: n.cover_url ?? null,
+      type: n.type,
+      rubrics: Array.isArray(n.rubrics) ? n.rubrics : [],
+      published_at: n.published_at,
+      created_at: n.created_at,
+    }));
+  } catch {
+    // миграция 015 не накачена — блок тихо не рендерится
+  }
+
   // ---- Цитата дня ----
   let quoteOfTheDay: QuoteItem | null = null;
   try {
@@ -414,6 +440,9 @@ export default async function HomePage() {
 
       {/* Новости админа */}
       <LatestNews items={latestNews} unreadCount={unreadNewsCount} />
+
+      {/* Журнал: статьи, обзоры, интервью */}
+      <JournalStrip items={journalItems} />
 
       {/* Цитата дня — случайная публичная */}
       <QuoteOfTheDay quote={quoteOfTheDay} />
