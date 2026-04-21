@@ -6639,6 +6639,142 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-color: var(--accent-soft);
 }
 
+/* ---------- Reader: theme overrides (light/sepia/dark) ---------- */
+
+/* sepia — тёплая состаренная бумага, меньше синего света */
+.reader-wrapper[data-theme='sepia'] {
+  --rdr-bg: #f4ecd8;
+  --rdr-ink: #4a3a1e;
+  --rdr-ink-soft: #6b5633;
+  --rdr-ink-mute: #8c7a57;
+  --rdr-accent: #a36a23;
+  --rdr-divider: #d9cba5;
+}
+
+/* dark — тёмно-серый фон + тёплый бежево-серый текст */
+.reader-wrapper[data-theme='dark'] {
+  --rdr-bg: #1c1a18;
+  --rdr-ink: #e9e3d6;
+  --rdr-ink-soft: #c7c0b1;
+  --rdr-ink-mute: #8a8578;
+  --rdr-accent: #e0a86a;
+  --rdr-divider: #32302c;
+}
+
+/* Применяем переменные только если тема активна (иначе — как было). */
+.reader-wrapper[data-theme='sepia'],
+.reader-wrapper[data-theme='dark'] {
+  background: var(--rdr-bg);
+  color: var(--rdr-ink);
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding-left: calc(50vw - 50%);
+  padding-right: calc(50vw - 50%);
+  min-height: 100vh;
+  transition: background .18s, color .18s;
+}
+.reader-wrapper[data-theme='sepia'] .novel-content,
+.reader-wrapper[data-theme='dark'] .novel-content {
+  color: var(--rdr-ink) !important;
+}
+.reader-wrapper[data-theme='sepia'] .novel-content blockquote,
+.reader-wrapper[data-theme='dark'] .novel-content blockquote {
+  border-left-color: var(--rdr-accent);
+  color: var(--rdr-ink-soft);
+}
+.reader-wrapper[data-theme='sepia'] .reader-toolbar .chip,
+.reader-wrapper[data-theme='dark'] .reader-toolbar .chip {
+  background: transparent;
+  border-color: var(--rdr-divider);
+  color: var(--rdr-ink-soft);
+}
+.reader-wrapper[data-theme='sepia'] .reader-toolbar .chip:hover,
+.reader-wrapper[data-theme='dark'] .reader-toolbar .chip:hover {
+  color: var(--rdr-accent);
+  border-color: var(--rdr-accent);
+}
+.reader-wrapper[data-theme='sepia'] .glossary-term,
+.reader-wrapper[data-theme='dark'] .glossary-term {
+  border-bottom-color: var(--rdr-accent);
+}
+.reader-wrapper[data-theme='sepia'] .glossary-term:hover,
+.reader-wrapper[data-theme='dark'] .glossary-term:hover {
+  color: var(--rdr-accent);
+  background: rgba(224, 168, 106, 0.12);
+}
+.reader-wrapper[data-theme='dark'] .preview-banner {
+  background: #3a2e1a;
+  border-color: #5a472a;
+  color: #f1d89a;
+}
+.reader-wrapper[data-theme='dark'] .preview-banner-sub {
+  color: #c7b07a;
+}
+
+/* В dark фокус-режим немного жёстче гасим */
+.reader-wrapper[data-theme='dark'].focus-mode .novel-content > *:not(.focus-active),
+.reader-wrapper[data-theme='dark'].focus-mode blockquote > *:not(.focus-active) {
+  opacity: 0.28;
+}
+
+/* Картинки в dark/sepia немного приглушаем, чтобы не слепили */
+.reader-wrapper[data-theme='dark'] .novel-content img {
+  opacity: 0.85;
+  filter: brightness(0.92);
+}
+
+/* ---------- Reader settings: theme picker ---------- */
+
+.reader-theme-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+.reader-theme-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .12s, transform .12s;
+  text-align: left;
+}
+.reader-theme-btn:hover {
+  transform: translateY(-1px);
+}
+.reader-theme-btn.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-wash);
+}
+.reader-theme-swatch {
+  height: 36px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 13px;
+}
+.reader-theme-swatch--light { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
+.reader-theme-swatch--sepia { background: #f4ecd8; color: #4a3a1e; }
+.reader-theme-swatch--dark  { background: #1c1a18; color: #e9e3d6; }
+.reader-theme-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.reader-theme-desc {
+  font-size: 11px;
+  color: var(--ink-mute);
+  line-height: 1.3;
+}
+
 /* ---------- Reader: inline glossary ---------- */
 
 .glossary-term {

@@ -378,7 +378,10 @@ export default function ReaderContent({
   };
 
   return (
-    <div className={`reader-wrapper${settings.focusMode ? ' focus-mode' : ''}`}>
+    <div
+      className={`reader-wrapper${settings.focusMode ? ' focus-mode' : ''}`}
+      data-theme={settings.theme ?? 'light'}
+    >
       <div className="reader-toolbar">
         <button
           type="button"
