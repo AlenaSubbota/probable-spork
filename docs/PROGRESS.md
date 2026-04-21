@@ -1038,6 +1038,63 @@ RPC:
 
 После 001 — проверить что `user_name = 'alena'` в UPDATE в 001 совпадает с твоим реальным профилем.
 
+## Итерации 34–40 — вторая автономная сессия
+
+Алёна попросила доделать тёмную тему читалки + dashboard переводчика + доп-фичи «на моё усмотрение». 7 итераций, один PR с коммитами — все в ту же ветку.
+
+### 34. Темы читалки (light / sepia / dark)
+`ReaderSettings.theme` (persist в localStorage). CSS-переменные через `[data-theme]` на `.reader-wrapper`:
+- **light** — кремовая бумага (как раньше, дефолт)
+- **sepia** — тёплая состаренная бумага, меньше синего света
+- **dark** — тёмно-серый фон + бежево-серый текст для ночи
+
+Настройки читалки получили 3-up picker с tinted «Aa»-свотчами. Все reader-specific элементы (blockquote, chips, glossary underline, focus-mode opacity, затемнение картинок) подхватывают переменные. Без flash of wrong theme — wrapper не рендерится до hydration.
+
+### 35. Dashboard переводчика: top-supporters + drop-off funnel
+Миграция 022 — две RPC с проверкой доступа (только сам переводчик или админ):
+- `translator_top_supporters(translator, since, limit)` — топ-N читателей по монетам за период
+- `novel_reader_funnel(novel_id)` — агрегация `profiles.last_read` по главам, «где сейчас находятся читатели»
+
+UI:
+- `TopSupporters` — ранжированный список с accent→rose gradient-барами (длина ∝ total_coins), аватар, монеты, главы
+- `NovelsTable` получила столбец 📉: модалка `FunnelModal` с bar-графиком drop-off, статистикой «медианная глава / дошли до последней», подсказкой про проседающие главы
+
+### 36. Скачать EPUB
+Колонка `novels.epub_path` лежала с миграции 008 без UI.
+- API route `/api/novel/[id]/epub/route.ts`: полный URL → redirect как есть; относительный path → signed URL на 60с через `supabase.storage`. Sniff префикса (`epub/`, `covers/`, `chapter_content/`) чтобы translator мог положить файл в любой из бакетов.
+- Кнопка «📘 EPUB» на странице новеллы рядом с `BookmarkButton`, если `epub_path` задан.
+- `NovelForm` получил поле `epub_path` с подсказкой.
+
+### 37. Уведомления о новой главе
+Миграция 023: триггер на `chapters` (INSERT + UPDATE OF published_at). Момент «глава стала видимой» (прошла из NULL/future в ≤ now()) рассылает `new_chapter` всем активным подписчикам переводчика и всем, у кого новелла в `profiles.bookmarks`. UNION дедупит пересечение, переводчик себя исключает. `group_key='new_chapter:<novel_id>'` коллапсит массовую публикацию (50 глав) в одно уведомление per-новелла у каждого получателя через `list_notifications` DISTINCT ON.
+
+### 38. Моя статистика в профиле
+Новый блок `ReadingTotals` между stat-cards и `ReadingStreak`:
+- Суммарно прочитано глав (∑ chapterId по `last_read`)
+- Новелл в чтении
+- ≈ часов с книгой (главы × 8 мин / 60)
+- Любимый переводчик (тот, у кого больше всего прочитано)
+
+Всё считается на сервере из `profiles.last_read` + уже подгружённой `readNovels` из `BookDiet`, плюс один доп-запрос к `profiles` за именем фаворит-переводчика. Блок не рендерится для новичков без чтения.
+
+### 39. 🔥 На волне — trending по темпу глав
+Блок на главной между `JournalStrip` и `QuoteOfTheDay`. Топ-6 новелл по числу `chapters.published_at` за последние 7 дней (threshold ≥2 чтобы одиночная публикация не выскакивала). Каждая карточка: ранг-плашка (#1..#6) с orange→red gradient, обложка с badge «+N», subtle огонёк-анимация в заголовке секции.
+
+### 40. Поделиться цитатой
+`QuoteBubble` рядом с «Сохранить цитату» получил «↗ Поделиться». Копирует в clipboard формат «цитата + атрибуция + прямой URL на главу», или открывает native Share Sheet на мобильных. `ReaderContent` пробрасывает `novelFirebaseId`/`novelTitle`.
+
+## Новые миграции в этой сессии
+
+- **`022_translator_analytics.sql`** — RPC `translator_top_supporters` + `novel_reader_funnel` (dashboard iter 35)
+- **`023_new_chapter_notifications.sql`** — триггер-рассылка подписчикам и закладчикам (iter 37)
+
+## Что я НЕ делал (из идей PROGRESS.md)
+
+- **Читательские клубы** — требует отдельной схемы (комнаты, общий прогресс, модерация), это отдельная большая фича
+- **TTS / аудио** — внешняя интеграция с платным API, нужен твой выбор провайдера
+- **Real-time presence** — Supabase realtime каналы, требует клиентской подписки и тестов в живую
+- **Push-уведомления** — service worker + браузерные permissions, сложный setup
+
 ## Предстоит
 
 ### Миграции — накатить на Supabase в порядке
