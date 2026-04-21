@@ -716,6 +716,83 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .site-footer a { color: var(--accent); }
 
+/* ---------- continue reading shelf ---------- */
+
+.shelf-scroll {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.shelf-scroll::-webkit-scrollbar { height: 4px; }
+.shelf-scroll::-webkit-scrollbar-track { background: transparent; }
+.shelf-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.continue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  width: 130px;
+  cursor: pointer;
+  color: inherit;
+}
+.continue-card .mini-cover {
+  width: 130px;
+  height: 173px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-sm);
+  transition: transform .2s, box-shadow .2s;
+}
+.continue-card:hover .mini-cover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+.continue-card .mini-cover img { width: 100%; height: 100%; object-fit: cover; }
+.continue-card .body .title {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.continue-card .body .meta {
+  font-size: 11px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+
+/* ---------- shelf strip (bookmarks bar) ---------- */
+
+.shelf-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+.shelf-strip::-webkit-scrollbar { display: none; }
+
+.shelf-thumb {
+  flex-shrink: 0;
+  width: 40px;
+  height: 54px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-sm);
+  transition: transform .2s;
+}
+.shelf-thumb:hover { transform: translateY(-2px); }
+.shelf-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
 /* ---------- misc ---------- */
 
 .note {
