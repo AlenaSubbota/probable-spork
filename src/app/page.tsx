@@ -6,6 +6,8 @@ import MoodPicker from '@/components/MoodPicker';
 import ContinueReadingShelf, { type ContinueItem } from '@/components/ContinueReadingShelf';
 import MyShelfStrip, { type ShelfItem } from '@/components/MyShelfStrip';
 import ForgottenNovels, { type ForgottenItem } from '@/components/ForgottenNovels';
+import LatestNews from '@/components/news/LatestNews';
+import type { NewsItem } from '@/components/news/NewsCard';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
 
@@ -205,6 +207,62 @@ export default async function HomePage() {
     }
   }
 
+  // ---- Новости: до 3-х свежих + подсчёт непрочитанных для шильдика ----
+  let latestNews: NewsItem[] = [];
+  let unreadNewsCount = 0;
+  try {
+    const { data: newsRaw } = await supabase
+      .from('news_posts')
+      .select('id, title, body, type, is_pinned, created_at, published_at, attached_novel_id')
+      .eq('is_published', true)
+      .order('is_pinned', { ascending: false })
+      .order('published_at', { ascending: false })
+      .limit(3);
+
+    const attachedIds = Array.from(
+      new Set(
+        (newsRaw ?? [])
+          .map((n) => n.attached_novel_id)
+          .filter((x): x is number => !!x)
+      )
+    );
+    let novelMap = new Map<
+      number,
+      { firebase_id: string; title: string; cover_url: string | null }
+    >();
+    if (attachedIds.length > 0) {
+      const { data: novelsAttached } = await supabase
+        .from('novels')
+        .select('id, firebase_id, title, cover_url')
+        .in('id', attachedIds);
+      for (const n of novelsAttached ?? []) {
+        novelMap.set(n.id, {
+          firebase_id: n.firebase_id,
+          title: n.title,
+          cover_url: n.cover_url,
+        });
+      }
+    }
+    latestNews = (newsRaw ?? []).map((n) => ({
+      id: n.id,
+      title: n.title,
+      body: n.body,
+      type: n.type,
+      is_pinned: !!n.is_pinned,
+      created_at: n.created_at,
+      published_at: n.published_at,
+      attached_novel_id: n.attached_novel_id,
+      attached_novel: n.attached_novel_id ? novelMap.get(n.attached_novel_id) ?? null : null,
+    }));
+
+    if (user) {
+      const { data: unread } = await supabase.rpc('unread_news_count');
+      if (typeof unread === 'number') unreadNewsCount = unread;
+    }
+  } catch {
+    // миграция 009 не накачена — блок новостей просто не показывается
+  }
+
   return (
     <main>
       <WeeklyHero
@@ -218,6 +276,9 @@ export default async function HomePage() {
       />
 
       <MyShelfStrip items={shelfItems} totalCount={shelfTotal} />
+
+      {/* Новости админа */}
+      <LatestNews items={latestNews} unreadCount={unreadNewsCount} />
 
       {/* Киллер-фича #1 — настроение */}
       <MoodPicker />
