@@ -234,10 +234,9 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
     GROUP BY group_key
   ),
   latest_per_group AS (
-    SELECT DISTINCT ON (COALESCE(group_key, id::text))
+    SELECT DISTINCT ON (COALESCE(my.group_key, my.id::text))
       my.*
     FROM my
-    LEFT JOIN grouped g ON g.group_key = my.group_key
     ORDER BY COALESCE(my.group_key, my.id::text), my.created_at DESC
   )
   SELECT
