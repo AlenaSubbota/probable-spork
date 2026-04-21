@@ -37,6 +37,22 @@ export const MODERATION_TONE: Record<ModerationStatus, 'muted' | 'gold' | 'leaf'
   rejected: 'rose',
 };
 
+// Дни недели: 0 = понедельник … 6 = воскресенье (ISO-8601).
+// Держим короткое и длинное имя отдельно — короткое в сетке, длинное в подписях.
+export const WEEKDAY_LABELS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
+export const WEEKDAY_LABELS_LONG = [
+  'Понедельник',
+  'Вторник',
+  'Среда',
+  'Четверг',
+  'Пятница',
+  'Суббота',
+  'Воскресенье',
+] as const;
+export const WEEKDAYS: ReadonlyArray<0 | 1 | 2 | 3 | 4 | 5 | 6> = [
+  0, 1, 2, 3, 4, 5, 6,
+];
+
 // Единый список жанров — переводчики могут только выбирать из него.
 // Добавление произвольных жанров запрещено, чтобы не было разнобоя.
 export const PREDEFINED_GENRES = [

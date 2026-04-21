@@ -5,6 +5,9 @@ import NovelCard from '@/components/NovelCard';
 import ReleaseHeatmap from '@/components/translator/ReleaseHeatmap';
 import TranslatorHandshake from '@/components/translator/TranslatorHandshake';
 import TranslatorSpecialty from '@/components/translator/TranslatorSpecialty';
+import TranslatorSchedule, {
+  type PublicScheduleSlot,
+} from '@/components/TranslatorSchedule';
 import { getCoverUrl } from '@/lib/format';
 
 interface PageProps {
@@ -104,6 +107,49 @@ export default async function TranslatorPage({ params }: PageProps) {
     }
     releaseDays = out;
   }
+
+  // ---- Расписание (таблица 017) — показываем если есть слоты ----
+  let scheduleSlots: PublicScheduleSlot[] = [];
+  try {
+    const { data: rawSlots } = await supabase
+      .from('translator_schedule')
+      .select('id, novel_id, day_of_week, time_of_day, note')
+      .eq('translator_id', profile.id)
+      .order('day_of_week', { ascending: true })
+      .order('sort_order', { ascending: true });
+    const ids = Array.from(new Set((rawSlots ?? []).map((s) => s.novel_id)));
+    if (ids.length > 0) {
+      const { data: scheduledNovels } = await supabase
+        .from('novels')
+        .select('id, firebase_id, title, cover_url, moderation_status')
+        .in('id', ids);
+      const nMap = new Map(
+        (scheduledNovels ?? []).map((n) => [n.id, n])
+      );
+      scheduleSlots = (rawSlots ?? []).flatMap((s) => {
+        const nv = nMap.get(s.novel_id);
+        // Публичный профиль — только опубликованные новеллы.
+        // Черновик на публике не светим, даже если переводчик его в расписание добавил.
+        if (!nv || nv.moderation_status !== 'published') return [];
+        return [
+          {
+            id: s.id,
+            day_of_week: s.day_of_week,
+            time_of_day: s.time_of_day,
+            note: s.note,
+            novel_firebase_id: nv.firebase_id,
+            novel_title: nv.title,
+            novel_cover_url: nv.cover_url,
+          },
+        ];
+      });
+    }
+  } catch {
+    // миграция 017 не накачена — блок не рендерится
+  }
+  // ISO: понедельник = 1, воскресенье = 7. Переводим в наш формат 0..6.
+  const jsDow = new Date().getDay(); // 0=Sun…6=Sat
+  const todayDow = (jsDow + 6) % 7;  // 0=Mon…6=Sun
 
   // ---- Handshake: сколько новелл переводчика viewer уже читал ----
   let sharedReadsCount = 0;
@@ -221,6 +267,9 @@ export default async function TranslatorPage({ params }: PageProps) {
 
       {/* Киллер #3 специализации: жанр-breakdown + топ хиты */}
       <TranslatorSpecialty novels={novelsNormalized} />
+
+      {/* Публичное расписание выхода глав */}
+      <TranslatorSchedule slots={scheduleSlots} todayDow={todayDow} />
 
       {/* Все новеллы переводчика */}
       <section className="section">
