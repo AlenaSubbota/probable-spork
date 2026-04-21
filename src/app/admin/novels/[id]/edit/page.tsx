@@ -108,6 +108,7 @@ export default async function EditNovelPage({ params }: PageProps) {
                 (l) => l && typeof l.url === 'string'
               )
             : [],
+          epub_path: novel.epub_path ?? null,
         }}
       />
 

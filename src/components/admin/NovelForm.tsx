@@ -36,6 +36,8 @@ export interface NovelFormValues {
   genres: string[];
   // Ссылки на оригинал / novelupdates / raws — произвольные пары { label, url }.
   external_links: Array<{ label: string; url: string }>;
+  // Путь к EPUB в bucket или полный URL. Показывает кнопку 📘 на странице.
+  epub_path: string | null;
 }
 
 const EMPTY: NovelFormValues = {
@@ -54,6 +56,7 @@ const EMPTY: NovelFormValues = {
   cover_url: null,
   genres: [],
   external_links: [],
+  epub_path: null,
 };
 
 interface Props {
@@ -134,6 +137,7 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
       cover_url: values.cover_url,
       genres: values.genres,
       external_links: cleanedLinks.length > 0 ? cleanedLinks : null,
+      epub_path: values.epub_path?.trim() ? values.epub_path.trim() : null,
     };
 
     if (mode === 'create') {
@@ -431,6 +435,22 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
         <p className="form-hint">
           Эти ссылки появятся на карточке новеллы блоком «Оригинал» —
           читатели смогут пойти к автору.
+        </p>
+      </div>
+
+      <div className="form-field">
+        <label title="Ссылка или путь к готовому EPUB. Можно положить файл в bucket 'epub' и указать относительный путь, или вставить полный URL.">
+          EPUB (для офлайн-чтения)
+        </label>
+        <input
+          className="form-input"
+          value={values.epub_path ?? ''}
+          onChange={(e) => set('epub_path', e.target.value || null)}
+          placeholder="https://… или novels/my-novel.epub"
+        />
+        <p className="form-hint">
+          Если заполнено — на странице новеллы появится кнопка
+          «📘 EPUB». Читатели смогут скачать и читать офлайн.
         </p>
       </div>
 

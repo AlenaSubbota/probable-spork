@@ -466,6 +466,15 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                   initialStatus={bookmarkStatus}
                 />
               )}
+              {novel.epub_path && (
+                <a
+                  href={`/api/novel/${novel.firebase_id}/epub`}
+                  className="btn btn-ghost"
+                  title="Скачать для чтения офлайн (e-reader, телефон без сети)"
+                >
+                  📘 EPUB
+                </a>
+              )}
               {canEdit && (
                 <>
                   <Link
