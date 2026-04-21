@@ -1,13 +1,13 @@
 import AuthForm from '@/components/auth/AuthForm';
 
 export const metadata = {
-  title: 'Вход — Chaptify',
+  title: 'Регистрация — Chaptify',
 };
 
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <main className="auth-page">
-      <AuthForm mode="login" />
+      <AuthForm mode="register" />
     </main>
   );
 }

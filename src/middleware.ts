@@ -20,6 +20,7 @@ export async function middleware(req: NextRequest) {
   // Публично без авторизации
   if (
     path.startsWith('/login') ||
+    path.startsWith('/register') ||
     path.startsWith('/_next') ||
     path.startsWith('/auth')
   ) {
