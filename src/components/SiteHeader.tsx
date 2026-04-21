@@ -6,19 +6,22 @@ export default async function SiteHeader() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let userName: string | null = null;
-  let role: string = 'user';
+  let isTranslator = false;
 
   if (user) {
+    // select('*') чтобы работать без миграции 001 (legacy is_admin) и с ней (role)
     const { data } = await supabase
       .from('profiles')
-      .select('user_name, role')
+      .select('*')
       .eq('id', user.id)
       .maybeSingle();
-    userName = data?.user_name ?? null;
-    role = data?.role ?? 'user';
+    if (data) {
+      const p = data as { user_name?: string | null; role?: string; is_admin?: boolean };
+      userName = p.user_name ?? null;
+      isTranslator =
+        p.is_admin === true || p.role === 'translator' || p.role === 'admin';
+    }
   }
-
-  const isTranslator = role === 'translator' || role === 'admin';
 
   return (
     <header className="site-header">

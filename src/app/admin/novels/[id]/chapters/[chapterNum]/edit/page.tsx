@@ -16,9 +16,12 @@ export default async function EditChapterPage({ params }: PageProps) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('*')
     .eq('id', user.id)
     .maybeSingle();
+
+  const p = profile as { role?: string; is_admin?: boolean } | null;
+  const isAdmin = p?.is_admin === true || p?.role === 'admin';
 
   const { data: novel } = await supabase
     .from('novels')
@@ -28,7 +31,7 @@ export default async function EditChapterPage({ params }: PageProps) {
 
   if (!novel) notFound();
 
-  const isOwner = novel.translator_id === user.id || profile?.role === 'admin';
+  const isOwner = novel.translator_id === user.id || isAdmin;
   if (!isOwner) redirect('/admin');
 
   const { data: chapter } = await supabase

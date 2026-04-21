@@ -114,6 +114,10 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
         .from('profiles')
         .update({ last_read: updated })
         .eq('id', user.id);
+
+      // Логируем активность дня (для стрика в профиле).
+      // Не блокируем, игнорируем ошибки — RPC может ещё не быть в БД.
+      supabase.rpc('log_reading_day').then(() => {}, () => {});
     },
     [novelId, chapterNumber]
   );

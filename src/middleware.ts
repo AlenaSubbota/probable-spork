@@ -30,22 +30,24 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  // Эти пути доступны любому залогиненному пользователю
+  // Доступ любому залогиненному пользователю
   if (path.startsWith('/translator/apply')) {
     return res;
   }
 
+  // select('*') чтобы работать как с миграцией 001 (role), так и без неё (только is_admin)
   const { data: profile } = await sb
     .from('profiles')
-    .select('role')
+    .select('*')
     .eq('id', user.id)
     .maybeSingle();
 
-  const role = profile?.role;
+  const role = (profile as { role?: string } | null)?.role;
+  const isAdminLegacy = (profile as { is_admin?: boolean } | null)?.is_admin === true;
+  const isAdminOrTranslator =
+    isAdminLegacy || role === 'admin' || role === 'translator';
 
-  // В бета-режиме всё доступно только переводчикам и админу.
-  // Обычные пользователи → форма заявки.
-  if (!role || !['admin', 'translator'].includes(role)) {
+  if (!isAdminOrTranslator) {
     return NextResponse.redirect(new URL('/translator/apply', req.url));
   }
 

@@ -168,6 +168,53 @@
 - Sticky footer с алертом «отправится на модерацию» — сделано в .admin-form-footer
 - Checkboxes «Маркировка» (ненорм. лексика, наркотики) — можно добавить в будущем, колонок под это нет
 
+## Итерация 5 — фикс редиректа + профиль + 3 киллер-фичи
+
+### Баг-фикс: /admin редиректил на /translator/apply
+Причина: миграция 001 (колонка `role`) ещё не накачена на проде, у пользователя только legacy `is_admin = true`. Middleware смотрел только на `role`, поэтому считал всех «обычными пользователями».
+
+Починено везде, где была проверка роли:
+- `src/middleware.ts` — фоллбэк `is_admin === true → доступ`
+- `src/components/SiteHeader.tsx`
+- `src/app/admin/page.tsx`
+- `src/app/admin/novels/[id]/edit/page.tsx`
+- `src/app/admin/novels/[id]/chapters/new/page.tsx`
+- `src/app/admin/novels/[id]/chapters/[chapterNum]/edit/page.tsx`
+- `src/app/novel/[id]/page.tsx` (`canEdit`)
+
+Теперь работает и БЕЗ миграций (на legacy-схеме tene), и С ними (после 001). SELECT `*` делает запрос толерантным к отсутствию колонок.
+
+### Профиль `/profile` — переписан на реальные данные
+Раньше была статичная заглушка. Теперь:
+- Шапка: аватар (первая буква), имя (`translator_display_name` / `user_name` / email), badge роли («Админ» / «Переводчик»), кнопка «Админка» для переводчиков
+- Три stat-карточки: баланс монет, закладки, сохранённые цитаты
+- Грид «Книжная диета» + «Читаю сейчас»
+- Большой блок «Читательский стрик»
+- Блок «Мои цитаты» внизу
+
+### Киллер-фичи профиля
+
+1. **Моя коллекция цитат** (`src/components/profile/QuoteCollection.tsx`)
+   Читает `user_quotes` + джойнит названия новелл. Группирует по новеллам, на каждую показывает до 3 цитат + кнопка «ещё N». На цитате: ссылка на главу («→ глава 17»), время («3 дн. назад»), кнопка удалить.
+
+2. **Читательский стрик** (`src/components/profile/ReadingStreak.tsx` + RPC `get_reading_activity`)
+   - Три счётчика: текущий стрик (дни подряд, включая сегодня/вчера), рекорд, активных дней за 90
+   - Calendar heatmap 13×7 (как у GitHub), 5 уровней яркости по количеству глав в день
+   - Fallback: если RPC нет (миграция 005 не накачена), считает активность из `profiles.last_read`
+   - Эмоджи 🔥 появляется при стрике ≥ 3 дней
+
+3. **Книжная диета** (`src/components/profile/BookDiet.tsx`)
+   - Анализирует жанры прочитанных новелл (из `last_read` → `novels_view`)
+   - Инсайт в стиле «Ты любишь **Фэнтези** — 67% твоих новелл»
+   - Bars-чарт по жанрам, разбивка по странам (KR/CN/JP/Other)
+   - Блок «Попробуй ещё» — 3 новеллы из непокрытых жанров, отсортированные по рейтингу
+
+### SQL миграция 005 — `migrations/005_reading_days.sql`
+- Таблица `reading_days (user_id, day, chapters_read)` с RLS (self-read)
+- RPC `log_reading_day()` — инкрементирует счётчик за сегодня; вызывается из `ReaderContent.saveProgress` (не блокирует UI, игнорирует ошибки)
+- RPC `get_reading_activity(p_user, p_days)` — возвращает N дней активности с нулями
+- Бэкфилл: `backfill_reading_days_from_last_read()` (вызывается один раз в миграции) — сеет дни из `profiles.last_read.timestamp`
+
 ## Предстоит
 
 ### Миграции — накатить на Supabase в порядке
@@ -175,6 +222,7 @@
 2. `002_catalog_extensions.sql`
 3. `003_quotes_recommendations.sql`
 4. `004_moderation_and_drafts.sql`
+5. `005_reading_days.sql`
 
 После 001 — проверить что `user_name = 'alena'` в UPDATE в 001 совпадает с твоим реальным профилем.
 
