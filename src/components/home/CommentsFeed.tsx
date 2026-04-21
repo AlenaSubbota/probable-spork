@@ -15,17 +15,9 @@ interface Props {
   comments: CommentFeedItem[];
 }
 
-// Лента свежих комментариев со всех глав. Обрезаем длинный текст и спойлеры
-// Reddit-style (>!...!<) не раскрываем — показываем «•••• спойлер ••••».
-function safeExcerpt(text: string, limit = 160): string {
-  // Прячем спойлеры целиком
-  const cleaned = text.replace(/>!([\s\S]+?)!</g, '«•••• спойлер ••••»');
-  if (cleaned.length <= limit) return cleaned;
-  const slice = cleaned.slice(0, limit);
-  const lastSpace = slice.lastIndexOf(' ');
-  return (lastSpace > limit / 2 ? slice.slice(0, lastSpace) : slice) + '…';
-}
-
+// На главной не показываем сам текст — обсуждение читается в контексте главы,
+// а одна вырванная фраза легко становится спойлером. Оставляем метаданные:
+// кто, где и когда. По клику — в тред под главой.
 export default function CommentsFeed({ comments }: Props) {
   if (comments.length === 0) return null;
 
@@ -39,31 +31,36 @@ export default function CommentsFeed({ comments }: Props) {
       </div>
 
       <div className="comments-feed">
-        {comments.map((c) => (
-          <Link
-            key={c.id}
-            href={`/novel/${c.novel_firebase_id}/${c.chapter_number}#c${c.id}`}
-            className="comments-feed-item"
-          >
-            <div className="comments-feed-avatar">
-              {(c.user_name ?? '?').charAt(0).toUpperCase()}
-            </div>
-            <div className="comments-feed-body">
-              <div className="comments-feed-head">
-                <span className="comments-feed-author">
-                  {c.user_name ?? 'Читатель'}
-                </span>
-                <span className="comments-feed-time">
+        {comments.map((c) => {
+          const author = c.user_name ?? 'Читатель';
+          const initial = author.trim().charAt(0).toUpperCase() || '?';
+          return (
+            <Link
+              key={c.id}
+              href={`/novel/${c.novel_firebase_id}/${c.chapter_number}#c${c.id}`}
+              className="comments-feed-item"
+            >
+              <div className="comments-feed-avatar">{initial}</div>
+              <div className="comments-feed-body">
+                <div className="comments-feed-line">
+                  <span className="comments-feed-author">{author}</span>
+                  <span className="comments-feed-sep">→</span>
+                  <span className="comments-feed-novel">«{c.novel_title}»</span>
+                  <span className="comments-feed-sep">·</span>
+                  <span className="comments-feed-ch">
+                    гл. {c.chapter_number}
+                  </span>
+                </div>
+                <div className="comments-feed-time">
                   {timeAgo(c.created_at)}
-                </span>
+                </div>
               </div>
-              <p className="comments-feed-text">{safeExcerpt(c.text)}</p>
-              <div className="comments-feed-where">
-                «{c.novel_title}» · глава {c.chapter_number}
-              </div>
-            </div>
-          </Link>
-        ))}
+              <span className="comments-feed-arrow" aria-hidden="true">
+                →
+              </span>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

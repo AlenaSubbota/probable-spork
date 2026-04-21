@@ -34,6 +34,15 @@ export default async function AdminNewsPage() {
         <span>Новости</span>
       </div>
 
+      <nav className="admin-subtabs">
+        <Link href="/admin/news" className="admin-subtab active">
+          📢 Новости
+        </Link>
+        <Link href="/admin/polls" className="admin-subtab">
+          🗳 Опросы
+        </Link>
+      </nav>
+
       <header className="admin-head">
         <div>
           <h1>Новости</h1>

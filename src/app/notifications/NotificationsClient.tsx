@@ -48,6 +48,47 @@ function iconFor(type: string): string {
   }
 }
 
+// Пускаем только безопасные inline-теги: <b>, <strong>, <i>, <em>, <br>, <br/>.
+// Всё остальное — вырезаем, экранируем. Старые уведомления от tene-бота
+// приходят с <b>...</b><br>... — их надо показывать как HTML, а не как текст.
+function sanitizeNotifText(raw: string): string {
+  const escaped = raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return escaped
+    .replace(/&lt;(\/?)(b|strong|i|em)&gt;/gi, '<$1$2>')
+    .replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+}
+
+// Белый список маршрутов внутри chaptify. Всё иное — уводим на главную.
+// Легаси-URL от tene (абсолютные ссылки, /read/..., /story/... и т.п.)
+// просто перестают быть кликабельными — не отправляем на 404.
+const SAFE_URL_PREFIXES = [
+  '/novel/',
+  '/news/',
+  '/messages/',
+  '/friends',
+  '/u/',
+  '/admin/',
+  '/profile',
+  '/bookmarks',
+  '/catalog',
+  '/search',
+  '/translator/',
+  '/t/',
+];
+
+function normalizeTargetUrl(url: string | null): string | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('/')) return null;
+  if (SAFE_URL_PREFIXES.some((p) => trimmed === p || trimmed.startsWith(p))) {
+    return trimmed;
+  }
+  return null;
+}
+
 export default function NotificationsClient({ initial, filter }: Props) {
   const router = useRouter();
   const supabase = createClient();
@@ -160,6 +201,8 @@ export default function NotificationsClient({ initial, filter }: Props) {
             const initial =
               (n.actor_name ?? '?').trim().charAt(0).toUpperCase() || '?';
             const isFriendRequest = n.type === 'friend_request';
+            const safeUrl = normalizeTargetUrl(n.target_url);
+            const safeText = sanitizeNotifText(n.text);
             return (
               <div
                 key={n.id}
@@ -179,15 +222,16 @@ export default function NotificationsClient({ initial, filter }: Props) {
                 </div>
 
                 <div className="notif-body">
-                  <div className="notif-text">
-                    {n.text}
-                    {/* Киллер-фича #1: группировка "и ещё N" */}
-                    {n.group_count > 1 && (
-                      <span className="notif-group">
-                        {' '}и ещё {n.group_count - 1}
-                      </span>
-                    )}
-                  </div>
+                  <div
+                    className="notif-text"
+                    dangerouslySetInnerHTML={{
+                      __html:
+                        safeText +
+                        (n.group_count > 1
+                          ? ` <span class="notif-group">и ещё ${n.group_count - 1}</span>`
+                          : ''),
+                    }}
+                  />
                   <div className="notif-time">{timeAgo(n.created_at)}</div>
 
                   {/* Киллер #3: action buttons */}
@@ -212,9 +256,9 @@ export default function NotificationsClient({ initial, filter }: Props) {
                     </div>
                   )}
 
-                  {!isFriendRequest && n.target_url && (
+                  {!isFriendRequest && safeUrl && (
                     <Link
-                      href={n.target_url}
+                      href={safeUrl}
                       className="notif-link"
                       onClick={() => markOneRead(n.id)}
                     >
