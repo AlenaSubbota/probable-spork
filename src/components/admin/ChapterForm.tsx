@@ -24,6 +24,7 @@ interface Props {
     content: string;
     is_paid: boolean;
     price_coins?: number;
+    published_at?: string | null;
   };
   // Для draft-восстановления (только create):
   draft?: {
@@ -63,6 +64,36 @@ export default function ChapterForm({
   const [priceCoins, setPriceCoins] = useState<number>(
     initial?.price_coins ?? 10
   );
+
+  // Статус публикации:
+  //   'now'       — published_at = now()  (сразу видно читателям)
+  //   'scheduled' — published_at = заданное будущее время
+  //   'draft'     — published_at = null   (видит только переводчик/админ)
+  // При редактировании определяем стартовое состояние по initial.published_at.
+  const initialStatus: 'now' | 'scheduled' | 'draft' = (() => {
+    const pa = initial?.published_at;
+    if (pa === null || pa === undefined || pa === '') {
+      return mode === 'edit' ? 'draft' : 'now';
+    }
+    const ts = new Date(pa).getTime();
+    if (!Number.isFinite(ts)) return 'now';
+    return ts > Date.now() + 30_000 ? 'scheduled' : 'now';
+  })();
+  const [publishStatus, setPublishStatus] = useState<'now' | 'scheduled' | 'draft'>(
+    initialStatus
+  );
+  const [scheduledAt, setScheduledAt] = useState<string>(() => {
+    // datetime-local ждёт формат YYYY-MM-DDTHH:mm (без таймзоны)
+    const pa = initial?.published_at;
+    if (!pa) return '';
+    const d = new Date(pa);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return (
+      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+      'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+    );
+  });
 
   const [draftOffered, setDraftOffered] = useState<boolean>(
     mode === 'create' && !!draft && (draft.content?.length ?? 0) > 0
@@ -217,6 +248,36 @@ export default function ChapterForm({
 
     const nowIso = new Date().toISOString();
 
+    // Вычисляем published_at по выбранному режиму публикации.
+    // Для 'scheduled' валидируем что время в будущем; иначе трактуем как 'now'.
+    let publishedAt: string | null;
+    if (publishStatus === 'draft') {
+      publishedAt = null;
+    } else if (publishStatus === 'scheduled') {
+      if (!scheduledAt) {
+        setError('Укажи дату и время запланированной публикации.');
+        setSubmitting(false);
+        return;
+      }
+      const scheduledMs = new Date(scheduledAt).getTime();
+      if (!Number.isFinite(scheduledMs)) {
+        setError('Некорректная дата публикации.');
+        setSubmitting(false);
+        return;
+      }
+      if (scheduledMs <= Date.now() + 30_000) {
+        // если выбрали "запланировать" но время в прошлом / ближайшей минуте
+        // — публикуем сразу, это явно не то что хотел переводчик
+        publishedAt = nowIso;
+      } else {
+        publishedAt = new Date(scheduledMs).toISOString();
+      }
+    } else {
+      publishedAt = nowIso;
+    }
+    const isPublishingNow =
+      publishedAt !== null && new Date(publishedAt).getTime() <= Date.now() + 60_000;
+
     if (mode === 'create') {
       const { error: insertErr } = await supabase.from('chapters').insert({
         novel_id: novelId,
@@ -224,18 +285,22 @@ export default function ChapterForm({
         is_paid: isPaid,
         price_coins: isPaid ? priceCoins : 10,
         content_path: filename,
-        published_at: nowIso,
+        published_at: publishedAt,
       });
       if (insertErr) {
         setError(insertErr.message);
         setSubmitting(false);
         return;
       }
-      // Обновляем latest_chapter_published_at в novels
-      await supabase
-        .from('novels')
-        .update({ latest_chapter_published_at: nowIso })
-        .eq('id', novelId);
+      // Обновляем latest_chapter_published_at в novels только если
+      // глава реально ушла в эфир. Черновики и scheduled не поднимают
+      // дату «последней главы» в ленте.
+      if (isPublishingNow) {
+        await supabase
+          .from('novels')
+          .update({ latest_chapter_published_at: nowIso })
+          .eq('id', novelId);
+      }
 
       // Убираем черновик
       await supabase
@@ -251,6 +316,7 @@ export default function ChapterForm({
           is_paid: isPaid,
           price_coins: isPaid ? priceCoins : 10,
           content_path: filename,
+          published_at: publishedAt,
         })
         .eq('novel_id', novelId)
         .eq('chapter_number', chapterNumber);
@@ -258,6 +324,12 @@ export default function ChapterForm({
         setError(updateErr.message);
         setSubmitting(false);
         return;
+      }
+      if (isPublishingNow) {
+        await supabase
+          .from('novels')
+          .update({ latest_chapter_published_at: nowIso })
+          .eq('id', novelId);
       }
     }
 
@@ -332,6 +404,74 @@ export default function ChapterForm({
         </div>
       </div>
 
+      <div className="publish-control">
+        <div className="publish-control-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={publishStatus === 'now'}
+            className={`publish-tab${publishStatus === 'now' ? ' is-active' : ''}`}
+            onClick={() => setPublishStatus('now')}
+          >
+            ✓ Опубликовать сейчас
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={publishStatus === 'scheduled'}
+            className={`publish-tab${publishStatus === 'scheduled' ? ' is-active' : ''}`}
+            onClick={() => setPublishStatus('scheduled')}
+          >
+            ⏰ Запланировать
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={publishStatus === 'draft'}
+            className={`publish-tab${publishStatus === 'draft' ? ' is-active' : ''}`}
+            onClick={() => setPublishStatus('draft')}
+          >
+            📝 Сохранить как черновик
+          </button>
+        </div>
+        {publishStatus === 'scheduled' && (
+          <div className="publish-control-body">
+            <label
+              className="form-field-label"
+              title="В локальном часовом поясе. Глава станет видна читателям с этого момента."
+            >
+              Дата и время публикации
+            </label>
+            <input
+              type="datetime-local"
+              className="form-input"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              min={(() => {
+                const d = new Date(Date.now() + 5 * 60_000);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                return (
+                  d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+                  'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+                );
+              })()}
+            />
+            <p className="form-hint">
+              До указанного времени главу видишь только ты. В ленте и на странице
+              новеллы у читателей её не будет.
+            </p>
+          </div>
+        )}
+        {publishStatus === 'draft' && (
+          <div className="publish-control-body">
+            <p className="form-hint">
+              Черновик будет сохранён вместе с текстом, но читателям не покажется.
+              В любой момент вернись и нажми «Опубликовать сейчас» или «Запланировать».
+            </p>
+          </div>
+        )}
+      </div>
+
       <div className="chapter-editor">
         {glossary.length > 0 && (
           <div className="form-hint" style={{ marginBottom: 6 }}>
@@ -380,7 +520,19 @@ export default function ChapterForm({
 
       <div className="admin-form-footer">
         <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Публикуем…' : mode === 'create' ? 'Опубликовать главу' : 'Сохранить'}
+          {submitting
+            ? publishStatus === 'draft'
+              ? 'Сохраняем…'
+              : publishStatus === 'scheduled'
+              ? 'Планируем…'
+              : 'Публикуем…'
+            : publishStatus === 'draft'
+            ? 'Сохранить как черновик'
+            : publishStatus === 'scheduled'
+            ? 'Запланировать'
+            : mode === 'create'
+            ? 'Опубликовать главу'
+            : 'Сохранить'}
         </button>
       </div>
     </form>

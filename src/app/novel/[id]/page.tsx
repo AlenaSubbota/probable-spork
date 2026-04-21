@@ -12,7 +12,10 @@ import { formatReadingTime } from '@/lib/catalog';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
+
+const CHAPTERS_PER_PAGE = 50;
 
 function formatChapterDate(published: string | null) {
   if (!published) return '';
@@ -45,9 +48,11 @@ function extractFirstParagraph(html: string, limit = 280): string {
   return (lastSpace > limit / 2 ? slice.slice(0, lastSpace) : slice) + '…';
 }
 
-export default async function NovelPage({ params }: PageProps) {
+export default async function NovelPage({ params, searchParams }: PageProps) {
   const supabase = await createClient();
   const { id } = await params;
+  const { page: pageRaw } = await searchParams;
+  const page = Math.max(1, parseInt(pageRaw ?? '1', 10) || 1);
 
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -139,26 +144,58 @@ export default async function NovelPage({ params }: PageProps) {
   }
   const translatorSlug = translatorProfile?.slug ?? null;
 
-  // Параллельные запросы
+  // Пагинация: от пагинации зависят и выборка, и счётчик.
+  // Переводчик / админ видит все главы (в т.ч. черновики и запланированные).
+  // Читатель видит только опубликованные (published_at <= now()).
+  const nowIso = new Date().toISOString();
+  const from = (page - 1) * CHAPTERS_PER_PAGE;
+  const to = from + CHAPTERS_PER_PAGE - 1;
+
+  const chaptersQuery = supabase
+    .from('chapters')
+    .select(
+      'id, chapter_number, is_paid, price_coins, published_at, content_path',
+      { count: 'exact' }
+    )
+    .eq('novel_id', novel.id)
+    .order('chapter_number', { ascending: false })
+    .range(from, to);
+
+  if (!canEdit) {
+    chaptersQuery
+      .not('published_at', 'is', null)
+      .lte('published_at', nowIso);
+  }
+
+  // Для firstChapter (кнопка «Читать первую») нужна самая ранняя
+  // опубликованная глава, независимо от страницы. Берём лёгкий отдельный
+  // запрос — только один ряд.
+  const firstChapterQuery = supabase
+    .from('chapters')
+    .select('chapter_number, content_path')
+    .eq('novel_id', novel.id)
+    .not('published_at', 'is', null)
+    .lte('published_at', nowIso)
+    .order('chapter_number', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
   const [
-    { data: chaptersDesc },
+    { data: chaptersDesc, count: chaptersCount },
+    { data: firstChapterRow },
     { data: similarByReaders },
     { data: paceRaw },
   ] = await Promise.all([
-    supabase
-      .from('chapters')
-      .select('id, chapter_number, is_paid, price_coins, published_at, content_path')
-      .eq('novel_id', novel.id)
-      .order('chapter_number', { ascending: false }),
-    supabase
-      .rpc('get_similar_novels_by_readers', { p_novel_id: novel.id, p_limit: 6 }),
-    supabase
-      .rpc('get_release_pace', { p_novel_id: novel.id, p_days: 90 }),
+    chaptersQuery,
+    firstChapterQuery,
+    supabase.rpc('get_similar_novels_by_readers', { p_novel_id: novel.id, p_limit: 6 }),
+    supabase.rpc('get_release_pace', { p_novel_id: novel.id, p_days: 90 }),
   ]);
 
   const chapters = chaptersDesc ?? [];
-  const totalChapters = chapters.length;
-  const firstChapter = chapters.length > 0 ? chapters[chapters.length - 1] : null;
+  const totalChapters = chaptersCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalChapters / CHAPTERS_PER_PAGE));
+  const firstChapter = firstChapterRow ?? null;
 
   // Какие главы уже куплены текущим читателем — для подсветки в списке.
   // RPC из миграции 018; если её ещё нет, тихо падаем и не подсвечиваем.
@@ -429,10 +466,17 @@ export default async function NovelPage({ params }: PageProps) {
             const displayTitle = `Глава ${chapter.chapter_number}`;
             const isOwned = purchasedChapters.has(chapter.chapter_number);
             const price = chapter.price_coins ?? 10;
+            const publishedMs = chapter.published_at
+              ? new Date(chapter.published_at).getTime()
+              : null;
+            const isDraft = publishedMs === null;
+            const isScheduled = publishedMs !== null && publishedMs > Date.now();
             return (
               <div
                 key={chapter.id}
-                className={`chapter-item${isOwned ? ' chapter-item--owned' : ''}`}
+                className={`chapter-item${isOwned ? ' chapter-item--owned' : ''}${
+                  isDraft ? ' chapter-item--draft' : ''
+                }${isScheduled ? ' chapter-item--scheduled' : ''}`}
               >
                 <div>
                   <div className="title">
@@ -442,8 +486,24 @@ export default async function NovelPage({ params }: PageProps) {
                         ✓ куплено
                       </span>
                     )}
+                    {isDraft && (
+                      <span className="chapter-status-badge chapter-status-badge--draft">
+                        📝 черновик
+                      </span>
+                    )}
+                    {isScheduled && (
+                      <span className="chapter-status-badge chapter-status-badge--scheduled">
+                        ⏰ выйдет {formatScheduled(chapter.published_at)}
+                      </span>
+                    )}
                   </div>
-                  <div className="date">{formatChapterDate(chapter.published_at)}</div>
+                  <div className="date">
+                    {isDraft
+                      ? 'не опубликована'
+                      : isScheduled
+                      ? 'запланирована'
+                      : formatChapterDate(chapter.published_at)}
+                  </div>
                 </div>
                 <span
                   className={`tag-price ${
@@ -473,12 +533,50 @@ export default async function NovelPage({ params }: PageProps) {
                     }
                     style={{ height: 32, padding: '0 14px', fontSize: 13 }}
                   >
-                    {chapter.is_paid ? (isOwned ? 'Читать' : 'Купить') : 'Читать'}
+                    {isDraft || isScheduled
+                      ? 'Предпросмотр'
+                      : chapter.is_paid
+                      ? isOwned
+                        ? 'Читать'
+                        : 'Купить'
+                      : 'Читать'}
                   </Link>
                 </div>
               </div>
             );
           })}
+
+          {totalPages > 1 && (
+            <nav className="chapter-pagination" aria-label="Страницы глав">
+              {page > 1 ? (
+                <Link
+                  href={`/novel/${novel.firebase_id}${page === 2 ? '' : `?page=${page - 1}`}`}
+                  className="btn btn-ghost"
+                >
+                  ← Новее
+                </Link>
+              ) : (
+                <span className="btn btn-ghost is-disabled" aria-disabled="true">
+                  ← Новее
+                </span>
+              )}
+              <span className="chapter-pagination-info">
+                Страница {page} из {totalPages}
+              </span>
+              {page < totalPages ? (
+                <Link
+                  href={`/novel/${novel.firebase_id}?page=${page + 1}`}
+                  className="btn btn-ghost"
+                >
+                  Старее →
+                </Link>
+              ) : (
+                <span className="btn btn-ghost is-disabled" aria-disabled="true">
+                  Старее →
+                </span>
+              )}
+            </nav>
+          )}
         </div>
 
         {/* Киллер-фича #2 — созвучие читателей */}
@@ -522,6 +620,40 @@ export default async function NovelPage({ params }: PageProps) {
       </section>
     </main>
   );
+}
+
+function formatScheduled(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = d.getTime() - now.getTime();
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 60) return `через ${diffMin} мин`;
+  const diffHr = Math.round(diffMin / 60);
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) {
+    return `сегодня в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  if (
+    d.getFullYear() === tomorrow.getFullYear() &&
+    d.getMonth() === tomorrow.getMonth() &&
+    d.getDate() === tomorrow.getDate()
+  ) {
+    return `завтра в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  if (diffHr < 24 * 7) {
+    return d.toLocaleString('ru-RU', {
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  return d.toLocaleDateString('ru-RU');
 }
 
 function pluralCoins(n: number): string {
