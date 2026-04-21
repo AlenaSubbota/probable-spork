@@ -23,12 +23,14 @@ interface Props {
     chapter_number: number;
     content: string;
     is_paid: boolean;
+    price_coins?: number;
   };
   // Для draft-восстановления (только create):
   draft?: {
     chapter_number: number | null;
     content: string | null;
     is_paid: boolean;
+    price_coins?: number | null;
     updated_at: string;
   } | null;
   // Номер следующей главы (подсказка для create)
@@ -58,6 +60,9 @@ export default function ChapterForm({
     return /<\w+/.test(raw) ? htmlToBb(raw) : raw;
   });
   const [isPaid, setIsPaid] = useState<boolean>(initial?.is_paid ?? false);
+  const [priceCoins, setPriceCoins] = useState<number>(
+    initial?.price_coins ?? 10
+  );
 
   const [draftOffered, setDraftOffered] = useState<boolean>(
     mode === 'create' && !!draft && (draft.content?.length ?? 0) > 0
@@ -72,7 +77,12 @@ export default function ChapterForm({
 
   // ---- Автосохранение черновика (killer #2) — только в режиме create ----
   const saveDraft = useCallback(
-    async (nextContent: string, nextChapter: number, nextPaid: boolean) => {
+    async (
+      nextContent: string,
+      nextChapter: number,
+      nextPaid: boolean,
+      nextPrice: number
+    ) => {
       if (mode !== 'create') return;
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -88,6 +98,7 @@ export default function ChapterForm({
             chapter_number: nextChapter,
             content: nextContent,
             is_paid: nextPaid,
+            price_coins: nextPrice,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'user_id,novel_id,chapter_number' }
@@ -107,12 +118,12 @@ export default function ChapterForm({
     if (!content && chapterNumber === 0) return;
     if (saveDraftTimerRef.current) window.clearTimeout(saveDraftTimerRef.current);
     saveDraftTimerRef.current = window.setTimeout(() => {
-      saveDraft(content, chapterNumber, isPaid);
+      saveDraft(content, chapterNumber, isPaid, priceCoins);
     }, 2000);
     return () => {
       if (saveDraftTimerRef.current) window.clearTimeout(saveDraftTimerRef.current);
     };
-  }, [content, chapterNumber, isPaid, saveDraft, mode]);
+  }, [content, chapterNumber, isPaid, priceCoins, saveDraft, mode]);
 
   // ---- Восстановление черновика ----
   const restoreDraft = () => {
@@ -120,6 +131,7 @@ export default function ChapterForm({
     if (draft.chapter_number != null) setChapterNumber(draft.chapter_number);
     setContent(draft.content ?? '');
     setIsPaid(!!draft.is_paid);
+    if (draft.price_coins != null) setPriceCoins(draft.price_coins);
     setDraftUpdatedAt(draft.updated_at);
     setDraftOffered(false);
   };
@@ -210,6 +222,7 @@ export default function ChapterForm({
         novel_id: novelId,
         chapter_number: chapterNumber,
         is_paid: isPaid,
+        price_coins: isPaid ? priceCoins : 10,
         content_path: filename,
         published_at: nowIso,
       });
@@ -234,7 +247,11 @@ export default function ChapterForm({
     } else {
       const { error: updateErr } = await supabase
         .from('chapters')
-        .update({ is_paid: isPaid, content_path: filename })
+        .update({
+          is_paid: isPaid,
+          price_coins: isPaid ? priceCoins : 10,
+          content_path: filename,
+        })
         .eq('novel_id', novelId)
         .eq('chapter_number', chapterNumber);
       if (updateErr) {
@@ -283,6 +300,26 @@ export default function ChapterForm({
             <div className="rs-switch-sub">Только для подписчиков и покупателей</div>
           </div>
         </label>
+
+        {isPaid && (
+          <div className="form-field" style={{ maxWidth: 140 }}>
+            <label title="Сколько монет стоит разовая покупка этой главы. От 1 до 500. Подписчики переводчика читают бесплатно независимо от цены.">
+              Цена, монет
+            </label>
+            <input
+              type="number"
+              className="form-input"
+              min={1}
+              max={500}
+              step={1}
+              value={priceCoins}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                setPriceCoins(Number.isFinite(v) ? Math.max(1, Math.min(500, v)) : 10);
+              }}
+            />
+          </div>
+        )}
 
         <div className="chapter-form-save-state">
           {mode === 'create' && draftState === 'saving' && 'Сохраняем черновик…'}

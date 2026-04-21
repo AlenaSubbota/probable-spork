@@ -52,7 +52,7 @@ export default async function NewChapterPage({ params }: PageProps) {
   // Черновик: последний сохранённый для этой новеллы этим пользователем
   const { data: draft } = await supabase
     .from('chapter_drafts')
-    .select('chapter_number, content, is_paid, updated_at')
+    .select('chapter_number, content, is_paid, price_coins, updated_at')
     .eq('user_id', user.id)
     .eq('novel_id', novel.id)
     .order('updated_at', { ascending: false })

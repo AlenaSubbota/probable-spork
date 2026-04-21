@@ -907,6 +907,42 @@ RPC:
 ### Константы
 - `WEEKDAY_LABELS_SHORT`, `WEEKDAY_LABELS_LONG`, `WEEKDAYS` в `src/lib/admin.ts` — чтобы ISO-формат дней (0=Пн … 6=Вс) был одинаковым в админке и на публике.
 
+## Итерация 24 — покупка платной главы: конфигурируемая цена + защищённый RPC + подсветка купленного
+
+### Что было не так
+1. Цена была прошита — `DEFAULT_CHAPTER_PRICE = 10` во всех местах, админка не задавала свою цену.
+2. `buy_chapter(p_user, p_novel, p_chapter, p_price)` **принимал цену параметром** — клиент мог прислать `p_price=1`.
+3. `chapter_purchases` без RLS — любой authenticated теоретически видел чужие покупки.
+4. Платная глава для анонима не вставала в paywall — валилась мимо, грузила текст (баг).
+
+### Миграция 018 — `migrations/018_chapter_price_and_security.sql`
+- `chapters.price_coins int NOT NULL DEFAULT 10` + `CHECK (price_coins BETWEEN 1 AND 500)`
+- `chapter_drafts.price_coins` — чтобы автосейв цену не терял
+- Переписан `buy_chapter(p_novel, p_chapter)` → `jsonb`:
+  - цена **берётся из БД**, клиент не посылает
+  - возвращает `{ ok, error?, price?, balance?, already_owned? }`
+  - ошибки: `not_authenticated`, `chapter_not_found`, `chapter_is_free`, `insufficient_balance`
+  - идемпотентно: повторная покупка купленной главы → `ok: true, already_owned: true` без списания
+  - атомарно: `FOR UPDATE` + `ON CONFLICT DO NOTHING`
+- Старая сигнатура `buy_chapter(uuid, bigint, int, int)` удалена (`DROP FUNCTION`)
+- RLS на `chapter_purchases`:
+  - `purchases_self_read` — читатель видит свои
+  - `purchases_translator_read` — переводчик видит покупки своих новелл (для аналитики)
+  - `purchases_admin_all` — админ всё
+  - `INSERT/UPDATE/DELETE` у `authenticated` отобраны — только через `buy_chapter` (SECURITY DEFINER)
+- RPC `my_purchased_chapters(p_novel) → int[]` — для подсветки в списке глав
+
+### UI
+- `ChapterForm` — если включено «платная глава», появляется поле «Цена, монет» (1–500, default 10). Сохраняется и в `chapters`, и в `chapter_drafts`.
+- `ChapterPaywall` — теперь вызывает новый RPC без `p_price`, парсит jsonb-ответ и показывает человеческие ошибки.
+- Страница главы (`/novel/[id]/[chapterNum]`):
+  - тянет `chapter.price_coins`, пробрасывает в paywall
+  - **фикс бага:** анонимный читатель на платной главе теперь получает экран «войди → купи» с `next=`, а не текст главы
+- Страница новеллы (`/novel/[id]`):
+  - через `my_purchased_chapters` подтягивает Set купленных глав читателя
+  - подсвечивает строку и плашку цены, меняет кнопку «Купить» → «Читать», ставит бейдж «✓ куплено»
+  - показывает **реальную** цену главы (а не «10 монет»), с корректным склонением монета/монеты/монет
+
 ## Предстоит
 
 ### Миграции — накатить на Supabase в порядке

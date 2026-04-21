@@ -5,8 +5,6 @@ import ReaderContent from '@/components/ReaderContent';
 import CommentsSection from '@/components/CommentsSection';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
 
-const DEFAULT_CHAPTER_PRICE = 10;
-
 interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
 }
@@ -41,7 +39,7 @@ export default async function ChapterPage({ params }: PageProps) {
 
   const { data: chapter } = await supabase
     .from('chapters')
-    .select('id, chapter_number, is_paid, content_path, published_at')
+    .select('id, chapter_number, is_paid, content_path, published_at, price_coins')
     .eq('novel_id', novel.id)
     .eq('chapter_number', num)
     .single();
@@ -67,6 +65,39 @@ export default async function ChapterPage({ params }: PageProps) {
     } catch {
       hasAccess = true;
     }
+  }
+
+  // Платная глава + анонимный читатель → на логин, не отдаём текст
+  if (chapter.is_paid && !user) {
+    const redirectTo = encodeURIComponent(`/novel/${id}/${chapter.chapter_number}`);
+    return (
+      <div className="reader-page">
+        <main className="reader-main">
+          <div className="paywall">
+            <div className="paywall-icon" aria-hidden="true">🔒</div>
+            <h2 className="paywall-title">Нужен аккаунт</h2>
+            <p className="paywall-sub">
+              Эта глава платная. Войди, чтобы купить её или открыть
+              по подписке переводчика.
+            </p>
+            <Link
+              href={`/login?next=${redirectTo}`}
+              className="btn btn-primary"
+              style={{ width: '100%', maxWidth: 260 }}
+            >
+              Войти
+            </Link>
+            <Link
+              href={`/novel/${id}`}
+              className="paywall-back"
+              style={{ marginTop: 14 }}
+            >
+              ← Назад к списку глав
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   // Если нет доступа — показываем paywall, не тянем текст
@@ -104,7 +135,7 @@ export default async function ChapterPage({ params }: PageProps) {
             novelFirebaseId={novel.firebase_id}
             novelTitle={novel.title}
             chapterNumber={chapter.chapter_number}
-            chapterPrice={DEFAULT_CHAPTER_PRICE}
+            chapterPrice={chapter.price_coins ?? 10}
             userBalance={balance}
             translatorSlug={translatorSlug}
           />
