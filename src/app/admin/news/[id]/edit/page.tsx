@@ -47,9 +47,12 @@ export default async function EditNewsPage({ params }: PageProps) {
         initial={{
           id: news.id,
           title: news.title,
+          subtitle: news.subtitle ?? '',
           bodyHtml: news.body ?? '',
           body: '',
           type: (news.type as NewsType) ?? 'announcement',
+          cover_url: news.cover_url ?? '',
+          rubrics: Array.isArray(news.rubrics) ? news.rubrics : [],
           is_pinned: !!news.is_pinned,
           is_published: !!news.is_published,
           attached_novel_id: news.attached_novel_id,

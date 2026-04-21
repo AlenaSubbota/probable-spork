@@ -5,13 +5,20 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import BBCodeEditor from './BBCodeEditor';
 import { bbToHtml, htmlToBb } from '@/lib/bbcode';
-import { NEWS_TYPES, type NewsType } from '@/lib/news';
+import {
+  NEWS_TYPES,
+  isJournalType,
+  type NewsType,
+} from '@/lib/news';
 
 export interface NewsFormValues {
   id?: number;
   title: string;
+  subtitle: string;
   body: string;       // BB-код (конвертируется в HTML при submit)
   type: NewsType;
+  cover_url: string;
+  rubrics: string[];
   is_pinned: boolean;
   is_published: boolean;
   attached_novel_id: number | null;
@@ -24,8 +31,11 @@ interface Props {
 
 const EMPTY: NewsFormValues = {
   title: '',
+  subtitle: '',
   body: '',
   type: 'announcement',
+  cover_url: '',
+  rubrics: [],
   is_pinned: false,
   is_published: true,
   attached_novel_id: null,
@@ -48,8 +58,24 @@ export default function NewsForm({ initial, mode }: Props) {
   const [novelQuery, setNovelQuery] = useState('');
   const [novelOptions, setNovelOptions] = useState<NovelOption[]>([]);
   const [attachedNovel, setAttachedNovel] = useState<NovelOption | null>(null);
+  const [rubricInput, setRubricInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isJournal = isJournalType(values.type);
+
+  const addRubric = () => {
+    const v = rubricInput.trim();
+    if (!v) return;
+    if (values.rubrics.includes(v)) {
+      setRubricInput('');
+      return;
+    }
+    setValues((p) => ({ ...p, rubrics: [...p.rubrics, v].slice(0, 6) }));
+    setRubricInput('');
+  };
+  const removeRubric = (r: string) =>
+    setValues((p) => ({ ...p, rubrics: p.rubrics.filter((x) => x !== r) }));
 
   // Подтягиваем подгруженную новеллу при редактировании
   useEffect(() => {
@@ -118,8 +144,11 @@ export default function NewsForm({ initial, mode }: Props) {
     const bodyHtml = bbToHtml(values.body);
     const payload = {
       title: values.title.trim(),
+      subtitle: isJournal ? (values.subtitle.trim() || null) : null,
       body: bodyHtml,
       type: values.type,
+      cover_url: isJournal ? (values.cover_url.trim() || null) : null,
+      rubrics: isJournal ? values.rubrics : [],
       is_pinned: values.is_pinned,
       is_published: values.is_published,
       attached_novel_id: values.attached_novel_id,
@@ -223,6 +252,88 @@ export default function NewsForm({ initial, mode }: Props) {
           </label>
         </div>
       </div>
+
+      {isJournal && (
+        <>
+          <div className="form-field">
+            <label title="Подзаголовок для статьи/обзора. Краткая подводка из 1–2 предложений — показывается в карточке на главной и под заголовком на странице материала.">
+              Подзаголовок
+            </label>
+            <textarea
+              className="form-input"
+              rows={2}
+              value={values.subtitle}
+              onChange={(e) => set('subtitle', e.target.value)}
+              placeholder="О чём материал — в одну-две строки."
+              maxLength={400}
+            />
+          </div>
+
+          <div className="form-field">
+            <label title="Обложка статьи: URL или относительный путь (например, covers/article-42.webp). Используется на главной в слайдере «Журнал».">
+              Обложка
+            </label>
+            <input
+              className="form-input"
+              value={values.cover_url}
+              onChange={(e) => set('cover_url', e.target.value)}
+              placeholder="https://… или covers/article-42.webp"
+            />
+            {values.cover_url && (
+              <div
+                style={{
+                  marginTop: 8,
+                  aspectRatio: '16 / 10',
+                  maxWidth: 260,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  background: 'var(--surface-2)',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={values.cover_url}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="form-field">
+            <label title="Теги-рубрики, как у Литреса: «фэнтези», «интервью», «тренды». До 6 штук. Enter, чтобы добавить.">
+              Рубрики
+            </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              {values.rubrics.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className="journal-rubric"
+                  style={{ cursor: 'pointer', background: 'var(--accent-wash)', color: 'var(--accent-hover)' }}
+                  onClick={() => removeRubric(r)}
+                  title="Убрать"
+                >
+                  {r} ×
+                </button>
+              ))}
+            </div>
+            <input
+              className="form-input"
+              value={rubricInput}
+              onChange={(e) => setRubricInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addRubric();
+                }
+              }}
+              placeholder="Добавь рубрику и нажми Enter"
+              disabled={values.rubrics.length >= 6}
+            />
+          </div>
+        </>
+      )}
 
       <div className="form-field">
         <label title="Опционально: прикрепи к новости новеллу — появится карточка с обложкой и кнопкой «открыть».">
