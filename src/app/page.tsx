@@ -121,24 +121,23 @@ export default async function HomePage() {
           .select('id, firebase_id, title, cover_url')
           .in('id', novelIds);
 
-        const novelMap = Object.fromEntries(
-          (continueNovels || []).map((n) => [String(n.id), n])
-        );
+        const novelMap: Record<string, { firebase_id: string; title: string; cover_url: string | null }> = {};
+        for (const n of continueNovels ?? []) {
+          novelMap[String(n.id)] = n;
+        }
 
-        continueItems = lastReadEntries
-          .map((entry) => {
-            const novel = novelMap[String(entry.novelId)];
-            if (!novel) return null;
-            return {
-              firebase_id: novel.firebase_id,
-              title: novel.title,
-              cover_url: novel.cover_url,
-              chapterNumber: entry.chapterId,
-              totalChapters: null,
-              lastReadAt: entry.timestamp,
-            } satisfies ContinueItem;
-          })
-          .filter((x): x is ContinueItem => x !== null);
+        for (const entry of lastReadEntries) {
+          const novel = novelMap[String(entry.novelId)];
+          if (!novel) continue;
+          continueItems.push({
+            firebase_id: novel.firebase_id,
+            title: novel.title,
+            cover_url: novel.cover_url,
+            chapterNumber: entry.chapterId,
+            totalChapters: null,
+            lastReadAt: entry.timestamp,
+          });
+        }
       }
 
       // «Моя полка» из bookmarks: { [firebase_id]: status } или массив firebase_id
