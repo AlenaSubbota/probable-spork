@@ -332,7 +332,7 @@ export default function NovelForm({ initial, mode }: Props) {
 
       <div className="form-field">
         <label title="Выбери подходящие жанры. Выберешь точнее — алгоритм лучше рекомендует новеллу читателям.">
-          Жанры * <span className="form-label-sub">(минимум 1)</span>
+          Жанры * <span className="form-label-sub">(минимум 1; возраст — отдельным полем выше)</span>
         </label>
         <div className="filter-pills">
           {PREDEFINED_GENRES.map((g) => (

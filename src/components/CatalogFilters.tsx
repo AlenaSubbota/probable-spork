@@ -5,8 +5,6 @@ import {
   SORT_LABELS,
   buildCatalogUrl,
   type SortKey,
-  type MoodKey,
-  type ReadingBucket,
 } from '@/lib/catalog';
 
 interface Props {
@@ -16,10 +14,13 @@ interface Props {
     status?: string;
     time?: string;
     sort?: string;
+    age?: string;
   };
   genres: { name: string; count: number }[];
   totalCount: number;
 }
+
+const AGE_RATINGS: string[] = ['6+', '12+', '16+', '18+'];
 
 export default function CatalogFilters({ current, genres, totalCount }: Props) {
   const allSorts = Object.entries(SORT_LABELS) as [SortKey, string][];
@@ -67,6 +68,33 @@ export default function CatalogFilters({ current, genres, totalCount }: Props) {
             >
               {b.label}
               <span className="pill-sub">{b.description}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Возраст */}
+      <div className="filter-group">
+        <h4>Возрастное ограничение</h4>
+        <div className="filter-pills">
+          <Link
+            href={buildCatalogUrl(current, { age: undefined })}
+            className={`filter-pill${!current.age ? ' active' : ''}`}
+          >
+            Любое
+          </Link>
+          {AGE_RATINGS.map((a) => (
+            <Link
+              key={a}
+              href={buildCatalogUrl(current, { age: a })}
+              className={`filter-pill${current.age === a ? ' active' : ''}`}
+              title={
+                a === '18+'
+                  ? 'Только для взрослых — потребуется подтверждение возраста'
+                  : undefined
+              }
+            >
+              {a}
             </Link>
           ))}
         </div>

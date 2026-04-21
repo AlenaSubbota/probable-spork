@@ -6,6 +6,7 @@ import FirstChapterPreview from '@/components/FirstChapterPreview';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import ReleasePace from '@/components/ReleasePace';
 import BookmarkButton from '@/components/BookmarkButton';
+import AdultGate from '@/components/AdultGate';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
 
@@ -205,6 +206,9 @@ export default async function NovelPage({ params }: PageProps) {
 
   return (
     <main>
+      {novel.age_rating === '18+' && (
+        <AdultGate novelTitle={novel.title} scope={novel.firebase_id} />
+      )}
       <section className="container">
         <div className="novel-top">
           <div className="cover-large">

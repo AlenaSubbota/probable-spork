@@ -21,8 +21,11 @@ interface CatalogParams {
   status?: string;
   time?: string;
   sort?: string;
+  age?: string;
   page?: string;
 }
+
+const AGE_RE = /^\d{1,2}\+$/;
 
 export default async function CatalogPage({
   searchParams,
@@ -48,12 +51,17 @@ export default async function CatalogPage({
   let query = supabase
     .from('novels_view')
     .select(
-      'id, firebase_id, title, author, cover_url, genres, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at',
+      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description',
       { count: 'exact' }
     );
 
   if (params.status === 'completed') query = query.eq('is_completed', true);
   if (params.status === 'ongoing')   query = query.eq('is_completed', false);
+
+  // Возрастное ограничение: теперь в отдельной колонке, не в жанрах
+  if (params.age && ['6+', '12+', '16+', '18+'].includes(params.age)) {
+    query = query.eq('age_rating', params.age);
+  }
 
   // Фильтр по жанру (jsonb contains)
   if (params.genre) {
@@ -86,7 +94,11 @@ export default async function CatalogPage({
   (allForGenres ?? []).forEach((n) => {
     const gs = n.genres;
     if (Array.isArray(gs)) {
-      for (const g of gs) genreMap[g] = (genreMap[g] ?? 0) + 1;
+      for (const g of gs) {
+        // Убираем возрастные токены из жанров (они теперь в age_rating)
+        if (typeof g === 'string' && AGE_RE.test(g.trim())) continue;
+        genreMap[g] = (genreMap[g] ?? 0) + 1;
+      }
     }
   });
   const genres = Object.entries(genreMap)
@@ -163,6 +175,15 @@ export default async function CatalogPage({
                   chapterCount={novel.chapter_count}
                   flagText={novel.is_completed ? 'FIN' : undefined}
                   flagClass={novel.is_completed ? 'done' : undefined}
+                  description={(novel as { description?: string | null }).description ?? null}
+                  genres={
+                    Array.isArray(novel.genres)
+                      ? (novel.genres as string[]).filter(
+                          (g) => typeof g === 'string' && !AGE_RE.test(g.trim())
+                        )
+                      : null
+                  }
+                  ageRating={(novel as { age_rating?: string | null }).age_rating ?? null}
                 />
               ))}
             </div>
