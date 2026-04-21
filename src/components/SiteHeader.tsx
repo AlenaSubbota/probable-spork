@@ -34,6 +34,7 @@ export default async function SiteHeader() {
         <nav className="main-nav">
           <Link href="/catalog">Каталог</Link>
           <Link href="/feed">Лента</Link>
+          {user && <Link href="/bookmarks">Полка</Link>}
         </nav>
 
         <form action="/search" method="get" className="search-box">
