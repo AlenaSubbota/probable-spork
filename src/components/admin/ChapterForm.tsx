@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import ChapterStats from './ChapterStats';
 import DraftBanner from './DraftBanner';
+import BBCodeEditor from './BBCodeEditor';
+import { bbToHtml, htmlToBb } from '@/lib/bbcode';
 
 interface GlossaryItem {
   term_original: string;
@@ -49,9 +51,13 @@ export default function ChapterForm({
   const [chapterNumber, setChapterNumber] = useState<number>(
     initial?.chapter_number ?? suggestedChapterNumber ?? 1
   );
-  const [content, setContent] = useState<string>(initial?.content ?? '');
+  // В форме храним BB-коды. Если пришёл HTML из storage при edit — конвертируем.
+  const [content, setContent] = useState<string>(() => {
+    const raw = initial?.content ?? '';
+    if (!raw) return '';
+    return /<\w+/.test(raw) ? htmlToBb(raw) : raw;
+  });
   const [isPaid, setIsPaid] = useState<boolean>(initial?.is_paid ?? false);
-  const [showPreview, setShowPreview] = useState(true);
 
   const [draftOffered, setDraftOffered] = useState<boolean>(
     mode === 'create' && !!draft && (draft.content?.length ?? 0) > 0
@@ -136,26 +142,15 @@ export default function ChapterForm({
     setDraftOffered(false);
   };
 
+  // HTML-версия контента для стат, превью и сохранения
+  const contentHtml = useMemo(() => bbToHtml(content), [content]);
+
   // ---- Glossary highlight (killer #1) ----
-  // Сортируем термины по длине (длинные вперёд), чтобы не сломать кратким матчем
+  // Подсвечиваем совпадения в HTML-превью.
   const sortedGlossary = useMemo(
     () => [...glossary].sort((a, b) => b.term_original.length - a.term_original.length),
     [glossary]
   );
-
-  const highlightedPreview = useMemo(() => {
-    if (!content) return '';
-    let html = content;
-    for (const g of sortedGlossary) {
-      const escaped = g.term_original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${escaped})`, 'gi');
-      html = html.replace(
-        regex,
-        `<mark class="glossary-match" data-translation="${escapeAttr(g.term_translation)}">$1</mark>`
-      );
-    }
-    return html;
-  }, [content, sortedGlossary]);
 
   const glossaryHitsCount = useMemo(() => {
     if (!content) return 0;
@@ -167,23 +162,6 @@ export default function ChapterForm({
     }
     return total;
   }, [content, sortedGlossary]);
-
-  // ---- Toolbar (обёртки тегами) ----
-  const contentRef = useRef<HTMLTextAreaElement | null>(null);
-  const wrap = (before: string, after: string) => {
-    const ta = contentRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const selected = content.slice(start, end) || 'текст';
-    const next = content.slice(0, start) + before + selected + after + content.slice(end);
-    setContent(next);
-    // Выставляем каретку после вставки
-    setTimeout(() => {
-      ta.focus();
-      ta.setSelectionRange(start + before.length, start + before.length + selected.length);
-    }, 0);
-  };
 
   // ---- Отправка ----
   const handleSubmit = async (e: React.FormEvent) => {
@@ -207,9 +185,9 @@ export default function ChapterForm({
       return;
     }
 
-    // 1. Сохраняем текст в storage
+    // 1. Сохраняем текст в storage (BB → HTML на лету)
     const filename = `${novelFirebaseId}/${chapterNumber}.html`;
-    const blob = new Blob([content], { type: 'text/html; charset=utf-8' });
+    const blob = new Blob([contentHtml], { type: 'text/html; charset=utf-8' });
 
     const { error: uploadErr } = await supabase.storage
       .from('chapter_content')
@@ -318,62 +296,23 @@ export default function ChapterForm({
       </div>
 
       <div className="chapter-editor">
-        <div className="editor-pane">
-          <div className="editor-toolbar-row">
-            <button type="button" className="chip" onClick={() => wrap('<p>', '</p>')}>
-              ¶
-            </button>
-            <button type="button" className="chip" onClick={() => wrap('<strong>', '</strong>')}>
-              <b>B</b>
-            </button>
-            <button type="button" className="chip" onClick={() => wrap('<em>', '</em>')}>
-              <i>I</i>
-            </button>
-            <button type="button" className="chip" onClick={() => wrap('<h3>', '</h3>')}>
-              H
-            </button>
-            <button type="button" className="chip" onClick={() => wrap('<blockquote>', '</blockquote>')}>
-              ❝
-            </button>
-            <span style={{ flex: 1 }} />
-            <button
-              type="button"
-              className={`chip${showPreview ? ' active' : ''}`}
-              onClick={() => setShowPreview((s) => !s)}
-            >
-              Предпросмотр
-            </button>
-          </div>
-          <textarea
-            ref={contentRef}
-            className="chapter-textarea"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="<p>Глава начинается с абзаца…</p>"
-            spellCheck
-          />
-        </div>
-
-        {showPreview && (
-          <div className="editor-pane">
-            <div className="editor-preview-head">
-              <span>Предпросмотр</span>
-              {glossary.length > 0 && (
-                <span className="editor-preview-hint">
-                  Совпадения с глоссарием: <strong>{glossaryHitsCount}</strong>
-                </span>
-              )}
-            </div>
-            <div
-              className="editor-preview novel-content"
-              dangerouslySetInnerHTML={{ __html: highlightedPreview || '<p><em>Пусто</em></p>' }}
-            />
+        {glossary.length > 0 && (
+          <div className="form-hint" style={{ marginBottom: 6 }}>
+            Совпадений с глоссарием в тексте: <strong>{glossaryHitsCount}</strong>
           </div>
         )}
+        <BBCodeEditor
+          value={content}
+          onChange={setContent}
+          rows={20}
+          minHeight={480}
+          placeholder="Абзацы разделяй пустой строкой. Для выделения — кнопки выше или BB-коды."
+          hint="Кнопки расставят теги автоматически. Не нужно ничего знать про HTML — пиши как обычный текст."
+        />
       </div>
 
       <aside className="chapter-sidebar">
-        <ChapterStats content={content} />
+        <ChapterStats content={contentHtml} />
 
         {glossary.length > 0 && (
           <div className="chapter-stats">
@@ -411,11 +350,3 @@ export default function ChapterForm({
   );
 }
 
-function escapeAttr(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}

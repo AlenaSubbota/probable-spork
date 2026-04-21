@@ -24,13 +24,13 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
   const [ready, setReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Таймер сна: null — выключен, 0 — истёк (показываем overlay), >0 — осталось мин.
-  const [sleepMin, setSleepMin] = useState<number | null>(null);
+  // Таймер сна.
+  // selectedPreset — изначально выбранный пресет (для подсветки в UI), не тикает.
+  // sleepMinLeft — оставшиеся минуты (тикают от пресета до 0). 0 = истёк.
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const [sleepMinLeft, setSleepMinLeft] = useState<number | null>(null);
+  const [sleepExpired, setSleepExpired] = useState(false);
   const [sleepDismissed, setSleepDismissed] = useState(false);
-  const sleepStartedRef = useRef<number | null>(null);
-
-  // Фокус-режим: индекс активного абзаца
-  const [activeParagraph, setActiveParagraph] = useState<number>(-1);
 
   const contentRef = useRef<HTMLDivElement | null>(null);
   const saveTimerRef = useRef<number | null>(null);
@@ -69,7 +69,7 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
     return () => window.removeEventListener('keydown', handler);
   }, [settings, updateSettings]);
 
-  // ---- 4. Сохранение прогресса чтения ----
+  // ---- 4. Сохранение прогресса чтения (через RPC update_my_profile) ----
   const saveProgress = useCallback(
     async (paragraphIndex: number) => {
       try {
@@ -87,7 +87,7 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Читаем текущий last_read, мерджим, обновляем
+      // Читаем текущий last_read, мержим, обновляем через RPC (RLS на profiles запрещает UPDATE напрямую)
       const { data: profile } = await supabase
         .from('profiles')
         .select('last_read')
@@ -110,13 +110,13 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
           timestamp: new Date().toISOString(),
         },
       };
-      await supabase
-        .from('profiles')
-        .update({ last_read: updated })
-        .eq('id', user.id);
 
-      // Логируем активность дня (для стрика в профиле).
-      // Не блокируем, игнорируем ошибки — RPC может ещё не быть в БД.
+      // SECURITY DEFINER RPC из tene-схемы
+      await supabase.rpc('update_my_profile', {
+        data_to_update: { last_read: updated },
+      });
+
+      // Логируем день активности (для стрика). Не блокируем.
       supabase.rpc('log_reading_day').then(() => {}, () => {});
     },
     [novelId, chapterNumber]
@@ -131,6 +131,8 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
     const paragraphs = container.querySelectorAll<HTMLElement>('p, h1, h2, h3, blockquote');
     if (paragraphs.length === 0) return;
 
+    let lastActiveId = -1;
+
     const onScroll = () => {
       const viewportMid = window.innerHeight / 2;
       let bestIdx = 0;
@@ -144,9 +146,16 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
           bestIdx = i;
         }
       });
-      setActiveParagraph(bestIdx);
 
-      // Дебаунсенное сохранение прогресса
+      // Обновляем класс только когда активный абзац сменился
+      if (bestIdx !== lastActiveId) {
+        if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
+          paragraphs[lastActiveId].classList.remove('focus-active');
+        }
+        paragraphs[bestIdx]?.classList.add('focus-active');
+        lastActiveId = bestIdx;
+      }
+
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => saveProgress(bestIdx), 1500);
     };
@@ -156,10 +165,13 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
     return () => {
       window.removeEventListener('scroll', onScroll);
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
+        paragraphs[lastActiveId].classList.remove('focus-active');
+      }
     };
   }, [ready, content, saveProgress]);
 
-  // ---- 6. Восстановление позиции из last_read при заходе ----
+  // ---- 6. Восстановление позиции из localStorage при заходе ----
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -172,7 +184,6 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
       const paragraphs = container.querySelectorAll<HTMLElement>('p, h1, h2, h3, blockquote');
       const target = paragraphs[data.paragraphIndex];
       if (target) {
-        // Небольшая задержка, чтобы шрифты успели подгрузиться
         setTimeout(() => {
           target.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
         }, 120);
@@ -180,25 +191,28 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
     } catch { /* ignore */ }
   }, [ready, content, novelId, chapterNumber]);
 
-  // ---- 7. Таймер сна (обратный отсчёт) ----
+  // ---- 7. Таймер сна (обратный отсчёт по selectedPreset) ----
   useEffect(() => {
-    if (sleepMin === null || sleepMin <= 0) return;
-    sleepStartedRef.current = Date.now();
-    const totalMs = sleepMin * 60 * 1000;
-    const expireAt = sleepStartedRef.current + totalMs;
-
+    if (selectedPreset === null) {
+      setSleepMinLeft(null);
+      setSleepExpired(false);
+      return;
+    }
+    const expireAt = Date.now() + selectedPreset * 60 * 1000;
+    setSleepMinLeft(selectedPreset);
+    setSleepExpired(false);
     const tick = () => {
       const leftMs = expireAt - Date.now();
       if (leftMs <= 0) {
-        setSleepMin(0);
-        setSleepDismissed(false);
+        setSleepMinLeft(0);
+        setSleepExpired(true);
       } else {
-        setSleepMin(Math.ceil(leftMs / 60_000));
+        setSleepMinLeft(Math.ceil(leftMs / 60_000));
       }
     };
     const id = window.setInterval(tick, 30_000);
     return () => window.clearInterval(id);
-  }, [sleepMin]);
+  }, [selectedPreset]);
 
   if (!ready) {
     return <div className="novel-content" style={{ minHeight: 400 }} />;
@@ -219,7 +233,7 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
           type="button"
           className={`chip${settings.focusMode ? ' active' : ''}`}
           onClick={() => updateSettings({ ...settings, focusMode: !settings.focusMode })}
-          title="F"
+          title="F — включить/выключить"
         >
           ◉ Фокус
         </button>
@@ -237,9 +251,6 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
         ref={contentRef}
         className="novel-content"
         style={bodyStyle}
-        data-active-paragraph={activeParagraph}
-        data-text-indent={settings.textIndent}
-        data-paragraph-spacing={settings.paragraphSpacing}
         dangerouslySetInnerHTML={{ __html: content }}
       />
 
@@ -250,22 +261,23 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
         settings={settings}
         onChange={updateSettings}
         onClose={() => setSettingsOpen(false)}
-        sleepTimerMin={sleepMin}
+        selectedPreset={selectedPreset}
+        sleepMinLeft={sleepMinLeft}
         onSleepTimerSet={(m) => {
-          setSleepMin(m);
+          setSelectedPreset(m);
           setSleepDismissed(false);
         }}
       />
 
-      {sleepMin === 0 && !sleepDismissed && (
+      {sleepExpired && !sleepDismissed && (
         <SleepTimerOverlay
           onExtend={(extra) => {
-            setSleepMin(extra);
+            setSelectedPreset(extra);
             setSleepDismissed(true);
           }}
           onDismiss={() => {
             setSleepDismissed(true);
-            setSleepMin(null);
+            setSelectedPreset(null);
           }}
         />
       )}
@@ -293,15 +305,6 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
           padding-left: 1em;
           color: var(--ink-soft);
           font-style: italic;
-        }
-
-        /* Фокус-режим: затемняем всё, кроме активного абзаца */
-        .reader-wrapper.focus-mode .novel-content > * {
-          transition: opacity .25s, filter .25s;
-          opacity: 0.28;
-        }
-        .reader-wrapper.focus-mode .novel-content > *:nth-child(${activeParagraph + 1}) {
-          opacity: 1;
         }
       `}</style>
     </div>

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import CoverUpload from './CoverUpload';
+import BBCodeEditor from './BBCodeEditor';
+import { bbToHtml, htmlToBb } from '@/lib/bbcode';
 import {
   AGE_RATINGS,
   COUNTRY_LABELS,
@@ -18,16 +20,18 @@ import {
 export interface NovelFormValues {
   id?: number;
   firebase_id?: string;
-  title: string;
+  title: string;                // русский
   title_original: string | null;
   title_en: string | null;
-  author: string | null;
+  author: string | null;            // на русском (как читается)
+  author_original: string | null;   // в языке оригинала
+  author_en: string | null;         // транслит/английский
   country: Country | null;
   age_rating: AgeRating | null;
   translation_status: TranslationStatus;
   is_completed: boolean;
   release_year: number | null;
-  description: string;
+  description: string;              // BB-код
   cover_url: string | null;
   genres: string[];
 }
@@ -37,6 +41,8 @@ const EMPTY: NovelFormValues = {
   title_original: '',
   title_en: '',
   author: '',
+  author_original: '',
+  author_en: '',
   country: 'kr',
   age_rating: '16+',
   translation_status: 'ongoing',
@@ -48,14 +54,20 @@ const EMPTY: NovelFormValues = {
 };
 
 interface Props {
-  initial?: Partial<NovelFormValues>;
+  initial?: Partial<NovelFormValues> & { descriptionHtml?: string };
   mode: 'create' | 'edit';
 }
 
 export default function NovelForm({ initial, mode }: Props) {
   const router = useRouter();
-  const [values, setValues] = useState<NovelFormValues>({ ...EMPTY, ...initial });
-  const [customGenre, setCustomGenre] = useState('');
+  const [values, setValues] = useState<NovelFormValues>(() => {
+    const merged = { ...EMPTY, ...initial };
+    // При редактировании description приходит как HTML — конвертируем в BB
+    if (initial?.descriptionHtml) {
+      merged.description = htmlToBb(initial.descriptionHtml);
+    }
+    return merged;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,17 +75,12 @@ export default function NovelForm({ initial, mode }: Props) {
     setValues((prev) => ({ ...prev, [key]: v }));
 
   const toggleGenre = (g: string) => {
-    set('genres', values.genres.includes(g)
-      ? values.genres.filter((x) => x !== g)
-      : [...values.genres, g]
+    set(
+      'genres',
+      values.genres.includes(g)
+        ? values.genres.filter((x) => x !== g)
+        : [...values.genres, g]
     );
-  };
-
-  const addCustomGenre = () => {
-    const clean = customGenre.trim();
-    if (!clean || values.genres.includes(clean)) return;
-    set('genres', [...values.genres, clean]);
-    setCustomGenre('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,6 +88,10 @@ export default function NovelForm({ initial, mode }: Props) {
     setError(null);
     if (!values.title.trim()) {
       setError('Укажи название на русском.');
+      return;
+    }
+    if (values.genres.length === 0) {
+      setError('Выбери хотя бы один жанр.');
       return;
     }
 
@@ -93,24 +104,35 @@ export default function NovelForm({ initial, mode }: Props) {
       return;
     }
 
+    // Описание пишем как готовый HTML (из BB-кода)
+    const descriptionHtml = values.description.trim()
+      ? bbToHtml(values.description)
+      : null;
+
+    const payload = {
+      title: values.title.trim(),
+      title_original: values.title_original?.trim() || null,
+      title_en: values.title_en?.trim() || null,
+      author: values.author?.trim() || null,
+      author_original: values.author_original?.trim() || null,
+      author_en: values.author_en?.trim() || null,
+      country: values.country,
+      age_rating: values.age_rating,
+      translation_status: values.translation_status,
+      is_completed: values.is_completed,
+      release_year: values.release_year,
+      description: descriptionHtml,
+      cover_url: values.cover_url,
+      genres: values.genres,
+    };
+
     if (mode === 'create') {
       const firebase_id = makeSlug(values.title);
       const { data, error: insertError } = await supabase
         .from('novels')
         .insert({
           firebase_id,
-          title: values.title.trim(),
-          title_original: values.title_original?.trim() || null,
-          title_en: values.title_en?.trim() || null,
-          author: values.author?.trim() || null,
-          country: values.country,
-          age_rating: values.age_rating,
-          translation_status: values.translation_status,
-          is_completed: values.is_completed,
-          release_year: values.release_year,
-          description: values.description.trim() || null,
-          cover_url: values.cover_url,
-          genres: values.genres,
+          ...payload,
           translator_id: user.id,
           moderation_status: 'published',
         })
@@ -127,20 +149,7 @@ export default function NovelForm({ initial, mode }: Props) {
     } else {
       const { error: updateError } = await supabase
         .from('novels')
-        .update({
-          title: values.title.trim(),
-          title_original: values.title_original?.trim() || null,
-          title_en: values.title_en?.trim() || null,
-          author: values.author?.trim() || null,
-          country: values.country,
-          age_rating: values.age_rating,
-          translation_status: values.translation_status,
-          is_completed: values.is_completed,
-          release_year: values.release_year,
-          description: values.description.trim() || null,
-          cover_url: values.cover_url,
-          genres: values.genres,
-        })
+        .update(payload)
         .eq('id', values.id!);
 
       if (updateError) {
@@ -163,46 +172,82 @@ export default function NovelForm({ initial, mode }: Props) {
 
         <div className="admin-form-fields">
           <div className="form-field">
-            <label>Название на русском *</label>
+            <label title="Главное название новеллы на русском языке. Его увидят читатели в каталоге.">
+              Название на русском *
+            </label>
             <input
               className="form-input"
               value={values.title}
               onChange={(e) => set('title', e.target.value)}
+              placeholder="Например: Лунные песни осеннего двора"
               required
+              title="Обязательное поле"
             />
           </div>
           <div className="form-field">
-            <label>Название на языке оригинала</label>
+            <label title="Название на языке оригинала: кириллица→латиница, иероглифы. Показывается в карточке как «оригинал / английский / русский».">
+              Название на языке оригинала
+            </label>
             <input
               className="form-input"
               value={values.title_original ?? ''}
               onChange={(e) => set('title_original', e.target.value)}
-              placeholder="Если есть — на исходном языке"
+              placeholder="秋天月庭的歌 / 가을달 정원의 노래"
             />
           </div>
           <div className="form-field">
-            <label>Английское название</label>
+            <label title="Английская версия названия — часто ею удобнее гуглить оригинал.">
+              Название на английском
+            </label>
             <input
               className="form-input"
               value={values.title_en ?? ''}
               onChange={(e) => set('title_en', e.target.value)}
+              placeholder="Например: Moonlit Songs of the Autumn Court"
             />
           </div>
-          <div className="form-field">
-            <label>Автор</label>
-            <input
-              className="form-input"
-              value={values.author ?? ''}
-              onChange={(e) => set('author', e.target.value)}
-              placeholder="Автор оригинала"
-            />
+
+          <div className="form-row-3">
+            <div className="form-field">
+              <label title="Имя автора в языке оригинала (иероглифы/корейский/японский).">
+                Автор (оригинал)
+              </label>
+              <input
+                className="form-input"
+                value={values.author_original ?? ''}
+                onChange={(e) => set('author_original', e.target.value)}
+                placeholder="黑猫"
+              />
+            </div>
+            <div className="form-field">
+              <label title="Английский/транслит автора — удобно для поиска первоисточника.">
+                Автор (английский)
+              </label>
+              <input
+                className="form-input"
+                value={values.author_en ?? ''}
+                onChange={(e) => set('author_en', e.target.value)}
+                placeholder="Black Cat"
+              />
+            </div>
+            <div className="form-field">
+              <label title="Как имя автора произносится на русском — для читателей.">
+                Автор (русский)
+              </label>
+              <input
+                className="form-input"
+                value={values.author ?? ''}
+                onChange={(e) => set('author', e.target.value)}
+                placeholder="Блэк Кэт"
+              />
+            </div>
           </div>
         </div>
       </div>
 
       <div className="admin-form-row">
         <div className="form-field">
-          <label>Страна оригинала</label>
+          <label title="Страна, откуда родом оригинал новеллы.">Страна оригинала</label>
           <select
             className="form-input"
             value={values.country ?? ''}
@@ -216,7 +261,9 @@ export default function NovelForm({ initial, mode }: Props) {
           </select>
         </div>
         <div className="form-field">
-          <label>Возрастное ограничение</label>
+          <label title="Возрастной рейтинг: чтобы читатели видели, кому подходит.">
+            Возрастное ограничение
+          </label>
           <select
             className="form-input"
             value={values.age_rating ?? ''}
@@ -231,7 +278,7 @@ export default function NovelForm({ initial, mode }: Props) {
           </select>
         </div>
         <div className="form-field">
-          <label>Год оригинала</label>
+          <label title="Год публикации оригинала (не перевода).">Год оригинала</label>
           <input
             className="form-input"
             type="number"
@@ -247,7 +294,9 @@ export default function NovelForm({ initial, mode }: Props) {
 
       <div className="admin-form-row">
         <div className="form-field">
-          <label>Статус перевода</label>
+          <label title="В каком состоянии сейчас твой перевод (не оригинал).">
+            Статус перевода
+          </label>
           <select
             className="form-input"
             value={values.translation_status}
@@ -263,7 +312,11 @@ export default function NovelForm({ initial, mode }: Props) {
           </select>
         </div>
         <div className="form-field" style={{ alignSelf: 'end' }}>
-          <label className="rs-switch" style={{ height: 38 }}>
+          <label
+            className="rs-switch"
+            style={{ height: 38 }}
+            title="Автор оригинала дописал до конца. К твоему переводу это не относится."
+          >
             <input
               type="checkbox"
               checked={values.is_completed}
@@ -278,7 +331,9 @@ export default function NovelForm({ initial, mode }: Props) {
       </div>
 
       <div className="form-field">
-        <label>Жанры</label>
+        <label title="Выбери подходящие жанры. Выберешь точнее — алгоритм лучше рекомендует новеллу читателям.">
+          Жанры * <span className="form-label-sub">(минимум 1)</span>
+        </label>
         <div className="filter-pills">
           {PREDEFINED_GENRES.map((g) => (
             <button
@@ -290,47 +345,22 @@ export default function NovelForm({ initial, mode }: Props) {
               {g}
             </button>
           ))}
-          {values.genres
-            .filter((g) => !PREDEFINED_GENRES.includes(g))
-            .map((g) => (
-              <button
-                key={g}
-                type="button"
-                className="filter-pill active"
-                onClick={() => toggleGenre(g)}
-              >
-                {g} ✕
-              </button>
-            ))}
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input
-            className="form-input"
-            value={customGenre}
-            onChange={(e) => setCustomGenre(e.target.value)}
-            placeholder="Свой жанр"
-            style={{ maxWidth: 240 }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addCustomGenre();
-              }
-            }}
-          />
-          <button type="button" className="btn btn-ghost" onClick={addCustomGenre}>
-            Добавить
-          </button>
+        <div className="form-hint">
+          Список фиксированный: нужно, чтобы одинаковые истории попадали в одну категорию и находили своих читателей.
         </div>
       </div>
 
       <div className="form-field">
-        <label>Описание</label>
-        <textarea
-          className="form-textarea"
-          rows={8}
+        <label title="Описание для карточки новеллы — коротко о сюжете, без спойлеров. Для выделения используй кнопки над полем.">
+          Описание
+        </label>
+        <BBCodeEditor
           value={values.description}
-          onChange={(e) => set('description', e.target.value)}
-          placeholder="Рассказ о сюжете без спойлеров. Можно использовать HTML-теги: <p>, <em>, <strong>, <br>"
+          onChange={(v) => set('description', v)}
+          placeholder="Расскажи о сюжете в 2–4 абзацах. Не пиши спойлеры — это презентация для нового читателя."
+          minHeight={200}
+          hint="Кнопки сверху расставят нужные теги автоматически. [b]жирный[/b], [i]курсив[/i], [quote]цитата[/quote], [spoiler]скрытый текст[/spoiler]."
         />
       </div>
 

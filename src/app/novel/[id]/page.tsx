@@ -83,26 +83,54 @@ export default async function NovelPage({ params }: PageProps) {
 
   const canEdit = !!user && (novel.translator_id === user.id || viewerIsAdmin);
 
-  // Slug переводчика для ссылки на /t/[slug]
-  let translatorSlug: string | null = null;
+  // Профиль переводчика для блока «Переводчик»
+  let translatorProfile: {
+    slug: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null = null;
   if (novel.translator_id) {
     const { data: tp } = await supabase
       .from('profiles')
-      .select('translator_slug, user_name')
+      .select('translator_slug, translator_display_name, translator_avatar_url, user_name')
       .eq('id', novel.translator_id)
       .maybeSingle();
-    const p = tp as { translator_slug?: string | null; user_name?: string | null } | null;
-    translatorSlug = p?.translator_slug || p?.user_name || null;
+    const p = tp as {
+      translator_slug?: string | null;
+      translator_display_name?: string | null;
+      translator_avatar_url?: string | null;
+      user_name?: string | null;
+    } | null;
+    if (p) {
+      translatorProfile = {
+        slug: p.translator_slug || p.user_name || null,
+        displayName: p.translator_display_name || p.user_name || null,
+        avatarUrl: p.translator_avatar_url || null,
+      };
+    }
   }
-  if (!translatorSlug && novel.author) {
+  // Fallback (legacy): если translator_id не задан — ищем по совпадению user_name с novel.author
+  if (!translatorProfile && novel.author) {
     const { data: tp } = await supabase
       .from('profiles')
-      .select('translator_slug, user_name')
+      .select('translator_slug, translator_display_name, translator_avatar_url, user_name')
       .ilike('user_name', novel.author)
       .maybeSingle();
-    const p = tp as { translator_slug?: string | null; user_name?: string | null } | null;
-    translatorSlug = p?.translator_slug || p?.user_name || null;
+    const p = tp as {
+      translator_slug?: string | null;
+      translator_display_name?: string | null;
+      translator_avatar_url?: string | null;
+      user_name?: string | null;
+    } | null;
+    if (p) {
+      translatorProfile = {
+        slug: p.translator_slug || p.user_name || null,
+        displayName: p.translator_display_name || p.user_name || null,
+        avatarUrl: p.translator_avatar_url || null,
+      };
+    }
   }
+  const translatorSlug = translatorProfile?.slug ?? null;
 
   // Параллельные запросы
   const [
@@ -160,8 +188,20 @@ export default async function NovelPage({ params }: PageProps) {
   const coverUrl = getCoverUrl(novel.cover_url);
   const genres: string[] = Array.isArray(novel.genres) ? novel.genres : [];
   const primaryGenre = genres[0];
-  const authorInitial = (novel.author || 'A').trim().charAt(0).toUpperCase();
   const firstChapterNumber = firstChapter?.chapter_number ?? 1;
+
+  // Автор в трёх вариантах: оригинал / английский / русский.
+  // Формат вывода: «оригинал / английский / русский»
+  // Показываем только заполненные, разделяем через « / »
+  const authorVariants = [
+    novel.author_original as string | undefined,
+    novel.author_en as string | undefined,
+    novel.author as string | undefined,
+  ].filter((s): s is string => !!s && s.trim().length > 0);
+  const authorDisplay = authorVariants.length > 0 ? authorVariants.join(' / ') : null;
+
+  const translatorInitial =
+    (translatorProfile?.displayName || 'П').trim().charAt(0).toUpperCase();
 
   return (
     <main>
@@ -211,10 +251,9 @@ export default async function NovelPage({ params }: PageProps) {
             </div>
 
             <h1>{novel.title}</h1>
-            {novel.author && (
+            {authorDisplay && (
               <div className="subtitle">
-                автор: {novel.author}
-                {genres.length > 0 && ` · жанр: ${genres.slice(0, 3).join(', ')}`}
+                Автор: {authorDisplay}
               </div>
             )}
 
@@ -242,25 +281,34 @@ export default async function NovelPage({ params }: PageProps) {
             {genres.length > 0 && (
               <div className="tags">
                 {genres.map((g) => (
-                  <span key={g} className="tag">
+                  <Link
+                    key={g}
+                    href={`/catalog?genre=${encodeURIComponent(g)}`}
+                    className="tag tag--link"
+                  >
                     {g}
-                  </span>
+                  </Link>
                 ))}
               </div>
             )}
 
-            {novel.author && (
+            {translatorProfile && (
               <div className="translator-card">
-                <div className="avatar">{authorInitial}</div>
+                <div className="avatar">
+                  {translatorProfile.avatarUrl ? (
+                    <img src={translatorProfile.avatarUrl} alt="" />
+                  ) : (
+                    <span>{translatorInitial}</span>
+                  )}
+                </div>
                 <div style={{ flex: 1 }}>
-                  <div className="name">{novel.author}</div>
+                  <div className="name">
+                    {translatorProfile.displayName ?? 'Переводчик'}
+                  </div>
                   <div className="role">Переводчик</div>
                 </div>
                 {translatorSlug ? (
-                  <Link
-                    href={`/t/${translatorSlug}`}
-                    className="btn btn-ghost"
-                  >
+                  <Link href={`/t/${translatorSlug}`} className="btn btn-ghost">
                     Профиль →
                   </Link>
                 ) : (

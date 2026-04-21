@@ -1,9 +1,19 @@
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+// Timestamp-rand формат, который создаёт наш CoverUpload: `<ms>-<rand>.<ext>`
+const UPLOAD_RE = /^\d{10,}-[a-z0-9]{4,}\./i;
+
 export function getCoverUrl(path: string | null | undefined) {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  return `https://tene.fun/storage/v1/object/public/covers/${path}`;
+
+  // Новые загрузки (UUID-like или timestamp-like имена) лежат в Supabase Storage
+  if (UUID_RE.test(path) || UPLOAD_RE.test(path)) {
+    return `https://tene.fun/storage/v1/object/public/covers/${encodeURIComponent(path)}`;
+  }
+  // Старые обложки tene живут по прямому пути /covers/имя.ext
+  return `https://tene.fun/covers/${encodeURIComponent(path)}`;
 }
- 
+
 export function timeAgo(iso: string | null | undefined) {
   if (!iso) return '';
   const diff = Date.now() - new Date(iso).getTime();
@@ -16,7 +26,7 @@ export function timeAgo(iso: string | null | undefined) {
   if (days < 7) return `${days} дн. назад`;
   return new Date(iso).toLocaleDateString('ru-RU');
 }
- 
+
 export function formatCount(n: number | null | undefined) {
   if (!n) return '0';
   if (n >= 1000) {
