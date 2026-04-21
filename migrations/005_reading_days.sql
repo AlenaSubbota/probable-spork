@@ -15,6 +15,8 @@ CREATE INDEX IF NOT EXISTS idx_reading_days_user_day
 
 ALTER TABLE public.reading_days ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS reading_days_self_read ON public.reading_days;
+
 CREATE POLICY reading_days_self_read
   ON public.reading_days FOR SELECT
   USING (auth.uid() = user_id);

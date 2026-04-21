@@ -28,6 +28,8 @@ CREATE INDEX IF NOT EXISTS idx_friendships_requester
 
 ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS friendships_read ON public.friendships;
+
 CREATE POLICY friendships_read
   ON public.friendships FOR SELECT
   USING (auth.uid() = requester_id OR auth.uid() = addressee_id);
@@ -55,6 +57,9 @@ CREATE INDEX IF NOT EXISTS idx_dm_recipient_unread
   ON public.direct_messages (recipient_id, read_at);
 
 ALTER TABLE public.direct_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS dm_read        ON public.direct_messages;
+DROP POLICY IF EXISTS dm_update_read ON public.direct_messages;
 
 CREATE POLICY dm_read
   ON public.direct_messages FOR SELECT

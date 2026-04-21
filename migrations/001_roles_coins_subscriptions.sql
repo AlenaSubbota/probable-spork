@@ -5,7 +5,10 @@
 -- ============================================================
 
 -- 1. Тип роли пользователя
-CREATE TYPE public.user_role AS ENUM ('user', 'translator', 'admin');
+DO $$ BEGIN
+  CREATE TYPE public.user_role AS ENUM ('user', 'translator', 'admin');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- 2. Расширяем profiles
 ALTER TABLE public.profiles
@@ -27,10 +30,15 @@ WHERE is_admin = true AND role = 'user';
 ALTER TABLE public.novels
   ADD COLUMN IF NOT EXISTS translator_id uuid REFERENCES public.profiles(id);
 
--- Все существующие новеллы → Алёна (замените user_name на актуальный)
+-- Все существующие новеллы → первый админ (выставляем translator_id).
+-- Если в профилях нет ни одного is_admin=true И ни одного user_name='alena',
+-- translator_id останется NULL — код на сайте умеет fallback по author.
 UPDATE public.novels
 SET translator_id = (
-  SELECT id FROM public.profiles WHERE user_name = 'alena' LIMIT 1
+  SELECT id FROM public.profiles
+  WHERE is_admin = true OR user_name = 'alena'
+  ORDER BY is_admin DESC NULLS LAST
+  LIMIT 1
 )
 WHERE translator_id IS NULL;
 

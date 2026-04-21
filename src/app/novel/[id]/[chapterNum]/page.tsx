@@ -189,7 +189,7 @@ export default async function ChapterPage({ params }: PageProps) {
 
         <hr className="reader-divider" />
 
-        <CommentsSection chapterId={String(chapter.id)} />
+        <CommentsSection novelId={novel.id} chapterNumber={chapter.chapter_number} />
       </main>
     </div>
   );
