@@ -408,6 +408,40 @@ UI пэйвола: две опции рядом
 - Tribute/Boosty webhook → вызов RPC `add_coins(user, amount, 'tribute_topup'|'boosty_topup', 'tribute'|'boosty', provider_payment_id)`. Сейчас RPC уже готова, нужно добавить эндпоинты в `boosty_api` или отдельный сервис.
 - Env `NEXT_PUBLIC_TRIBUTE_CHANNEL`, `NEXT_PUBLIC_BOOSTY_URL` в chaptify-web (иначе кнопки отключены)
 
+## Итерация 11 — социалка: чужие профили, друзья, сообщения
+
+### Новые страницы
+- **`/u/[id]`** — публичный профиль. Параметр `id` может быть `auth.users.id` или `user_name`. На странице: аватар, имя, бейдж роли, общая статистика (всего открытых новелл, в закладках), статус активности.
+- **`/friends`** — три секции: Новые запросы / Мои друзья / Ожидают ответа. В каждой карточке аватар, имя, индикатор активности и кнопки действий.
+- **`/messages`** — список бесед с последним сообщением, временем, бейджем непрочитанных.
+- **`/messages/[userId]`** — собственно чат с конкретным другом. Polling раз в 10 сек (вместо realtime для MVP). Shift+Enter = перенос, Enter = отправить.
+
+### Киллер-фичи
+
+1. **Общие вкусы** (`/u/[id]`) — баннер «🤝 У вас 7 общих новелл» с названиями первых трёх. Считается из `profiles.last_read` обоих. Если совпадений нет и вы друзья — показываем «🌱 Пока нет совпадений, порекомендуй что-нибудь первой».
+2. **Поделиться главой в чате** — при отправке сообщения клиент распознаёт ссылку на `/novel/<slug>/<n>` в тексте, лукапит `novels`, привязывает `attached_novel_id + attached_chapter_number`. Сообщение рендерится с превью-карточкой: обложка, название, «Глава N» — одним кликом из чата в главу. Работает прозрачно: просто вставляешь ссылку.
+3. **Индикатор «читает сейчас»** — зелёная точка на аватаре и текст «читает сейчас» + ссылка на главу, если `last_read.timestamp` моложе 60 минут. Есть во всех трёх местах: `/u/[id]`, списке друзей, списке чатов, хедере чата. Градация: reading (<1 ч) · recent (<24 ч) · away.
+
+### Миграция 006 — `migrations/006_friendships_messages.sql`
+
+Новые таблицы (RLS включён, INSERT/UPDATE только через security-definer RPC):
+- `friendships (id, requester_id, addressee_id, status, created_at, decided_at)` — статусы: pending / accepted / declined / blocked
+- `direct_messages (id, sender_id, recipient_id, text, attached_novel_id, attached_chapter_number, created_at, read_at)`
+
+Новые RPC:
+- `send_friend_request(p_to)` — создаёт pending; если есть встречный pending, сразу ставит accepted (symmetrical handshake)
+- `respond_to_friend_request(p_request_id, p_accept)`
+- `unfriend(p_other)`
+- `get_friendship_status(p_other)` — возвращает `'none' | 'pending_outgoing' | 'pending_incoming' | 'friends' | 'declined' | 'blocked'`
+- `send_direct_message(p_to, p_text, p_novel_id, p_chapter_num)` — проверяет friendship
+- `mark_dm_read(p_other)`
+- `list_conversations()` — возвращает собеседников с last_text + unread_count одним запросом
+- `unread_dm_count()` — суммарный счётчик
+
+### Интеграции
+- `SiteHeader` получает два новых пункта: **«Друзья»** и **«Сообщения»** (с бейджем непрочитанных). Безопасный фоллбэк: если RPC `unread_dm_count` ещё нет в БД, просто не показываем бейдж.
+- `src/lib/social.ts` — общие типы и хелпер `detectReadingNow()` для градации активности.
+
 ## Предстоит
 
 ### Миграции — накатить на Supabase в порядке
