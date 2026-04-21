@@ -11,6 +11,10 @@ export default function SiteFooter() {
         <p style={{ marginTop: 6 }}>
           <Link href="/catalog">Каталог</Link>
           {' · '}
+          <Link href="/news">Новости</Link>
+          {' · '}
+          <Link href="/help">Справка</Link>
+          {' · '}
           <Link href="/profile">Профиль</Link>
         </p>
       </div>
