@@ -13,6 +13,7 @@ import NovelPoll, { type PollOptionResult } from '@/components/home/NovelPoll';
 import StoriesStrip, { type StoryItem } from '@/components/home/StoriesStrip';
 import JournalStrip, { type JournalItem } from '@/components/home/JournalStrip';
 import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
+import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
 
@@ -388,6 +389,61 @@ export default async function HomePage() {
     // миграция 014 не накачена
   }
 
+  // ---- 🔥 Trending: топ-6 новелл по числу новых глав за неделю ----
+  let trendingItems: TrendingNovel[] = [];
+  try {
+    const weekAgoIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const nowIso = new Date().toISOString();
+    const { data: recentChapters } = await supabase
+      .from('chapters')
+      .select('novel_id, chapter_number, published_at')
+      .not('published_at', 'is', null)
+      .lte('published_at', nowIso)
+      .gte('published_at', weekAgoIso);
+    // Группируем по novel_id: count + max(chapter_number)
+    const agg = new Map<number, { count: number; last: number }>();
+    for (const c of recentChapters ?? []) {
+      const cur = agg.get(c.novel_id) ?? { count: 0, last: 0 };
+      cur.count += 1;
+      if (c.chapter_number > cur.last) cur.last = c.chapter_number;
+      agg.set(c.novel_id, cur);
+    }
+    // Топ-6 по числу новых глав (≥2, чтобы одиночная глава не считалась трендом)
+    const topIds = Array.from(agg.entries())
+      .filter(([, v]) => v.count >= 2)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 6)
+      .map(([id]) => id);
+    if (topIds.length > 0) {
+      const { data: trendingNovelsData } = await supabase
+        .from('novels_view')
+        .select('id, firebase_id, title, cover_url')
+        .in('id', topIds)
+        .eq('moderation_status', 'published');
+      const orderMap = new Map(topIds.map((id, i) => [id, i]));
+      trendingItems = (trendingNovelsData ?? [])
+        .map((n) => ({
+          firebase_id: n.firebase_id,
+          title: n.title,
+          cover_url: n.cover_url,
+          new_chapters: agg.get(n.id)?.count ?? 0,
+          latest_chapter_number: agg.get(n.id)?.last ?? 0,
+        }))
+        .sort((a, b) => {
+          // Сохраняем порядок из topIds
+          const oa = orderMap.get(
+            (trendingNovelsData ?? []).find((x) => x.firebase_id === a.firebase_id)?.id ?? -1
+          ) ?? 999;
+          const ob = orderMap.get(
+            (trendingNovelsData ?? []).find((x) => x.firebase_id === b.firebase_id)?.id ?? -1
+          ) ?? 999;
+          return oa - ob;
+        });
+    }
+  } catch {
+    // молча — блок не критичен
+  }
+
   // ---- Активный опрос (голосование за новую новеллу) ----
   let pollData: {
     id: number;
@@ -446,6 +502,9 @@ export default async function HomePage() {
 
       {/* Журнал: статьи, обзоры, интервью */}
       <JournalStrip items={journalItems} />
+
+      {/* 🔥 На волне — новеллы с самым активным темпом глав за неделю */}
+      <TrendingNovels items={trendingItems} />
 
       {/* Цитата дня — случайная публичная */}
       <QuoteOfTheDay quote={quoteOfTheDay} />
