@@ -11,12 +11,11 @@ interface PageProps {
 export default async function ChapterPage({ params }: PageProps) {
   const supabase = await createClient();
   const { id, chapterNum } = await params;
-  const num = parseInt(chapterNum);
+  const num = parseInt(chapterNum, 10);
 
-  // 1. Получаем данные новеллы и главы
   const { data: novel } = await supabase
     .from('novels')
-    .select('id, title')
+    .select('id, title, firebase_id')
     .eq('firebase_id', id)
     .single();
 
@@ -24,18 +23,16 @@ export default async function ChapterPage({ params }: PageProps) {
 
   const { data: chapter } = await supabase
     .from('chapters')
-    .select('*')
+    .select('id, chapter_number, is_paid, content_path, published_at')
     .eq('novel_id', novel.id)
     .eq('chapter_number', num)
     .single();
 
   if (!chapter) notFound();
 
-  // 2. ЛОГИКА ЗАГРУЗКИ ТЕКСТА
-  let finalContent = chapter.content;
-
-  // Если в базе текста нет, но есть путь к файлу — качаем из Storage
-  if (!finalContent && chapter.content_path) {
+  // Загружаем текст из storage
+  let finalContent: string = '';
+  if (chapter.content_path) {
     const { data: fileData, error: storageError } = await supabase.storage
       .from('chapter_content')
       .download(chapter.content_path);
@@ -43,67 +40,88 @@ export default async function ChapterPage({ params }: PageProps) {
     if (!storageError && fileData) {
       finalContent = await fileData.text();
     } else {
-      finalContent = `<p style="color:red">Ошибка загрузки контента: ${storageError?.message}</p>`;
+      finalContent = `<p style="color:var(--rose)">Не удалось загрузить текст: ${storageError?.message ?? 'неизвестная ошибка'}.</p>`;
     }
   }
 
-  // 3. Навигация (соседние главы)
-  const { data: prevChapter } = await supabase
-    .from('chapters')
-    .select('chapter_number')
-    .eq('novel_id', novel.id)
-    .eq('chapter_number', num - 1)
-    .maybeSingle();
+  if (!finalContent) {
+    finalContent = '<p><em>Текст главы отсутствует.</em></p>';
+  }
 
-  const { data: nextChapter } = await supabase
-    .from('chapters')
-    .select('chapter_number')
-    .eq('novel_id', novel.id)
-    .eq('chapter_number', num + 1)
-    .maybeSingle();
+  // Соседние главы
+  const [{ data: prevChapter }, { data: nextChapter }] = await Promise.all([
+    supabase
+      .from('chapters')
+      .select('chapter_number')
+      .eq('novel_id', novel.id)
+      .eq('chapter_number', num - 1)
+      .maybeSingle(),
+    supabase
+      .from('chapters')
+      .select('chapter_number')
+      .eq('novel_id', novel.id)
+      .eq('chapter_number', num + 1)
+      .maybeSingle(),
+  ]);
 
   return (
     <div className="reader-page">
-      <header className="site-header" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-        <div className="container header-row" style={{ justifyContent: 'space-between' }}>
-          <Link href={`/novel/${id}`} className="logo" style={{ fontSize: '15px' }}>
+      <header className="reader-header">
+        <div className="container reader-header-row">
+          <Link href={`/novel/${id}`} className="reader-back">
             ← {novel.title}
           </Link>
-          <div style={{ fontWeight: 600 }}>Глава {chapter.chapter_number}</div>
-          <div style={{ width: '40px' }}></div> {/* Заглушка для симметрии */}
+          <div className="reader-chapter-num">Глава {chapter.chapter_number}</div>
+          <div className="reader-header-spacer" />
         </div>
       </header>
 
-      <main className="container" style={{ maxWidth: '800px', padding: '40px 20px' }}>
-        <h1 style={{ fontFamily: 'var(--font-lora)', textAlign: 'center', marginBottom: '48px' }}>
-          {chapter.title || `Глава ${chapter.chapter_number}`}
+      <main className="reader-main">
+        <h1 className="reader-title">
+          Глава {chapter.chapter_number}
         </h1>
 
-        {/* Вывод текста */}
-        <ReaderContent content={finalContent || 'Текст главы отсутствует.'} />
+        <ReaderContent
+          content={finalContent}
+          novelId={novel.id}
+          chapterNumber={chapter.chapter_number}
+        />
 
-        {/* Кнопки переключения */}
-        <nav style={{ display: 'flex', justifyContent: 'space-between', marginTop: '60px', gap: '20px' }}>
+        <nav className="reader-nav">
           {prevChapter ? (
-            <Link href={`/novel/${id}/${prevChapter.chapter_number}`} className="btn btn-ghost" style={{ flex: 1, textAlign: 'center' }}>
-              ← Назад
-            </Link>
-          ) : <div style={{ flex: 1 }} />}
-
-          {nextChapter ? (
-            <Link href={`/novel/${id}/${nextChapter.chapter_number}`} className="btn btn-primary" style={{ flex: 1, textAlign: 'center' }}>
-              Вперед →
+            <Link
+              href={`/novel/${id}/${prevChapter.chapter_number}`}
+              className="btn btn-ghost"
+              style={{ flex: 1, textAlign: 'center' }}
+            >
+              ← Глава {prevChapter.chapter_number}
             </Link>
           ) : (
-            <Link href={`/novel/${id}`} className="btn btn-ghost" style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ flex: 1 }} />
+          )}
+
+          {nextChapter ? (
+            <Link
+              href={`/novel/${id}/${nextChapter.chapter_number}`}
+              className="btn btn-primary"
+              style={{ flex: 1, textAlign: 'center' }}
+            >
+              Глава {nextChapter.chapter_number} →
+            </Link>
+          ) : (
+            <Link
+              href={`/novel/${id}`}
+              className="btn btn-ghost"
+              style={{ flex: 1, textAlign: 'center' }}
+            >
               К новелле
             </Link>
           )}
         </nav>
 
-        {/* СЕКЦИЯ КОММЕНТАРИЕВ */}
-        <hr style={{ margin: '60px 0 40px', border: 0, borderTop: '1px solid var(--border)' }} />
-        <CommentsSection chapterId={chapter.id} />
+        <hr className="reader-divider" />
+
+        <CommentsSection chapterId={String(chapter.id)} />
       </main>
     </div>
   );
