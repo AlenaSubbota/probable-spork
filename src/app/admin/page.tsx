@@ -76,9 +76,14 @@ export default async function AdminDashboard() {
             {isAdmin ? 'Управляй всеми новеллами и заявками.' : 'Твои новеллы и главы.'}
           </p>
         </div>
-        <Link href="/admin/novels/new" className="btn btn-primary">
-          + Новелла
-        </Link>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Link href="/admin/analytics" className="btn btn-ghost">
+            Аналитика
+          </Link>
+          <Link href="/admin/novels/new" className="btn btn-primary">
+            + Новелла
+          </Link>
+        </div>
       </header>
 
       <div className="admin-grid">

@@ -3407,6 +3407,195 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: var(--ink-mute);
 }
 
+/* ---------- analytics ---------- */
+
+.period-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.period-card {
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.period-card:hover { box-shadow: var(--shadow-sm); }
+.period-card--up    { border-left-color: var(--leaf); }
+.period-card--down  { border-left-color: var(--rose); }
+.period-card--flat  { border-left-color: var(--border-strong); }
+.period-card-label {
+  font-size: 11px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.period-card-value {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 6px 0 2px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1.1;
+}
+.period-card-suffix {
+  font-size: 14px;
+  color: var(--ink-mute);
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+.period-card-diff {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.period-card--up   .period-card-diff { color: #4C6A34; }
+.period-card--down .period-card-diff { color: #8C4032; }
+.period-card--flat .period-card-diff { color: var(--ink-mute); }
+.period-card-diff-abs {
+  opacity: 0.7;
+  font-weight: 400;
+  margin-left: 4px;
+}
+.period-card-hint {
+  font-size: 11px;
+  color: var(--ink-mute);
+  margin-top: 4px;
+}
+
+/* Top moments */
+.top-moments {
+  margin-bottom: 28px;
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.top-moments-head {
+  margin-bottom: 14px;
+}
+.top-moments-head h3 {
+  margin: 0 0 2px;
+  font-family: var(--font-serif);
+  font-size: 17px;
+}
+.top-moments-sub {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.top-moments-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.moment {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.moment--positive { background: #F0F4E8; border-color: #CEDABE; }
+.moment--warning  { background: #FBEDE5; border-color: #E8C5B2; }
+.moment--neutral  { background: var(--bg-soft); }
+.moment-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.moment-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.moment-text {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+/* Novels heatmap table */
+.novels-heat {
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 28px;
+}
+.novels-heat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.novels-heat-head h3 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 17px;
+}
+.novels-heat-scroll { overflow-x: auto; }
+.novels-heat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.novels-heat-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-mute);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.novels-heat-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.novels-heat-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.novels-heat-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+.novels-heat-title:hover { color: var(--accent); }
+.novels-heat-sub {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+.novels-heat-sub-inline {
+  color: var(--ink-mute);
+  font-size: 12px;
+  margin-left: 2px;
+}
+/* Heat levels: 5 уровней интенсивности */
+.heat-0 { background: transparent; }
+.heat-1 { background: #F6EFE3; }
+.heat-2 { background: #EEDFC6; }
+.heat-3 { background: #D9BFA6; }
+.heat-4 {
+  background: var(--accent);
+  color: var(--surface-2);
+  font-weight: 600;
+}
+
 /* ---------- misc ---------- */
 
 .note {
