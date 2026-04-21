@@ -3,6 +3,9 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ReaderContent from '@/components/ReaderContent';
 import CommentsSection from '@/components/CommentsSection';
+import ChapterPaywall from '@/components/reader/ChapterPaywall';
+
+const DEFAULT_CHAPTER_PRICE = 10;
 
 interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
@@ -15,7 +18,7 @@ export default async function ChapterPage({ params }: PageProps) {
 
   const { data: novel } = await supabase
     .from('novels')
-    .select('id, title, firebase_id')
+    .select('id, title, firebase_id, translator_id')
     .eq('firebase_id', id)
     .single();
 
@@ -30,8 +33,75 @@ export default async function ChapterPage({ params }: PageProps) {
 
   if (!chapter) notFound();
 
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Проверяем доступ. Если глава бесплатная — сразу пускаем.
+  // Иначе пробуем RPC can_read_chapter (после миграции 001). Если RPC нет
+  // или бросает ошибку — фоллбэк: пускаем всех (не ломаем beta-флоу tene).
+  let hasAccess = !chapter.is_paid;
+  if (chapter.is_paid && user) {
+    try {
+      const { data: allowed } = await supabase.rpc('can_read_chapter', {
+        p_user: user.id,
+        p_novel: novel.id,
+        p_chapter: chapter.chapter_number,
+      });
+      if (typeof allowed === 'boolean') {
+        hasAccess = allowed;
+      } else {
+        hasAccess = true; // RPC вернула неожиданное — не блокируем
+      }
+    } catch {
+      hasAccess = true;
+    }
+  }
+
+  // Если нет доступа — показываем paywall, не тянем текст
+  if (!hasAccess && user) {
+    // Подтягиваем баланс + slug переводчика для UI paywall
+    const [{ data: profileRaw }, { data: tp }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+      novel.translator_id
+        ? supabase
+            .from('profiles')
+            .select('translator_slug, user_name')
+            .eq('id', novel.translator_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const balance =
+      (profileRaw as { coin_balance?: number | null } | null)?.coin_balance ?? 0;
+    const tpAny = tp as { translator_slug?: string | null; user_name?: string | null } | null;
+    const translatorSlug = tpAny?.translator_slug || tpAny?.user_name || null;
+
+    return (
+      <div className="reader-page">
+        <header className="reader-header">
+          <div className="container reader-header-row">
+            <Link href={`/novel/${id}`} className="reader-back">
+              ← {novel.title}
+            </Link>
+            <div className="reader-chapter-num">Глава {chapter.chapter_number}</div>
+            <div className="reader-header-spacer" />
+          </div>
+        </header>
+        <main className="reader-main">
+          <ChapterPaywall
+            novelId={novel.id}
+            novelFirebaseId={novel.firebase_id}
+            novelTitle={novel.title}
+            chapterNumber={chapter.chapter_number}
+            chapterPrice={DEFAULT_CHAPTER_PRICE}
+            userBalance={balance}
+            translatorSlug={translatorSlug}
+          />
+        </main>
+      </div>
+    );
+  }
+
   // Загружаем текст из storage
-  let finalContent: string = '';
+  let finalContent = '';
   if (chapter.content_path) {
     const { data: fileData, error: storageError } = await supabase.storage
       .from('chapter_content')
@@ -77,9 +147,7 @@ export default async function ChapterPage({ params }: PageProps) {
       </header>
 
       <main className="reader-main">
-        <h1 className="reader-title">
-          Глава {chapter.chapter_number}
-        </h1>
+        <h1 className="reader-title">Глава {chapter.chapter_number}</h1>
 
         <ReaderContent
           content={finalContent}

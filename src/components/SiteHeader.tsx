@@ -7,19 +7,26 @@ export default async function SiteHeader() {
 
   let userName: string | null = null;
   let isTranslator = false;
+  let coinBalance: number | null = null;
 
   if (user) {
-    // select('*') чтобы работать без миграции 001 (legacy is_admin) и с ней (role)
+    // select('*') чтобы работать без миграции 001 (legacy is_admin) и с ней (role, coin_balance)
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .maybeSingle();
     if (data) {
-      const p = data as { user_name?: string | null; role?: string; is_admin?: boolean };
+      const p = data as {
+        user_name?: string | null;
+        role?: string;
+        is_admin?: boolean;
+        coin_balance?: number | null;
+      };
       userName = p.user_name ?? null;
       isTranslator =
         p.is_admin === true || p.role === 'translator' || p.role === 'admin';
+      if (typeof p.coin_balance === 'number') coinBalance = p.coin_balance;
     }
   }
 
@@ -56,6 +63,15 @@ export default async function SiteHeader() {
               ) : (
                 <Link href="/translator/apply" className="btn btn-ghost">
                   Стать переводчиком
+                </Link>
+              )}
+              {coinBalance !== null && (
+                <Link
+                  href="/profile/topup"
+                  className="coin-pill"
+                  title="Пополнить баланс"
+                >
+                  {coinBalance.toLocaleString('ru-RU')}
                 </Link>
               )}
               <Link href="/profile" className="btn btn-primary">

@@ -201,20 +201,23 @@ export default async function ProfilePage() {
 
       {/* Статистика */}
       <div className="card-grid-3">
-        <div className="stat-card">
+        <Link href="/profile/topup" className="stat-card stat-card--link">
           <div className="label">Баланс</div>
           <div className="value">
             {coinBalance ?? 0} <small>монет</small>
           </div>
-        </div>
-        <div className="stat-card">
+          <div className="stat-card-cta">Пополнить →</div>
+        </Link>
+        <Link href="/bookmarks" className="stat-card stat-card--link">
           <div className="label">Закладок</div>
           <div className="value">{bookmarksCount}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">Сохранённых цитат</div>
-          <div className="value">{quotes.length}</div>
-        </div>
+          <div className="stat-card-cta">В библиотеку →</div>
+        </Link>
+        <Link href="/profile/subscriptions" className="stat-card stat-card--link">
+          <div className="label">Подписки</div>
+          <div className="value">—</div>
+          <div className="stat-card-cta">Управлять →</div>
+        </Link>
       </div>
 
       {/* Киллер-фича #2 — стрик чтения */}
