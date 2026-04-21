@@ -163,19 +163,32 @@ export default async function ChapterPage({ params }: PageProps) {
     );
   }
 
-  // Загружаем текст из storage
+  // Загружаем текст из storage + глоссарий для inline-подсказок
+  const [textResult, { data: glossaryRaw }] = await Promise.all([
+    chapter.content_path
+      ? supabase.storage.from('chapter_content').download(chapter.content_path)
+      : Promise.resolve({ data: null, error: null } as { data: Blob | null; error: { message: string } | null }),
+    supabase
+      .from('novel_glossaries')
+      .select('term_original, term_translation, category')
+      .eq('novel_id', novel.id),
+  ]);
+
   let finalContent = '';
   if (chapter.content_path) {
-    const { data: fileData, error: storageError } = await supabase.storage
-      .from('chapter_content')
-      .download(chapter.content_path);
-
+    const { data: fileData, error: storageError } = textResult;
     if (!storageError && fileData) {
       finalContent = await fileData.text();
     } else {
       finalContent = `<p style="color:var(--rose)">Не удалось загрузить текст: ${storageError?.message ?? 'неизвестная ошибка'}.</p>`;
     }
   }
+
+  const glossary = (glossaryRaw ?? []).map((g) => ({
+    term_original: g.term_original as string,
+    term_translation: g.term_translation as string,
+    category: (g.category as string | null) ?? null,
+  }));
 
   if (!finalContent) {
     finalContent = '<p><em>Текст главы отсутствует.</em></p>';
@@ -250,6 +263,7 @@ export default async function ChapterPage({ params }: PageProps) {
           content={finalContent}
           novelId={novel.id}
           chapterNumber={chapter.chapter_number}
+          glossary={glossary}
         />
 
         <nav className="reader-nav">

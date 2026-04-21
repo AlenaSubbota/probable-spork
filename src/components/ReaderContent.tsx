@@ -13,13 +13,36 @@ import ReaderSettingsPanel from './ReaderSettings';
 import QuoteBubble from './QuoteBubble';
 import SleepTimerOverlay from './SleepTimerOverlay';
 
+interface GlossaryItem {
+  term_original: string;
+  term_translation: string;
+  category: string | null;
+}
+
 interface Props {
   content: string;
   novelId: number;
   chapterNumber: number;
+  glossary?: GlossaryItem[];
 }
 
-export default function ReaderContent({ content, novelId, chapterNumber }: Props) {
+const CATEGORY_LABELS: Record<string, string> = {
+  character: 'Персонаж',
+  place: 'Место',
+  term: 'Термин',
+  technique: 'Техника',
+  other: 'Прочее',
+};
+function labelForCategory(cat: string): string {
+  return CATEGORY_LABELS[cat] ?? cat;
+}
+
+export default function ReaderContent({
+  content,
+  novelId,
+  chapterNumber,
+  glossary = [],
+}: Props) {
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -121,6 +144,126 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
     },
     [novelId, chapterNumber]
   );
+
+  // ---- 4.5. Inline-глоссарий: оборачиваем совпадения в спаны, по клику
+  //           показываем поповер с переводом + категорией ----
+  const [glossaryPopover, setGlossaryPopover] = useState<null | {
+    x: number;
+    y: number;
+    item: GlossaryItem;
+  }>(null);
+
+  useEffect(() => {
+    if (!ready) return;
+    const container = contentRef.current;
+    if (!container || glossary.length === 0) return;
+
+    // Сортируем по убыванию длины — чтобы более длинные термины
+    // (вроде «Великий Клан Цао») ловились раньше подстрок («Цао»).
+    const sortedTerms = [...glossary].sort(
+      (a, b) => b.term_original.length - a.term_original.length
+    );
+    const lookup = new Map<string, GlossaryItem>();
+    for (const g of sortedTerms) lookup.set(g.term_original.toLowerCase(), g);
+
+    // Строим регулярку: экранируем спец-символы, группируем через | с границами слов.
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = sortedTerms.map((g) => escape(g.term_original)).join('|');
+    if (!pattern) return;
+    // \b не работает для кириллицы → используем lookahead/lookbehind по не-буквам.
+    const re = new RegExp(
+      `(?<![\\p{L}\\p{N}])(${pattern})(?![\\p{L}\\p{N}])`,
+      'giu'
+    );
+
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        // Не трогаем код, скрипты, уже обёрнутые термины и заголовки
+        if (parent.closest('code, pre, script, style, .glossary-term'))
+          return NodeFilter.FILTER_REJECT;
+        if (!node.nodeValue || !node.nodeValue.trim())
+          return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    let tn = walker.nextNode();
+    while (tn) {
+      textNodes.push(tn as Text);
+      tn = walker.nextNode();
+    }
+
+    const wrapped: HTMLElement[] = [];
+    for (const node of textNodes) {
+      const text = node.nodeValue ?? '';
+      if (!re.test(text)) {
+        re.lastIndex = 0;
+        continue;
+      }
+      re.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(text)) !== null) {
+        if (match.index > last) {
+          frag.appendChild(
+            document.createTextNode(text.slice(last, match.index))
+          );
+        }
+        const term = match[0];
+        const item = lookup.get(term.toLowerCase());
+        if (item) {
+          const span = document.createElement('span');
+          span.className = 'glossary-term';
+          span.dataset.term = item.term_original;
+          span.textContent = term;
+          frag.appendChild(span);
+          wrapped.push(span);
+        } else {
+          frag.appendChild(document.createTextNode(term));
+        }
+        last = match.index + term.length;
+      }
+      if (last < text.length) {
+        frag.appendChild(document.createTextNode(text.slice(last)));
+      }
+      node.parentNode?.replaceChild(frag, node);
+    }
+
+    const onSpanClick = (e: Event) => {
+      const target = e.currentTarget as HTMLElement;
+      const termKey = target.dataset.term;
+      if (!termKey) return;
+      const item = glossary.find((g) => g.term_original === termKey);
+      if (!item) return;
+      const rect = target.getBoundingClientRect();
+      setGlossaryPopover({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + window.scrollY + 6,
+        item,
+      });
+      e.stopPropagation();
+    };
+    for (const span of wrapped) {
+      span.addEventListener('click', onSpanClick);
+    }
+
+    // Клик вне термина закрывает поповер
+    const onDocClick = () => setGlossaryPopover(null);
+    document.addEventListener('click', onDocClick);
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setGlossaryPopover(null);
+    };
+    document.addEventListener('keydown', onEsc);
+
+    return () => {
+      for (const span of wrapped) span.removeEventListener('click', onSpanClick);
+      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [ready, content, glossary]);
 
   // ---- 5. Отслеживание активного абзаца (scroll -> focus mode + прогресс) ----
   useEffect(() => {
@@ -261,6 +404,30 @@ export default function ReaderContent({ content, novelId, chapterNumber }: Props
         style={bodyStyle}
         dangerouslySetInnerHTML={{ __html: content }}
       />
+
+      {glossaryPopover && (
+        <div
+          className="glossary-popover"
+          style={{
+            left: glossaryPopover.x,
+            top: glossaryPopover.y,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+        >
+          <div className="glossary-popover-term">
+            {glossaryPopover.item.term_original}
+          </div>
+          <div className="glossary-popover-translation">
+            {glossaryPopover.item.term_translation}
+          </div>
+          {glossaryPopover.item.category && (
+            <div className="glossary-popover-category">
+              {labelForCategory(glossaryPopover.item.category)}
+            </div>
+          )}
+        </div>
+      )}
 
       <QuoteBubble novelId={novelId} chapterNumber={chapterNumber} containerRef={contentRef} />
 

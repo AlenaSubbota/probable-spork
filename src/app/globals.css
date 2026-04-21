@@ -6538,6 +6538,60 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 500;
 }
 
+/* ---------- Reader: inline glossary ---------- */
+
+.glossary-term {
+  cursor: help;
+  border-bottom: 1px dotted var(--accent);
+  color: inherit;
+  transition: color .1s, background .1s;
+}
+.glossary-term:hover {
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.glossary-popover {
+  position: absolute;
+  transform: translateX(-50%);
+  min-width: 200px;
+  max-width: 320px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  z-index: 80;
+  font-size: 14px;
+  line-height: 1.45;
+  animation: glossary-pop .12s ease-out;
+}
+@keyframes glossary-pop {
+  from { opacity: 0; transform: translate(-50%, -4px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.glossary-popover-term {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--accent-hover);
+  margin-bottom: 4px;
+}
+.glossary-popover-translation {
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.glossary-popover-category {
+  display: inline-block;
+  padding: 1px 8px;
+  background: var(--accent-wash);
+  color: var(--accent-hover);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* ---------- ChapterForm: publish mode control ---------- */
 
 .publish-control {
