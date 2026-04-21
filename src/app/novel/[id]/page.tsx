@@ -213,16 +213,84 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     }
   }
 
-  // Fallback на «просто новеллы того же автора», если коллаборативки ещё нет
+  // Fallback для новелл без коллаборативки: ранжируем кандидатов по score.
+  // Раньше брали только новеллы того же автора — мимо если переводчик
+  // одиночка; теперь собираем пул по жанрам / переводчику / стране
+  // и сортируем.
+  //   +3  тот же переводчик (сильнее всего — читатели часто смотрят
+  //       что ещё переводит тот же человек)
+  //   +1  за каждый общий жанр
+  //   +0.5 тот же author (редкий случай: один автор — разные переводы)
+  //   +0.5 та же страна
+  //   -1  если age_rating 18+ у кандидата, а у текущей не 18+ (не суём
+  //       18+ новеллу читателю детской новеллы)
   let fallbackSimilar: unknown[] = [];
-  if ((!similarByReaders || similarByReaders.length === 0) && novel.author) {
-    const { data } = await supabase
-      .from('novels_view')
-      .select('*')
-      .eq('author', novel.author)
-      .neq('firebase_id', novel.firebase_id)
-      .limit(6);
-    fallbackSimilar = data ?? [];
+  if (!similarByReaders || similarByReaders.length === 0) {
+    const currentGenres: string[] = Array.isArray(novel.genres) ? novel.genres : [];
+
+    // Собираем пул-кандидатов: объединение разных критериев через отдельные
+    // лёгкие запросы + дедупликация. Пулу хватает ~60 штук, чтобы потом
+    // отсортировать в JS.
+    const candidateMap = new Map<number, Record<string, unknown>>();
+    const addAll = (rows: Record<string, unknown>[] | null | undefined) => {
+      for (const r of rows ?? []) {
+        const id = Number(r.id);
+        if (!candidateMap.has(id)) candidateMap.set(id, r);
+      }
+    };
+
+    const selectCols = '*';
+
+    const byTranslator = novel.translator_id
+      ? supabase.from('novels_view').select(selectCols)
+          .eq('translator_id', novel.translator_id)
+          .eq('moderation_status', 'published')
+          .neq('firebase_id', novel.firebase_id)
+          .limit(20)
+      : Promise.resolve({ data: [] });
+
+    const byAuthor = novel.author
+      ? supabase.from('novels_view').select(selectCols)
+          .eq('author', novel.author)
+          .eq('moderation_status', 'published')
+          .neq('firebase_id', novel.firebase_id)
+          .limit(20)
+      : Promise.resolve({ data: [] });
+
+    const byGenre = currentGenres.length > 0
+      ? supabase.from('novels_view').select(selectCols)
+          .overlaps('genres', currentGenres)
+          .eq('moderation_status', 'published')
+          .neq('firebase_id', novel.firebase_id)
+          .limit(40)
+      : Promise.resolve({ data: [] });
+
+    const [r1, r2, r3] = await Promise.all([byTranslator, byAuthor, byGenre]);
+    addAll((r1 as { data: Record<string, unknown>[] | null }).data);
+    addAll((r2 as { data: Record<string, unknown>[] | null }).data);
+    addAll((r3 as { data: Record<string, unknown>[] | null }).data);
+
+    const scored = Array.from(candidateMap.values()).map((c) => {
+      const cGenres: string[] = Array.isArray(c.genres) ? (c.genres as string[]) : [];
+      const commonGenres = cGenres.filter((g) => currentGenres.includes(g));
+      let score = 0;
+      if (c.translator_id && c.translator_id === novel.translator_id) score += 3;
+      if (c.author && c.author === novel.author) score += 0.5;
+      if (c.country && c.country === novel.country) score += 0.5;
+      score += commonGenres.length;
+      if (c.age_rating === '18+' && novel.age_rating !== '18+') score -= 1;
+      const rating = Number(c.average_rating ?? 0);
+      // Тайбрейкер: при равном score — более высокий рейтинг
+      const tiebreak = rating * 0.01;
+      return { ...c, score, _tiebreak: tiebreak };
+    });
+
+    fallbackSimilar = scored
+      .filter((x) => x.score > 0)
+      .sort((a, b) =>
+        b.score - a.score !== 0 ? b.score - a.score : b._tiebreak - a._tiebreak
+      )
+      .slice(0, 6);
   }
 
   // Подтягиваем превью первого абзаца
