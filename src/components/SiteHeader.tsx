@@ -9,6 +9,7 @@ export default async function SiteHeader() {
   let isTranslator = false;
   let coinBalance: number | null = null;
   let unreadDm = 0;
+  let unreadNotif = 0;
 
   if (user) {
     // select('*') чтобы работать без миграции 001 (legacy is_admin) и с ней (role, coin_balance)
@@ -37,6 +38,13 @@ export default async function SiteHeader() {
     } catch {
       // миграция 006 ещё не накачена
     }
+    // Непрочитанные уведомления (RPC из миграции 007)
+    try {
+      const { data: count } = await supabase.rpc('unread_notifications_count');
+      if (typeof count === 'number') unreadNotif = count;
+    } catch {
+      // миграция 007 ещё не накачена
+    }
   }
 
   return (
@@ -56,6 +64,17 @@ export default async function SiteHeader() {
             <Link href="/messages" className="nav-with-badge">
               Сообщения
               {unreadDm > 0 && <span className="nav-unread">{unreadDm}</span>}
+            </Link>
+          )}
+          {user && (
+            <Link
+              href="/notifications"
+              className="nav-with-badge"
+              aria-label="Уведомления"
+              title="Уведомления"
+            >
+              🔔
+              {unreadNotif > 0 && <span className="nav-unread">{unreadNotif}</span>}
             </Link>
           )}
         </nav>
