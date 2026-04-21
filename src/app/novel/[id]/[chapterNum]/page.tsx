@@ -264,6 +264,8 @@ export default async function ChapterPage({ params }: PageProps) {
           novelId={novel.id}
           chapterNumber={chapter.chapter_number}
           glossary={glossary}
+          novelFirebaseId={novel.firebase_id}
+          novelTitle={novel.title}
         />
 
         <nav className="reader-nav">

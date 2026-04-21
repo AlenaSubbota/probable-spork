@@ -24,6 +24,8 @@ interface Props {
   novelId: number;
   chapterNumber: number;
   glossary?: GlossaryItem[];
+  novelFirebaseId?: string;
+  novelTitle?: string;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -42,6 +44,8 @@ export default function ReaderContent({
   novelId,
   chapterNumber,
   glossary = [],
+  novelFirebaseId,
+  novelTitle,
 }: Props) {
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
@@ -432,7 +436,13 @@ export default function ReaderContent({
         </div>
       )}
 
-      <QuoteBubble novelId={novelId} chapterNumber={chapterNumber} containerRef={contentRef} />
+      <QuoteBubble
+        novelId={novelId}
+        chapterNumber={chapterNumber}
+        containerRef={contentRef}
+        novelFirebaseId={novelFirebaseId}
+        novelTitle={novelTitle}
+      />
 
       <ReaderSettingsPanel
         open={settingsOpen}

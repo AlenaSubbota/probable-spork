@@ -1513,9 +1513,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- quote bubble (on text selection) ---------- */
 
-.quote-bubble {
+.quote-bubble-wrap {
   position: absolute;
   transform: translate(-50%, 0);
+  display: flex;
+  gap: 6px;
+  z-index: 70;
+  animation: popIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.quote-bubble {
   background: var(--ink);
   color: var(--surface-2);
   border: none;
@@ -1525,13 +1531,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 600;
   box-shadow: 0 8px 20px rgba(43, 32, 23, 0.25);
   cursor: pointer;
-  z-index: 70;
-  animation: popIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   transition: background 0.2s, transform 0.1s;
 }
 .quote-bubble:hover {
   background: var(--accent-hover);
-  transform: translate(-50%, 0) translateY(-2px);
+  transform: translateY(-2px);
 }
 .quote-bubble.saved {
   background: var(--leaf);
@@ -1539,6 +1543,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .quote-bubble.error {
   background: var(--rose);
+}
+.quote-bubble--share {
+  background: var(--accent);
+}
+.quote-bubble--share:hover {
+  background: var(--accent-hover);
 }
 @keyframes popIn {
   from { opacity: 0; transform: translate(-50%, 4px); }
