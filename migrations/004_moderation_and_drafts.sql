@@ -47,6 +47,10 @@ CREATE INDEX IF NOT EXISTS idx_translator_applications_status
 
 ALTER TABLE public.translator_applications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS ta_self_select ON public.translator_applications;
+DROP POLICY IF EXISTS ta_self_insert ON public.translator_applications;
+DROP POLICY IF EXISTS ta_admin_all   ON public.translator_applications;
+
 CREATE POLICY ta_self_select
   ON public.translator_applications FOR SELECT
   USING (auth.uid() = user_id);
@@ -90,6 +94,11 @@ CREATE INDEX IF NOT EXISTS idx_novel_glossaries_novel
   ON public.novel_glossaries (novel_id);
 
 ALTER TABLE public.novel_glossaries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS glossary_read_all     ON public.novel_glossaries;
+DROP POLICY IF EXISTS glossary_owner_write  ON public.novel_glossaries;
+DROP POLICY IF EXISTS glossary_owner_update ON public.novel_glossaries;
+DROP POLICY IF EXISTS glossary_owner_delete ON public.novel_glossaries;
 
 -- Читать могут все (потом будем показывать объяснения в главе)
 CREATE POLICY glossary_read_all
@@ -155,6 +164,8 @@ CREATE INDEX IF NOT EXISTS idx_chapter_drafts_user
   ON public.chapter_drafts (user_id, updated_at DESC);
 
 ALTER TABLE public.chapter_drafts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS drafts_self_all ON public.chapter_drafts;
 
 CREATE POLICY drafts_self_all
   ON public.chapter_drafts FOR ALL

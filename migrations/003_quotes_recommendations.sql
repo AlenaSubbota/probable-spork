@@ -27,6 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_user_quotes_novel_chapter
 
 ALTER TABLE public.user_quotes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS user_quotes_self_read   ON public.user_quotes;
+DROP POLICY IF EXISTS user_quotes_self_insert ON public.user_quotes;
+DROP POLICY IF EXISTS user_quotes_self_delete ON public.user_quotes;
+
 CREATE POLICY user_quotes_self_read
   ON public.user_quotes FOR SELECT
   USING (auth.uid() = user_id);
