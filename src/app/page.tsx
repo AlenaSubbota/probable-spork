@@ -31,7 +31,14 @@ export default async function HomePage() {
   return (
     <main>
       <HeroBanner />
-      <GenreChips />
+      <GenreChips 
+        genres={[
+          { name: 'Фэнтези', count: 15 },
+          { name: 'Романтика', count: 10 },
+          { name: 'Экшен', count: 8 }
+        ]} 
+        total={33} 
+      />
 
       {/* Секция: Популярное */}
       <section className="container section">

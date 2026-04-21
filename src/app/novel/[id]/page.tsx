@@ -1,132 +1,265 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import NovelCard from '@/components/NovelCard';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+function getCoverUrl(path: string | null) {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `https://tene.fun/storage/v1/object/public/covers/${path}`;
+}
+
+function formatChapterDate(published: string | null) {
+  if (!published) return '';
+  const date = new Date(published);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) {
+    return `сегодня, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  if (diffDays === 1) {
+    return `вчера, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  if (diffDays < 7) return `${diffDays} дн. назад`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} нед. назад`;
+  return date.toLocaleDateString('ru-RU');
+}
+
+function formatCount(n: number | null | undefined) {
+  if (!n) return '0';
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`.replace('.0', '');
+  }
+  return n.toLocaleString('ru-RU');
+}
+
 export default async function NovelPage({ params }: PageProps) {
   const supabase = await createClient();
-  const resolvedParams = await params;
+  const { id } = await params;
 
-  // Получаем данные из вьюхи (там уже есть рейтинги и просмотры)
   const { data: novel, error: novelError } = await supabase
     .from('novels_view')
     .select('*')
-    .eq('firebase_id', resolvedParams.id)
+    .eq('firebase_id', id)
     .single();
 
   if (novelError || !novel) notFound();
 
-  // Список глав
-  const { data: chapters } = await supabase
+  const { data: chaptersDesc } = await supabase
     .from('chapters')
-    .select('id, chapter_number, is_paid, published_at, like_count')
+    .select('id, chapter_number, title, is_paid, published_at')
     .eq('novel_id', novel.id)
     .order('chapter_number', { ascending: false });
 
-  // Универсальная функция для обложек
-  const getCoverUrl = (path: string | null) => {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    // Конкатенируем путь с публичным URL бакета 'covers'
-    // Обрабатывает и 'covers/11.webp', и '063aa...png'
-    return `https://tene.fun/storage/v1/object/public/covers/${path}`;
-  };
+  const chapters = chaptersDesc ?? [];
+  const firstChapterNumber =
+    chapters.length > 0 ? chapters[chapters.length - 1].chapter_number : 1;
+
+  const { data: similarNovels } = novel.author
+    ? await supabase
+        .from('novels_view')
+        .select('*')
+        .eq('author', novel.author)
+        .neq('firebase_id', novel.firebase_id)
+        .limit(6)
+    : { data: [] };
 
   const coverUrl = getCoverUrl(novel.cover_url);
-  const genresList = Array.isArray(novel.genres) ? novel.genres.join(', ') : 'Жанры не указаны';
+  const genres: string[] = Array.isArray(novel.genres) ? novel.genres : [];
+  const primaryGenre = genres[0];
+  const authorInitial = (novel.author || 'A').trim().charAt(0).toUpperCase();
 
   return (
-    <main className="container section">
-      <div className="section-head" style={{ marginBottom: '32px' }}>
-         <Link href="/" className="more">← В каталог</Link>
-      </div>
+    <main>
+      <section className="container">
+        <div className="novel-top">
+          <div className="cover-large">
+            <div
+              className="novel-cover"
+              style={{ aspectRatio: '3/4', borderRadius: 'var(--radius)' }}
+            >
+              {coverUrl ? (
+                <img
+                  src={coverUrl}
+                  alt={novel.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div className="placeholder p1" style={{ fontSize: 22 }}>
+                  {novel.title}
+                </div>
+              )}
+              <span className="rating-chip">
+                <span className="star">★</span>
+                {novel.average_rating > 0 ? novel.average_rating.toFixed(1) : '—'}
+              </span>
+            </div>
+          </div>
 
-      <div className="novel-details-layout" style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'minmax(250px, 300px) 1fr', 
-        gap: '48px',
-        alignItems: 'start' 
-      }}>
-        
-        {/* Левая колонка */}
-        <aside>
-          <div className="novel-cover" style={{ width: '100%', aspectRatio: '3/4', position: 'relative' }}>
-            {coverUrl ? (
-              <img 
-                src={coverUrl} 
-                alt={novel.title} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius)' }} 
-              />
-            ) : (
-              <div className="placeholder p1" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {novel.title}
+          <div className="novel-info">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              {primaryGenre && <span className="note">{primaryGenre}</span>}
+              <span
+                className="note"
+                style={
+                  novel.is_completed
+                    ? { background: '#E6DCC8', color: 'var(--ink-soft)' }
+                    : { background: '#E3EBD6', color: '#4C6A34' }
+                }
+              >
+                {novel.is_completed ? 'Завершена' : 'Обновляется'}
+              </span>
+            </div>
+
+            <h1>{novel.title}</h1>
+            {novel.author && (
+              <div className="subtitle">
+                автор: {novel.author}
+                {genres.length > 0 && ` · жанр: ${genres.slice(0, 3).join(', ')}`}
               </div>
             )}
-            <span className="rating-chip" style={{ top: '12px', right: '12px' }}>
-              <span className="star">★</span>{novel.average_rating > 0 ? novel.average_rating.toFixed(1) : '—'}
-            </span>
-          </div>
 
-          <div className="stat-card" style={{ marginTop: '20px', textAlign: 'center' }}>
-            <div className="label">Всего просмотров</div>
-            <div className="value">{novel.views || 0}</div>
-          </div>
-          
-          <button className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }}>
-            Читать первую главу
-          </button>
-        </aside>
+            <div className="info-row">
+              <div className="metric">
+                <div className="val">
+                  <span className="star">★</span>{' '}
+                  {novel.average_rating > 0 ? novel.average_rating.toFixed(1) : '—'}
+                </div>
+                <div className="label">
+                  {novel.rating_count || 0}{' '}
+                  {novel.rating_count === 1 ? 'оценка' : 'оценок'}
+                </div>
+              </div>
+              <div className="metric">
+                <div className="val">{chapters.length}</div>
+                <div className="label">глав</div>
+              </div>
+              <div className="metric">
+                <div className="val">{formatCount(novel.views)}</div>
+                <div className="label">прочтений</div>
+              </div>
+            </div>
 
-        {/* Правая колонка */}
-        <article>
-          <h1 style={{ fontSize: '32px', marginBottom: '12px', fontFamily: 'var(--font-lora)' }}>{novel.title}</h1>
-          
-          <div className="novel-meta" style={{ marginBottom: '32px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span className="by" style={{ fontWeight: 600 }}>{novel.author}</span>
-            <span style={{ color: 'var(--border-strong)' }}>·</span>
-            <span className="status-pill status-active">
-              {novel.is_completed ? 'Завершена' : 'В процессе'}
-            </span>
-          </div>
+            {genres.length > 0 && (
+              <div className="tags">
+                {genres.map((g) => (
+                  <span key={g} className="tag">
+                    {g}
+                  </span>
+                ))}
+              </div>
+            )}
 
-          <div className="card" style={{ marginBottom: '40px' }}>
-            <h3 style={{ marginBottom: '16px' }}>Описание</h3>
-            {/* Рендерим HTML из базы */}
-            <div 
-              className="novel-description-content"
-              style={{ lineHeight: '1.7', color: 'var(--ink-soft)' }}
-              dangerouslySetInnerHTML={{ __html: novel.description || 'Описание отсутствует.' }}
-            />
-            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
-              <strong style={{ color: 'var(--ink)' }}>Жанры:</strong> {genresList}
+            {novel.author && (
+              <div className="translator-card">
+                <div className="avatar">{authorInitial}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="name">{novel.author}</div>
+                  <div className="role">Переводчик</div>
+                </div>
+                <span
+                  className="btn btn-ghost"
+                  style={{ pointerEvents: 'none', opacity: 0.6 }}
+                >
+                  Профиль
+                </span>
+              </div>
+            )}
+
+            <div className="actions-row">
+              <Link
+                href={`/novel/${novel.firebase_id}/${firstChapterNumber}`}
+                className="btn btn-primary"
+              >
+                Читать с {firstChapterNumber}-й главы
+              </Link>
+              <button className="btn btn-ghost" type="button">
+                ♥ В закладки
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {novel.description && (
+          <div className="desc">
+            <strong>Описание.</strong>{' '}
+            <span dangerouslySetInnerHTML={{ __html: novel.description }} />
+          </div>
+        )}
+
+        <div className="chapter-list">
+          <div className="chapter-list-head">
+            <h3>Главы ({chapters.length})</h3>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Сортировка:</span>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ height: 32, padding: '0 12px', fontSize: 13 }}
+              >
+                Новые сверху
+              </button>
             </div>
           </div>
 
-          <h3 style={{ marginBottom: '20px' }}>Список глав ({chapters?.length || 0})</h3>
-          <div className="card" style={{ padding: 0 }}>
-            <div className="chapters-list">
-              {chapters?.map((chapter) => (
-                <div key={chapter.id} className="reading-row" style={{ padding: '16px 24px', cursor: 'pointer' }}>
-                  <div style={{ fontWeight: 600 }}>Глава {chapter.chapter_number}</div>
-                  <div style={{ color: 'var(--ink-mute)', fontSize: '12px' }}>
-                    {chapter.published_at ? new Date(chapter.published_at).toLocaleDateString('ru-RU') : ''}
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    {chapter.is_paid ? (
-                      <span className="status-pill status-expired">10 монет</span>
-                    ) : (
-                      <span className="status-pill status-active">Бесплатно</span>
-                    )}
-                  </div>
+          {chapters.length === 0 && (
+            <div style={{ padding: 20, color: 'var(--ink-mute)' }}>Глав пока нет.</div>
+          )}
+
+          {chapters.map((chapter) => {
+            const displayTitle = chapter.title
+              ? `Глава ${chapter.chapter_number}. ${chapter.title}`
+              : `Глава ${chapter.chapter_number}`;
+            return (
+              <div key={chapter.id} className="chapter-item">
+                <div>
+                  <div className="title">{displayTitle}</div>
+                  <div className="date">{formatChapterDate(chapter.published_at)}</div>
                 </div>
+                <span className={`tag-price ${chapter.is_paid ? 'paid' : 'free'}`}>
+                  {chapter.is_paid ? '10 монет' : 'Бесплатно'}
+                </span>
+                <Link
+                  href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
+                  className={chapter.is_paid ? 'btn btn-ghost' : 'btn btn-primary'}
+                  style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+                >
+                  {chapter.is_paid ? 'Купить' : 'Читать'}
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+
+        {similarNovels && similarNovels.length > 0 && (
+          <>
+            <div className="section-head">
+              <h2>Похожее от {novel.author}</h2>
+            </div>
+            <div className="novel-grid">
+              {similarNovels.map((n, index) => (
+                <NovelCard
+                  key={n.id}
+                  id={n.firebase_id}
+                  title={n.title}
+                  translator={n.author || 'Автор'}
+                  metaInfo={`${n.rating_count || 0} оценок`}
+                  rating={n.average_rating ? n.average_rating.toFixed(1) : '—'}
+                  coverUrl={getCoverUrl(n.cover_url)}
+                  placeholderClass={`p${(index % 8) + 1}`}
+                  placeholderText={n.title.substring(0, 16)}
+                />
               ))}
             </div>
-          </div>
-        </article>
-      </div>
+          </>
+        )}
+      </section>
     </main>
   );
 }
