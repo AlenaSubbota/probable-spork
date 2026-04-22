@@ -27,6 +27,19 @@ function isPrefixMatch(path: string, prefixes: readonly string[]): boolean {
 export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
   const path = req.nextUrl.pathname;
+  const code = req.nextUrl.searchParams.get('code');
+
+  // OAuth failsafe: Supabase иногда усекает redirect_to до origin
+  // и возвращает ?code=... на корень (или любой путь) вместо
+  // /auth/callback. Если видим ?code= на публичной странице —
+  // перекидываем на наш callback-роут, он сделает exchange.
+  if (code && !path.startsWith('/auth/callback')) {
+    const callbackUrl = new URL('/auth/callback', req.url);
+    callbackUrl.searchParams.set('code', code);
+    const next = req.nextUrl.searchParams.get('next');
+    if (next) callbackUrl.searchParams.set('next', next);
+    return NextResponse.redirect(callbackUrl);
+  }
 
   // Быстрый выход для ассетов и явно публичных маршрутов
   if (
