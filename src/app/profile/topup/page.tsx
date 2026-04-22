@@ -99,7 +99,7 @@ export default async function TopupPage() {
                 <div key={t.id} className="topup-tx-row">
                   <div className="topup-tx-body">
                     <div className="topup-tx-reason">
-                      {reasonLabel(t.reason)}
+                      {reasonLabel(t.reason, t.amount)}
                     </div>
                     <div className="topup-tx-time">{timeAgo(t.created_at)}</div>
                   </div>
@@ -118,12 +118,24 @@ export default async function TopupPage() {
   );
 }
 
-function reasonLabel(reason: string): string {
+function reasonLabel(reason: string, amount: number): string {
   switch (reason) {
-    case 'tribute_topup': return 'Пополнение через Tribute';
-    case 'boosty_topup':  return 'Пополнение через Boosty';
+    case 'tribute_topup':    return 'Пополнение через Tribute';
+    case 'boosty_topup':     return 'Пополнение через Boosty';
     case 'chapter_purchase': return 'Покупка главы';
-    case 'admin_adjust': return 'Корректировка (админ)';
-    default: return reason;
+    case 'admin_adjust':     return 'Корректировка баланса';
+    case 'chapter_tip':
+      // Одна и та же запись reason='chapter_tip' вставляется дважды:
+      // amount<0 у читателя (отправил чаевые), amount>0 у переводчика (получил)
+      return amount > 0
+        ? 'Чаевые за главу (получено)'
+        : 'Чаевые переводчику за главу';
+    case 'subscription':     return 'Подписка на переводчика';
+    case 'refund':           return 'Возврат';
+    default:
+      // Незнакомый reason — показываем человекочитаемо, без raw-snake_case
+      return reason
+        .replace(/_/g, ' ')
+        .replace(/^./, (c) => c.toUpperCase());
   }
 }
