@@ -25,8 +25,14 @@ export default async function EditNovelPage({ params }: PageProps) {
     .eq('id', user.id)
     .maybeSingle();
 
-  const p = profile as { role?: string; is_admin?: boolean } | null;
+  const p = profile as {
+    role?: string;
+    is_admin?: boolean;
+    user_name?: string | null;
+    translator_display_name?: string | null;
+  } | null;
   const isAdmin = p?.is_admin === true || p?.role === 'admin';
+  const currentUserName = p?.translator_display_name ?? p?.user_name ?? null;
 
   const { data: novel } = await supabase
     .from('novels')
@@ -84,6 +90,9 @@ export default async function EditNovelPage({ params }: PageProps) {
 
       <NovelForm
         mode="edit"
+        isAdmin={isAdmin}
+        currentUserId={user.id}
+        currentUserName={currentUserName}
         initial={{
           id: novel.id,
           firebase_id: novel.firebase_id,
@@ -98,7 +107,6 @@ export default async function EditNovelPage({ params }: PageProps) {
           translation_status: (novel.translation_status as TranslationStatus) ?? 'ongoing',
           is_completed: !!novel.is_completed,
           release_year: novel.release_year,
-          // Форма хранит BB-код; передаём HTML как descriptionHtml для конвертации
           descriptionHtml: novel.description ?? '',
           description: '',
           cover_url: novel.cover_url,
@@ -109,6 +117,12 @@ export default async function EditNovelPage({ params }: PageProps) {
               )
             : [],
           epub_path: novel.epub_path ?? null,
+          translator: {
+            translator_id: novel.translator_id ?? null,
+            external_name: novel.external_translator_name ?? null,
+            external_url: novel.external_translator_url ?? null,
+            external_consent: !!novel.external_translator_name,
+          },
         }}
       />
 

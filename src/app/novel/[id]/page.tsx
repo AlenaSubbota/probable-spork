@@ -6,6 +6,7 @@ import FirstChapterPreview from '@/components/FirstChapterPreview';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import ReleasePace from '@/components/ReleasePace';
 import BookmarkButton from '@/components/BookmarkButton';
+import NovelClaimButton from '@/components/NovelClaimButton';
 import AdultGate from '@/components/AdultGate';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
@@ -468,6 +469,46 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
               </div>
             )}
 
+            {!translatorProfile && novel.external_translator_name && (
+              <div className="translator-card translator-card--external">
+                <div
+                  className="avatar"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, var(--ink-mute), var(--ink-soft))',
+                  }}
+                  aria-hidden="true"
+                >
+                  <span>
+                    {novel.external_translator_name.trim().charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="name">{novel.external_translator_name}</div>
+                  <div className="role">
+                    Внешний переводчик · не зарегистрирован у нас
+                  </div>
+                </div>
+                {novel.external_translator_url ? (
+                  <a
+                    href={novel.external_translator_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-ghost"
+                  >
+                    Профиль ↗
+                  </a>
+                ) : null}
+                {user && (viewerIsAdmin || vp?.role === 'translator') && (
+                  <NovelClaimButton
+                    novelId={novel.id}
+                    novelTitle={novel.title}
+                    externalName={novel.external_translator_name}
+                  />
+                )}
+              </div>
+            )}
+
             <div className="actions-row">
               <Link
                 href={`/novel/${novel.firebase_id}/${firstChapterNumber}`}
@@ -481,15 +522,16 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                   initialStatus={bookmarkStatus}
                 />
               )}
-              {novel.epub_path && (
-                <a
-                  href={`/api/novel/${novel.firebase_id}/epub`}
-                  className="btn btn-ghost"
-                  title="Скачать для чтения офлайн (e-reader, телефон без сети)"
-                >
-                  📘 EPUB
-                </a>
-              )}
+              {/* EPUB: если переводчик загрузил готовый файл в epub_path —
+                 отдадим его, иначе сервер соберёт на лету по уровню
+                 доступа читателя (бесплатные / купленные / подписка). */}
+              <a
+                href={`/api/novel/${novel.firebase_id}/epub`}
+                className="btn btn-ghost"
+                title="Скачать для чтения офлайн. Подписчики получают все главы, остальные — те, что им доступны."
+              >
+                📘 EPUB
+              </a>
               {canEdit && (
                 <>
                   <Link

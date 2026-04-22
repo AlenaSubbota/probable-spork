@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ReaderContent from '@/components/ReaderContent';
 import CommentsSection from '@/components/CommentsSection';
+import ChapterThanks from '@/components/reader/ChapterThanks';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
 
 interface PageProps {
@@ -224,6 +225,22 @@ export default async function ChapterPage({ params }: PageProps) {
   const prevChapter = prevRow;
   const nextChapter = nextRow;
 
+  // Имя переводчика для tip-блока под главой (ChapterThanks)
+  let translatorDisplayName: string | null = null;
+  if (novel.translator_id) {
+    const { data: tProfile } = await supabase
+      .from('profiles')
+      .select('translator_display_name, user_name')
+      .eq('id', novel.translator_id)
+      .maybeSingle();
+    const tp = tProfile as {
+      translator_display_name?: string | null;
+      user_name?: string | null;
+    } | null;
+    translatorDisplayName =
+      tp?.translator_display_name || tp?.user_name || null;
+  }
+
   return (
     <div className="reader-page">
       <header className="reader-header">
@@ -299,6 +316,14 @@ export default async function ChapterPage({ params }: PageProps) {
             </Link>
           )}
         </nav>
+
+        <ChapterThanks
+          novelId={novel.id}
+          chapterNumber={chapter.chapter_number}
+          hasTranslator={!!novel.translator_id}
+          translatorDisplayName={translatorDisplayName}
+          isLoggedIn={!!user}
+        />
 
         <hr className="reader-divider" />
 

@@ -66,15 +66,20 @@ export default async function CatalogPage({
     query = query.eq('age_rating', params.age);
   }
 
-  // Фильтр по жанру (jsonb contains)
+  // Фильтр по жанру: для jsonb-массива .overlaps работает как пересечение
+  // массивов — совпадает, если искомый жанр есть среди genres новеллы.
+  // .contains() просило full superset-match и давало «пусто».
   if (params.genre) {
-    query = query.contains('genres', [params.genre]);
+    query = query.overlaps('genres', [params.genre]);
   }
 
-  // Настроение: OR по набору жанров + минимальный рейтинг
+  // Настроение: любой из жанров moода + минимальный рейтинг.
+  // Раньше строили raw .or() со 'genres.cs.[\"<жанр>\"]', но кириллица
+  // там кодируется неправильно и фильтр молча возвращал пусто.
   if (mood) {
-    const genreOrs = mood.genres.map((g) => `genres.cs.["${g}"]`).join(',');
-    if (genreOrs) query = query.or(genreOrs);
+    if (mood.genres.length > 0) {
+      query = query.overlaps('genres', mood.genres);
+    }
     query = query.gte('average_rating', mood.minRating);
   }
 

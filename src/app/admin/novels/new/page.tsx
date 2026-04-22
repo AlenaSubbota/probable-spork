@@ -10,13 +10,19 @@ export default async function NewNovelPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, is_admin')
+    .select('role, is_admin, user_name, translator_display_name')
     .eq('id', user.id)
     .maybeSingle();
-  const p = profile as { role?: string; is_admin?: boolean } | null;
+  const p = profile as {
+    role?: string;
+    is_admin?: boolean;
+    user_name?: string | null;
+    translator_display_name?: string | null;
+  } | null;
   const isAdmin = p?.is_admin === true || p?.role === 'admin';
   const isTranslator = isAdmin || p?.role === 'translator';
   if (!isTranslator) redirect('/translator/apply');
+  const currentUserName = p?.translator_display_name ?? p?.user_name ?? null;
 
   return (
     <main className="container admin-page">
@@ -33,7 +39,21 @@ export default async function NewNovelPage() {
           : 'Заполни карточку и сохрани как черновик. Когда всё будет готово — жми «Отправить на модерацию» на странице новеллы; админ проверит и опубликует.'}
       </p>
 
-      <NovelForm mode="create" isAdmin={isAdmin} />
+      <NovelForm
+        mode="create"
+        isAdmin={isAdmin}
+        currentUserId={user.id}
+        currentUserName={currentUserName}
+        initial={{
+          // Преселект себя — если админ/переводчик добавляет свою работу
+          translator: {
+            translator_id: user.id,
+            external_name: null,
+            external_url: null,
+            external_consent: false,
+          },
+        }}
+      />
     </main>
   );
 }
