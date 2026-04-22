@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+// Убрали useRouter — логин завершается через window.location.href = '/',
+// чтобы SSR-запрос увидел свежие cookies из setSession().
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import TelegramLoginWidget from './TelegramLoginWidget';
@@ -15,7 +16,6 @@ const BOT_USERNAME = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || 'tenebrisverbot'
 const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://tene.fun';
 
 export default function AuthForm({ mode }: Props) {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'busy' | 'error'>('idle');
@@ -35,13 +35,12 @@ export default function AuthForm({ mode }: Props) {
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
-        router.refresh();
-        router.push('/');
+        // Hard reload, чтобы SSR-шапка увидела новые cookies и юзера
+        window.location.href = '/';
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.refresh();
-        router.push('/');
+        window.location.href = '/';
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка');
@@ -93,8 +92,11 @@ export default function AuthForm({ mode }: Props) {
       });
       if (error) throw error;
 
-      router.refresh();
-      router.push('/');
+      // setSession пишет cookies асинхронно; router.push/refresh успевают
+      // рендерить SSR до того как cookies оказываются в document.cookie.
+      // Hard reload гарантирует, что Next.js сделает fresh server request
+      // уже с обновлёнными куками.
+      window.location.href = '/';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Telegram auth failed');
       setStatus('error');
