@@ -522,15 +522,16 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                   initialStatus={bookmarkStatus}
                 />
               )}
-              {novel.epub_path && (
-                <a
-                  href={`/api/novel/${novel.firebase_id}/epub`}
-                  className="btn btn-ghost"
-                  title="Скачать для чтения офлайн (e-reader, телефон без сети)"
-                >
-                  📘 EPUB
-                </a>
-              )}
+              {/* EPUB: если переводчик загрузил готовый файл в epub_path —
+                 отдадим его, иначе сервер соберёт на лету по уровню
+                 доступа читателя (бесплатные / купленные / подписка). */}
+              <a
+                href={`/api/novel/${novel.firebase_id}/epub`}
+                className="btn btn-ghost"
+                title="Скачать для чтения офлайн. Подписчики получают все главы, остальные — те, что им доступны."
+              >
+                📘 EPUB
+              </a>
               {canEdit && (
                 <>
                   <Link
