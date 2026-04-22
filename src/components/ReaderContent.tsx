@@ -270,6 +270,9 @@ export default function ReaderContent({
   }, [ready, content, glossary]);
 
   // ---- 5. Отслеживание активного абзаца (scroll -> focus mode + прогресс) ----
+  // Зависит от settings.focusMode явно: при переключении фокуса пересоздаём
+  // обработчик и сразу пересчитываем активный абзац (иначе без скролла
+  // ничего не подсвечивается, и пользователь видит серый текст).
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -280,7 +283,7 @@ export default function ReaderContent({
 
     let lastActiveId = -1;
 
-    const onScroll = () => {
+    const findBest = (): number => {
       const viewportMid = window.innerHeight / 2;
       let bestIdx = 0;
       let bestDist = Infinity;
@@ -293,38 +296,40 @@ export default function ReaderContent({
           bestIdx = i;
         }
       });
+      return bestIdx;
+    };
 
-      // Обновляем класс только когда активный абзац сменился
-      if (bestIdx !== lastActiveId) {
-        if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
-          paragraphs[lastActiveId].classList.remove('focus-active');
-        }
-        paragraphs[bestIdx]?.classList.add('focus-active');
-        lastActiveId = bestIdx;
+    const applyActive = (bestIdx: number) => {
+      if (bestIdx === lastActiveId) return;
+      if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
+        paragraphs[lastActiveId].classList.remove('focus-active');
       }
+      paragraphs[bestIdx]?.classList.add('focus-active');
+      lastActiveId = bestIdx;
+    };
 
+    const onScroll = () => {
+      const bestIdx = findBest();
+      applyActive(bestIdx);
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = window.setTimeout(() => saveProgress(bestIdx), 1500);
     };
 
-    onScroll();
+    // При mount / изменении focus-режима — сразу подсветить ближайший к
+    // центру абзац (чтобы при включении фокуса без скролла текст не был
+    // просто серым).
+    applyActive(findBest());
+
     window.addEventListener('scroll', onScroll, { passive: true });
-    // При включении/выключении фокуса — пересчитываем активный абзац сразу
-    // (иначе при первом включении без скролла всё просто серое и ничего не
-    // подсвечено).
-    const focusToggleObserver = new MutationObserver(() => onScroll());
-    const rw = contentRef.current?.closest('.reader-wrapper');
-    if (rw) focusToggleObserver.observe(rw, { attributes: true, attributeFilter: ['class'] });
 
     return () => {
       window.removeEventListener('scroll', onScroll);
-      focusToggleObserver.disconnect();
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
         paragraphs[lastActiveId].classList.remove('focus-active');
       }
     };
-  }, [ready, content, saveProgress]);
+  }, [ready, content, saveProgress, settings.focusMode]);
 
   // ---- 6. Восстановление позиции из localStorage при заходе ----
   useEffect(() => {
