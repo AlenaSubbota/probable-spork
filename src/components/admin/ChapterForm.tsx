@@ -7,6 +7,7 @@ import ChapterStats from './ChapterStats';
 import DraftBanner from './DraftBanner';
 import BBCodeEditor from './BBCodeEditor';
 import { bbToHtml, htmlToBb } from '@/lib/bbcode';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface GlossaryItem {
   term_original: string;
@@ -103,6 +104,7 @@ export default function ChapterForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const saveDraftTimerRef = useRef<number | null>(null);
 
@@ -289,6 +291,7 @@ export default function ChapterForm({
       });
       if (insertErr) {
         setError(insertErr.message);
+        pushToast('error', `Не создалось: ${insertErr.message}`);
         setSubmitting(false);
         return;
       }
@@ -322,6 +325,7 @@ export default function ChapterForm({
         .eq('chapter_number', chapterNumber);
       if (updateErr) {
         setError(updateErr.message);
+        pushToast('error', `Не сохранилось: ${updateErr.message}`);
         setSubmitting(false);
         return;
       }
@@ -333,6 +337,12 @@ export default function ChapterForm({
       }
     }
 
+    pushToast(
+      'success',
+      mode === 'edit'
+        ? `Глава ${chapterNumber} сохранена.`
+        : `Глава ${chapterNumber} добавлена${isPublishingNow ? ' и опубликована' : ''}.`
+    );
     setSubmitting(false);
     router.push(`/admin/novels/${novelFirebaseId}/edit`);
     router.refresh();
@@ -535,6 +545,7 @@ export default function ChapterForm({
             : 'Сохранить'}
         </button>
       </div>
+      <ToastStack items={toasts} onDismiss={dismissToast} />
     </form>
   );
 }

@@ -6,6 +6,7 @@ import QuoteCollection, { type Quote } from '@/components/profile/QuoteCollectio
 import ReadingStreak, { type ActivityDay } from '@/components/profile/ReadingStreak';
 import BookDiet from '@/components/profile/BookDiet';
 import ReadingTotals from '@/components/profile/ReadingTotals';
+import LogoutButton from '@/components/auth/LogoutButton';
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -264,6 +265,7 @@ export default async function ProfilePage() {
               Админка
             </Link>
           )}
+          <LogoutButton />
         </div>
       </div>
 

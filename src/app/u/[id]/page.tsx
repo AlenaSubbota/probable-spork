@@ -122,6 +122,11 @@ export default async function PublicUserProfile({ params }: PageProps) {
 
   return (
     <main className="container section">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Профиль читателя</span>
+      </div>
       <div className="user-profile-hero">
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <UserAvatar

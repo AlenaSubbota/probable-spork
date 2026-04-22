@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
-import UserAvatar from './UserAvatar';
+import UserMenu from './UserMenu';
 
 export default async function SiteHeader() {
   const supabase = await createClient();
@@ -100,38 +100,12 @@ export default async function SiteHeader() {
 
         <div className="header-actions">
           {user ? (
-            <>
-              {isTranslator ? (
-                <>
-                  <Link href="/admin/novels/new" className="btn btn-ghost">
-                    + Новелла
-                  </Link>
-                  <Link href="/admin" className="btn btn-ghost">
-                    Админка
-                  </Link>
-                </>
-              ) : (
-                <Link href="/translator/apply" className="btn btn-ghost">
-                  Стать переводчиком
-                </Link>
-              )}
-              {coinBalance !== null && (
-                <Link
-                  href="/profile/topup"
-                  className="coin-pill"
-                  title="Пополнить баланс"
-                >
-                  {coinBalance.toLocaleString('ru-RU')}
-                </Link>
-              )}
-              <Link
-                href="/profile"
-                className="btn btn-primary header-profile-btn"
-              >
-                <UserAvatar avatarUrl={avatarUrl} name={userName} size={24} />
-                <span>{userName ?? 'Профиль'}</span>
-              </Link>
-            </>
+            <UserMenu
+              userName={userName}
+              avatarUrl={avatarUrl}
+              isTranslator={isTranslator}
+              coinBalance={coinBalance}
+            />
           ) : (
             <>
               <Link href="/login" className="btn btn-ghost">

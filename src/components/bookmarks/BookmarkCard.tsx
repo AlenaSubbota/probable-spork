@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCoverUrl, timeAgo } from '@/lib/format';
 import type { BookmarkTab } from './BookmarkTabs';
+import BookmarkRemoveButton from './BookmarkRemoveButton';
 
 export interface BookmarkItem {
   firebase_id: string;
@@ -104,6 +105,7 @@ export default function BookmarkCard({ item }: Props) {
               ? 'К новелле'
               : 'Продолжить'}
           </Link>
+          <BookmarkRemoveButton firebaseId={item.firebase_id} title={item.title} />
         </div>
       </div>
     </div>
