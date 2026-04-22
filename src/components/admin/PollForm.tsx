@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 export interface PollOptionFormValue {
   id?: number;
@@ -71,6 +72,7 @@ export default function PollForm({ initial, mode }: Props) {
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const set = <K extends keyof PollFormValues>(k: K, v: PollFormValues[K]) =>
     setValues((p) => ({ ...p, [k]: v }));
@@ -138,7 +140,9 @@ export default function PollForm({ initial, mode }: Props) {
         .select('id')
         .single();
       if (insErr || !data) {
-        setError(insErr?.message ?? 'Не удалось создать опрос.');
+        const msg = insErr?.message ?? 'Не удалось создать опрос.';
+        setError(msg);
+        pushToast('error', msg);
         setSubmitting(false);
         return;
       }
@@ -150,6 +154,7 @@ export default function PollForm({ initial, mode }: Props) {
         .eq('id', values.id!);
       if (upErr) {
         setError(upErr.message);
+        pushToast('error', `Не сохранилось: ${upErr.message}`);
         setSubmitting(false);
         return;
       }
@@ -203,6 +208,10 @@ export default function PollForm({ initial, mode }: Props) {
       }
     }
 
+    pushToast(
+      'success',
+      mode === 'create' ? 'Опрос создан.' : 'Опрос обновлён.'
+    );
     setSubmitting(false);
     if (mode === 'create') {
       router.push('/admin/polls');
@@ -344,6 +353,7 @@ export default function PollForm({ initial, mode }: Props) {
             : 'Сохранить'}
         </button>
       </div>
+      <ToastStack items={toasts} onDismiss={dismissToast} />
     </form>
   );
 }

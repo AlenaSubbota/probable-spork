@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import { timeAgo } from '@/lib/format';
+import { commentToHtml } from '@/lib/commentFormat';
 
 interface Comment {
   id: number;
@@ -18,6 +19,8 @@ interface Comment {
   user_avatar: string | null;
   is_vip: boolean | null;
   created_at: string;
+  deleted_at: string | null;
+  edited_at: string | null;
   user_has_liked?: boolean;
 }
 
@@ -26,54 +29,26 @@ interface Props {
   chapterNumber: number;
 }
 
-// Киллер-фича #3: спойлер-синтаксис Reddit-style
-// >!скрытый текст!<  →  при клике «Показать»
-function renderWithSpoilers(text: string): React.ReactNode[] {
-  const parts: React.ReactNode[] = [];
-  const re = />!([\s\S]+?)!</g;
-  let last = 0;
-  let i = 0;
-  for (const m of text.matchAll(re)) {
-    const start = m.index ?? 0;
-    if (start > last) parts.push(text.slice(last, start));
-    parts.push(
-      <Spoiler key={`sp${i++}`}>{m[1]}</Spoiler>
-    );
-    last = start + m[0].length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return parts.length > 0 ? parts : [text];
-}
-
-function Spoiler({ children }: { children: React.ReactNode }) {
-  const [revealed, setRevealed] = useState(false);
-  return (
-    <span
-      className={`comment-spoiler${revealed ? ' revealed' : ''}`}
-      onClick={() => setRevealed(true)}
-      title={revealed ? '' : 'Нажми, чтобы показать'}
-    >
-      {revealed ? children : '•••••••• спойлер ••••••••'}
-    </span>
-  );
-}
-
 export default function CommentsSection({ novelId, chapterNumber }: Props) {
   const supabase = createClient();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [newText, setNewText] = useState('');
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
+
   const loadComments = useCallback(async () => {
     const { data, error } = await supabase
       .from('comments')
-      .select('id, user_id, novel_id, chapter_number, text, like_count, reply_to, user_name, user_avatar_url, user_avatar, is_vip, created_at')
+      .select('id, user_id, novel_id, chapter_number, text, like_count, reply_to, user_name, user_avatar_url, user_avatar, is_vip, created_at, deleted_at, edited_at')
       .eq('novel_id', novelId)
       .eq('chapter_number', chapterNumber)
       .order('created_at', { ascending: true });
@@ -102,7 +77,7 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
     setLoading(false);
   }, [supabase, novelId, chapterNumber, userId]);
 
-  // Инициализация: берём пользователя и грузим комменты
+  // Инициализация: берём пользователя, имя и роль
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -112,10 +87,12 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
         setUserId(user.id);
         const { data: profile } = await supabase
           .from('profiles')
-          .select('user_name')
+          .select('user_name, role, is_admin')
           .eq('id', user.id)
           .maybeSingle();
-        setUserName(profile?.user_name ?? null);
+        const p = (profile ?? {}) as { user_name?: string | null; role?: string; is_admin?: boolean };
+        setUserName(p.user_name ?? null);
+        setIsAdmin(p.is_admin === true || p.role === 'admin');
       }
     })();
     return () => {
@@ -127,7 +104,6 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
     loadComments();
   }, [loadComments]);
 
-  // Отправка нового комментария (верхнего уровня или ответ)
   const handleSubmit = async (text: string, parentId: number | null) => {
     if (!userId) return;
     const trimmed = text.trim();
@@ -155,10 +131,8 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
     loadComments();
   };
 
-  // Киллер-фича #1: лайки через comment_likes
   const toggleLike = async (comment: Comment) => {
     if (!userId) return;
-
     // Оптимистичный апдейт
     setComments((prev) =>
       prev.map((c) =>
@@ -178,7 +152,6 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
         .delete()
         .eq('user_id', userId)
         .eq('comment_id', comment.id);
-      // уменьшаем like_count руками
       await supabase
         .from('comments')
         .update({ like_count: Math.max(0, (comment.like_count ?? 0) - 1) })
@@ -195,7 +168,53 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
     }
   };
 
-  // Киллер-фича #2: вложенные ответы (reply_to)
+  const startEdit = (c: Comment) => {
+    setEditingId(c.id);
+    setEditingText(c.text);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingText('');
+  };
+
+  const saveEdit = async (id: number) => {
+    const trimmed = editingText.trim();
+    if (!trimmed) return;
+    const { data, error } = await supabase.rpc('edit_comment', {
+      p_comment_id: id,
+      p_text: trimmed,
+    });
+    if (error) {
+      alert(`Не удалось сохранить: ${error.message}`);
+      return;
+    }
+    const res = (data ?? {}) as { ok?: boolean; error?: string };
+    if (!res.ok) {
+      alert(`Не удалось сохранить: ${res.error ?? 'unknown'}`);
+      return;
+    }
+    cancelEdit();
+    loadComments();
+  };
+
+  const adminDelete = async (id: number) => {
+    if (!confirm('Удалить этот комментарий?')) return;
+    const { data, error } = await supabase.rpc('moderate_delete_comment', {
+      p_comment_id: id,
+    });
+    if (error) {
+      alert(`Ошибка: ${error.message}`);
+      return;
+    }
+    const res = (data ?? {}) as { ok?: boolean; error?: string };
+    if (!res.ok) {
+      alert(`Не удалось: ${res.error ?? 'unknown'}`);
+      return;
+    }
+    loadComments();
+  };
+
   const topLevel = comments.filter((c) => c.reply_to === null);
   const repliesByParent = new Map<number, Comment[]>();
   for (const c of comments) {
@@ -210,11 +229,16 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
     const replies = repliesByParent.get(c.id) ?? [];
     const initial = (c.user_name ?? '?').charAt(0).toUpperCase();
     const avatar = c.user_avatar_url || c.user_avatar;
+    const deleted = !!c.deleted_at;
+    const isMine = userId && c.user_id === userId;
+    const canEdit = (isMine || isAdmin) && !deleted;
+    const canDelete = isAdmin && !deleted;
+    const isEditingThis = editingId === c.id;
 
     return (
       <div
         key={c.id}
-        className={`comment-item${depth > 0 ? ' comment-item--reply' : ''}`}
+        className={`comment-item${depth > 0 ? ' comment-item--reply' : ''}${deleted ? ' comment-item--deleted' : ''}`}
       >
         <div className="comment-avatar">
           {avatar ? <img src={avatar} alt="" /> : <span>{initial}</span>}
@@ -225,32 +249,95 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
               {c.user_name ?? 'Читатель'}
               {c.is_vip && <span className="comment-vip" title="Подписчик">★</span>}
             </span>
-            <span className="comment-time">{timeAgo(c.created_at)}</span>
+            <span className="comment-time">
+              {timeAgo(c.created_at)}
+              {c.edited_at && !deleted && (
+                <span className="comment-edited" title={`Отредактировано ${timeAgo(c.edited_at)}`}>
+                  {' '}· изменено
+                </span>
+              )}
+            </span>
           </div>
-          <div className="comment-text">{renderWithSpoilers(c.text)}</div>
-          <div className="comment-actions">
-            <button
-              type="button"
-              className={`comment-like${c.user_has_liked ? ' liked' : ''}`}
-              onClick={() => toggleLike(c)}
-              disabled={!userId}
-              aria-label="Лайк"
-            >
-              {c.user_has_liked ? '❤' : '♡'} {c.like_count ?? 0}
-            </button>
-            {userId && depth === 0 && (
+
+          {deleted ? (
+            <div className="comment-text comment-text--deleted">
+              [комментарий удалён модератором]
+            </div>
+          ) : isEditingThis ? (
+            <div className="comment-edit-form">
+              <textarea
+                className="form-textarea"
+                rows={3}
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                maxLength={2000}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => saveEdit(c.id)}
+                  disabled={!editingText.trim()}
+                >
+                  Сохранить
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="comment-text"
+              dangerouslySetInnerHTML={{ __html: commentToHtml(c.text) }}
+            />
+          )}
+
+          {!deleted && !isEditingThis && (
+            <div className="comment-actions">
               <button
                 type="button"
-                className="comment-reply-btn"
-                onClick={() => {
-                  setReplyTo(replyTo === c.id ? null : c.id);
-                  setReplyText('');
-                }}
+                className={`comment-like${c.user_has_liked ? ' liked' : ''}`}
+                onClick={() => toggleLike(c)}
+                disabled={!userId}
+                aria-label="Лайк"
               >
-                {replyTo === c.id ? 'Отмена' : 'Ответить'}
+                {c.user_has_liked ? '❤' : '♡'} {c.like_count ?? 0}
               </button>
-            )}
-          </div>
+              {userId && depth === 0 && (
+                <button
+                  type="button"
+                  className="comment-reply-btn"
+                  onClick={() => {
+                    setReplyTo(replyTo === c.id ? null : c.id);
+                    setReplyText('');
+                  }}
+                >
+                  {replyTo === c.id ? 'Отмена' : 'Ответить'}
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  className="comment-reply-btn"
+                  onClick={() => startEdit(c)}
+                  title="Редактировать"
+                >
+                  ✎ Изменить
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  className="comment-reply-btn comment-action-danger"
+                  onClick={() => adminDelete(c.id)}
+                  title="Удалить (админ)"
+                >
+                  🗑 Удалить
+                </button>
+              )}
+            </div>
+          )}
 
           {replyTo === c.id && (
             <form
@@ -263,7 +350,7 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
               <textarea
                 className="form-textarea"
                 rows={2}
-                placeholder="Напиши ответ… (для спойлера: >!скрыто!<)"
+                placeholder="Напиши ответ… [b]жирный[/b], [spoiler]скрыто[/spoiler]"
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 maxLength={2000}
@@ -303,14 +390,17 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
           <textarea
             className="form-textarea"
             rows={3}
-            placeholder="Напиши что-нибудь о главе… Спрятать спойлер: >!текст!<"
+            placeholder="Напиши что-нибудь о главе…"
             value={newText}
             onChange={(e) => setNewText(e.target.value)}
             maxLength={2000}
           />
           <div className="comment-form-foot">
             <div className="comment-form-hint">
-              <code>&gt;!скрытый текст!&lt;</code> — спрячется под спойлер
+              <code>[b]жирный[/b]</code>{' '}
+              <code>[i]курсив[/i]</code>{' '}
+              <code>[spoiler]скрыто[/spoiler]</code>{' '}
+              <code>[url]http…[/url]</code>
             </div>
             <button
               type="submit"
