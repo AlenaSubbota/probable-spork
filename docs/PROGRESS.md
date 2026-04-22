@@ -1095,6 +1095,94 @@ UI:
 - **Real-time presence** — Supabase realtime каналы, требует клиентской подписки и тестов в живую
 - **Push-уведомления** — service worker + браузерные permissions, сложный setup
 
+## Итерации 41–46 — фиксы после CORS + новые фичи от Алёны
+
+Шестой заход. После поправки `nginx.conf` (добавили `Accept-Profile, Content-Profile, Prefer` в `Access-Control-Allow-Headers` — остальное в конфиге не трогали) заработали админские SSR-запросы. Дальше — точечные фиксы и крупные фичи по списку.
+
+### 41. Кликабельное имя переводчика в `NovelCard` (PR #8)
+В iter 26 я только частично закрыл жалобу «клики по имени переводчика не работают» — починил `BookmarkCard`. В `NovelCard` имя оставалось plain text, потому что карточка сама была обёрнута в `<Link>`, а Next.js 16 запрещает вложенные `<Link>`.
+
+Развернул: `NovelCard` теперь `<div>` с тремя независимыми ссылками — обложка + заголовок на новеллу, имя переводчика на `/t/{slug}`. Hover-лифт обложки сохранён через CSS-селектор на wrapper.
+
+Хелпер `src/lib/translator.ts → fetchTranslatorSlugs(ids)` батчит запрос к `profiles`, отдаёт `Map<id, slug>` с fallback на `user_name`. Протащил через все места: `/`, `/catalog`, `/t/[slug]`, `/novel/[id]` (коллаборативная «Созвучие читателей» + score-fallback «Похожее»).
+
+### 42. Фокус-режим в читалке работает по кнопке, без reload (PR #8)
+`MutationObserver` на класс wrapper был ненадёжен — React при re-render иногда не давал observer'у сработать. Убрал его, добавил явную зависимость `settings.focusMode` в основном useEffect. Переключение сразу пересчитывает активный абзац и подсвечивает его, без F5.
+
+### 43. Фильтр жанров и настроений в `/catalog` (PR #9)
+Два молчаливых бага с кириллицей:
+- `.contains('genres', [g])` хотел full superset на jsonb-массиве → никогда не матчил, каталог пустой
+- mood-фильтр строил raw `.or('genres.cs.["фэнтези"]')` → Supabase не URL-энкодил кириллицу, и PostgREST эти записи молча игнорил
+
+Заменил оба на `.overlaps()` — правильная семантика пересечения, кириллица корректно энкодится. Клик по жанру из карточки / жанровых чипов на главной + пикер настроения теперь возвращают реальные новеллы.
+
+### 44. Внешний переводчик + «Это моя работа» (PR #9, миграция 024)
+Переводчики добавляют работы друг друга (с разрешения). Если реальный переводчик потом регистрируется — может забрать новеллу себе через claim.
+
+БД:
+- `novels.external_translator_name / _url / _note` — заполняются когда `translator_id IS NULL`
+- Пересобран `novels_view` с новыми колонками
+- Таблица `novel_translator_claims (novel_id, claimant_id, proof, status, reviewer_*)` с RLS: claimant видит свои, админ — все
+- RPC `request_novel_claim(novel, proof)` — залогиненный юзер может заклеймить только новеллу без зарегистрированного переводчика, дубли не проходят
+- RPC `resolve_novel_claim(claim, approve, note)` — только админ; при approve `novels.translator_id` переписывается на claimant, external-поля чистятся
+- Триггер: новая заявка → уведомление всем админам; решение → уведомление заявителю с `reviewer_note` при отказе
+
+UI:
+- `TranslatorPicker` (иксе, debounced 220 мс) — autocomplete по `profiles` с role translator/admin, «Это я» быстрая кнопка, если в поиске ничего → «+ Добавить <ввод> как внешнего переводчика» переключает на форму с name + url + **обязательной галкой «имею разрешение»**
+- `NovelForm` получил обязательное поле «Переводчик *». Submit не даёт сохранить без переводчика или без галки согласия
+- `/admin/novels/new` предвыбирает текущего пользователя; `/admin/novels/[id]/edit` подгружает существующего
+- Страница новеллы показывает dashed-карточку «Внешний переводчик» с опц. внешней ссылкой + кнопкой «Это моя работа →» (клиентский `NovelClaimButton`) для залогиненных translator/admin
+- Claim-модалка — показывает статус старых заявок (pending/approved/rejected с причиной отказа), поле для доказательств
+- `/admin/moderation` — новая секция «Заявки "Это моя работа"» сверху над очередью модерации новелл с Approve / Reject-with-reason (компонент `ClaimCard`)
+
+### 45. «Спасибо за главу» + чаевые переводчику (PR #9, миграция 025)
+Под каждой главой — розовая карточка-призыв.
+
+БД:
+- `chapter_thanks (user_id, novel_id, chapter_number, translator_id, tip_coins)` с `UNIQUE(reader, chapter)`. RLS: свои + переводчик свои; direct-write у authenticated отобран, только через RPC
+- RPC `thank_chapter(novel, chapter, tip_coins)` — валидирует 0–500, лочит баланс `FOR UPDATE`, списывает у читателя, зачисляет переводчику, пишет обе транзакции в `coin_transactions`, upsert в `chapter_thanks`. Идемпотентно для `tip=0`. Анти-злоупотребления: self-tip → 0, tip в новеллу без `translator_id` → 0
+- RPC `chapter_thanks_summary(novel, chapter)` → `{ total_count, total_coins, my_thanked }` для UI
+- Триггер: только денежные tips шлют `chapter_tip`-уведомление переводчику (лайки не спамят)
+
+UI: бесплатное «♥ Спасибо» (становится «✓ Уже поблагодарил(а)»), кнопка-тоггл «💝 Чаевые» с пресетами +1 / +2 / +5 / +10 и полем свой суммы 1–500. Ошибки `insufficient_balance` / `not_authenticated` переведены в человеческий текст.
+
+### 46. EPUB по уровню доступа, на лету (PR #9)
+Вместо фонового скрипта, как первоначально обсуждали — каждый запрос `/api/novel/[id]/epub` собирает EPUB на сервере с учётом прав текущего читателя. Готовый файл из `novels.epub_path` остаётся как fallback (если заполнен).
+
+Тиры:
+- аноним / нет подписки и нет покупок → только `is_paid = false`
+- активная `subscriptions` на переводчика → все опубликованные главы
+- есть `chapter_purchases` → бесплатные + купленные
+- владелец / админ → всё (preview)
+
+Пустой доступ → 403 с подсказкой «купи / подпишись».
+
+Имплементация: добавил `jszip` в зависимости. Новый `src/lib/epub.ts` собирает минимальный EPUB 2.0 (`mimetype` STORE + `META-INF/container.xml` + `OEBPS/content.opf` + `OEBPS/toc.ncx` + `OEBPS/style.css` + по `chN.xhtml` на главу + опциональная обложка). Содержимое глав тянется из `chapter_content` bucket батчами по 8. Имя файла — безопасный UTF-8 slug; заголовок `X-Epub-Tier` для отладки.
+
+В `NovelForm` поле `epub_path` переименовано на «EPUB вручную (необязательно)» — подсказка объясняет, что пусто = сервер собирает сам.
+
+## Миграции — новые в этой сессии
+
+- **`024_external_translator_and_claims.sql`** — external_translator_* колонки + пересборка `novels_view` + таблица `novel_translator_claims` + RPC request/resolve + триггер уведомлений
+- **`025_chapter_thanks_and_tips.sql`** — таблица `chapter_thanks` + RPC thank_chapter / chapter_thanks_summary + триггер уведомлений переводчику на денежные tips
+
+## Что обязательно ставить после pull
+
+```
+npm install        # добавилась jszip (для EPUB)
+```
+
+И накатить на Supabase **в порядке**: `024_external_translator_and_claims.sql`, потом `025_chapter_thanks_and_tips.sql`.
+
+## Что конфигурировали в nginx.conf
+
+Единственное изменение: в `Access-Control-Allow-Headers` (оба `add_header` — в `if ($request_method = 'OPTIONS')` и снаружи) добавили к списку:
+```
+,Accept-Profile,Content-Profile,Prefer
+```
+
+Нужно для `@supabase/ssr` в Next.js 16. На `tene.fun` не влияет (tene-клиент эти заголовки не шлёт). После `nginx -s reload` админские карточки на chaptify начали нормально подтягивать данные.
+
 ## Предстоит
 
 ### Миграции — накатить на Supabase в порядке
