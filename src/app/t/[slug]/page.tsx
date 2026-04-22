@@ -236,6 +236,11 @@ export default async function TranslatorPage({ params }: PageProps) {
 
   return (
     <main className="container section">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Переводчик</span>
+      </div>
       {/* Шапка переводчика */}
       <div className="translator-hero">
         <div className="translator-hero-avatar">

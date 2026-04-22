@@ -331,7 +331,7 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
         <p style={{ color: 'var(--ink-mute)' }}>Загружаем комментарии…</p>
       ) : topLevel.length === 0 ? (
         <p style={{ color: 'var(--ink-mute)' }}>
-          Пока никто не оставил отзыв. Будь первым.
+          Пока никто не оставил отзыв. Стань первым.
         </p>
       ) : (
         <div className="comments-list">

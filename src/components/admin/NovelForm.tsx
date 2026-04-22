@@ -9,6 +9,7 @@ import TranslatorPicker, {
   type TranslatorPickerValue,
 } from './TranslatorPicker';
 import { bbToHtml, htmlToBb } from '@/lib/bbcode';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 import {
   AGE_RATINGS,
   COUNTRY_LABELS,
@@ -96,6 +97,7 @@ export default function NovelForm({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const set = <K extends keyof NovelFormValues>(key: K, v: NovelFormValues[K]) =>
     setValues((prev) => ({ ...prev, [key]: v }));
@@ -196,9 +198,11 @@ export default function NovelForm({
 
       if (insertError) {
         setError(insertError.message);
+        pushToast('error', `Не удалось создать: ${insertError.message}`);
         setSubmitting(false);
         return;
       }
+      pushToast('success', 'Новелла создана — откроется страница редактирования.');
       router.push(`/admin/novels/${data.firebase_id}/edit`);
       router.refresh();
     } else {
@@ -209,9 +213,11 @@ export default function NovelForm({
 
       if (updateError) {
         setError(updateError.message);
+        pushToast('error', `Не сохранилось: ${updateError.message}`);
         setSubmitting(false);
         return;
       }
+      pushToast('success', 'Изменения сохранены.');
       setSubmitting(false);
       router.refresh();
     }
@@ -516,6 +522,7 @@ export default function NovelForm({
           {submitting ? 'Сохраняем…' : mode === 'create' ? 'Создать новеллу' : 'Сохранить'}
         </button>
       </div>
+      <ToastStack items={toasts} onDismiss={dismissToast} />
     </form>
   );
 }

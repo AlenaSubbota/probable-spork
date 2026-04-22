@@ -639,7 +639,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                   <div className="title">
                     {displayTitle}
                     {isOwned && (
-                      <span className="chapter-owned-badge" title="Ты купил эту главу">
+                      <span className="chapter-owned-badge" title="Эта глава куплена">
                         ✓ куплено
                       </span>
                     )}

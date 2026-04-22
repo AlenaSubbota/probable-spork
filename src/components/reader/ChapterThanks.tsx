@@ -109,9 +109,53 @@ export default function ChapterThanks({
     router.refresh();
   };
 
+  // Отмена чистого лайка (миграция 028). Если были чаевые — деньги не
+  // отменить, RPC вернёт ok=false, оставляем состояние thanked.
+  const unthank = async () => {
+    setError(null);
+    setMessage(null);
+    setBusy(true);
+    const supabase = createClient();
+    const { data, error: err } = await supabase.rpc('untoggle_thank', {
+      p_novel: novelId,
+      p_chapter: chapterNumber,
+    });
+    setBusy(false);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    const res = (data ?? {}) as { ok?: boolean; error?: string; removed?: boolean };
+    if (!res.ok) {
+      if (res.error === 'has_tip') {
+        setError('Чаевые уже отправлены переводчику — отменить нельзя.');
+      } else {
+        setError(res.error ?? 'Не удалось отменить.');
+      }
+      return;
+    }
+    if (res.removed) {
+      setSummary((s) =>
+        s
+          ? {
+              total_count: Math.max(0, s.total_count - 1),
+              total_coins: s.total_coins,
+              my_thanked: false,
+            }
+          : s
+      );
+      setMessage('Лайк снят.');
+    }
+    router.refresh();
+  };
+
   const handleLike = () => {
     if (!isLoggedIn) return;
-    sendThanks(0);
+    if (myThanked) {
+      unthank();
+    } else {
+      sendThanks(0);
+    }
   };
 
   const handleTip = () => {
@@ -159,9 +203,9 @@ export default function ChapterThanks({
               className={`btn ${myThanked ? 'btn-ghost' : 'btn-primary'}`}
               onClick={handleLike}
               disabled={busy}
-              title={myThanked ? 'Ты уже благодарил(а) за эту главу' : 'Бесплатно'}
+              title={myThanked ? 'Клик — снять лайк' : 'Бесплатно'}
             >
-              {myThanked ? '✓ Уже поблагодарил(а)' : '♥ Спасибо'}
+              {myThanked ? '✓ Поблагодарил(а). Нажми, чтобы снять' : '♥ Спасибо'}
             </button>
             {hasTranslator && (
               <button
