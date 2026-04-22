@@ -26,28 +26,30 @@ export default function AuthCallbackPage() {
       const code = url.searchParams.get('code');
       const next = url.searchParams.get('next') || '/';
 
+      // @supabase/ssr browser-client при создании сам видит ?code= в URL
+      // и делает exchangeCodeForSession автоматически (detectSessionInUrl
+      // включён по умолчанию). Наш ручной exchange ниже — подстраховка
+      // на случай если автоматический не прошёл: если сессия уже есть —
+      // ручной вернёт ошибку 'code already used', её игнорируем.
       if (code) {
-        // PKCE: обмен code на session
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setMessage('Ошибка входа. Перенаправляем…');
-          setTimeout(() => {
-            window.location.href =
-              '/login?error=' + encodeURIComponent(error.message);
-          }, 1500);
-          return;
-        }
+        await supabase.auth.exchangeCodeForSession(code).catch(() => {
+          // молча — проверим итог через getSession ниже
+        });
       }
-      // Если был implicit flow (hash с access_token), browser-client
-      // detectSessionInUrl сам подхватил на createClient() выше.
 
-      // Финальная проверка
+      // Даём auth-events долететь (setSession асинхронно пишет cookie)
+      await new Promise((r) => setTimeout(r, 100));
+
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        // Hard reload — чтобы SSR увидел свежие cookies
+        // Hard reload — SSR увидит свежую auth-cookie и отрендерит шапку
+        // с профилем вместо гостевых кнопок.
         window.location.href = next;
       } else {
-        window.location.href = '/login?error=oauth_no_session';
+        setMessage('Не удалось войти. Перенаправляем…');
+        setTimeout(() => {
+          window.location.href = '/login?error=oauth_failed';
+        }, 1500);
       }
     };
     run();
