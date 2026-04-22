@@ -19,22 +19,56 @@ export default async function TranslatorPage({ params }: PageProps) {
   const supabase = await createClient();
   const { data: { user: viewer } } = await supabase.auth.getUser();
 
-  // Ищем переводчика: сперва по translator_slug, иначе по user_name (legacy tene).
-  // Важно: НЕ используем .or() со строковой интерполяцией — пробелы/юникод в
-  // user_name (например «Alena ᥫ᭡») ломают PostgREST-парсер. Две отдельные
-  // .eq()-выборки правильно параметризуются и безопасны для любых символов.
-  let { data: byField } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('translator_slug', slug)
-    .maybeSingle();
+  // Устойчивый lookup переводчика. Почему столько вариантов:
+  //  - Unicode-normalization: URL может приходить в NFD, БД хранить NFC (или наоборот)
+  //  - Trailing/leading whitespace в user_name (частый случай у импорта из tene)
+  //  - Case: у одних slug lowercase, у других — с заглавной
+  //  - translator_slug приоритетнее user_name (если переводчик задал собственный)
+  // PostgREST .or() со строкой ломается на пробелах/юникоде → используем .eq() / .ilike().
+  const rawSlug = slug;
+  const decoded = (() => {
+    try { return decodeURIComponent(slug); } catch { return slug; }
+  })();
+  const candidates = Array.from(new Set([
+    rawSlug,
+    decoded,
+    decoded.trim(),
+    decoded.normalize('NFC'),
+    decoded.normalize('NFD'),
+    decoded.trim().normalize('NFC'),
+  ]));
+
+  let byField: Record<string, unknown> | null = null;
+
+  // 1) По translator_slug (точное совпадение с любым вариантом)
+  for (const v of candidates) {
+    const { data } = await supabase
+      .from('profiles').select('*').eq('translator_slug', v).maybeSingle();
+    if (data) { byField = data; break; }
+  }
+  // 2) По user_name (точное совпадение с любым вариантом)
   if (!byField) {
-    const { data: byName } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_name', slug)
-      .maybeSingle();
-    byField = byName;
+    for (const v of candidates) {
+      const { data } = await supabase
+        .from('profiles').select('*').eq('user_name', v).maybeSingle();
+      if (data) { byField = data; break; }
+    }
+  }
+  // 3) Case-insensitive fallback по user_name (ilike с escape)
+  if (!byField) {
+    const escaped = decoded.replace(/([%_\\])/g, '\\$1');
+    const { data } = await supabase
+      .from('profiles').select('*').ilike('user_name', escaped).maybeSingle();
+    if (data) byField = data;
+  }
+
+  if (!byField) {
+    // Логируем в stdout — docker logs chaptify-web покажет, что пришло и что не нашлось.
+    console.warn('[translator-page] not found', {
+      rawSlug,
+      decoded,
+      candidates,
+    });
   }
 
   const profile = byField as
