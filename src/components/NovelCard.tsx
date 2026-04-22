@@ -5,6 +5,8 @@ interface NovelCardProps {
   id: string;
   title: string;
   translator: string;
+  /** slug переводчика для ссылки /t/{slug}. Если не задан — имя остаётся span'ом. */
+  translatorSlug?: string | null;
   metaInfo: string;
   rating: string;
   placeholderClass: string;
@@ -35,10 +37,15 @@ function textExcerpt(html: string | null | undefined, limit = 180): string {
   return (lastSpace > limit / 2 ? slice.slice(0, lastSpace) : slice) + '…';
 }
 
+// Карточка развёрнута: сам div не Link, чтобы внутри можно было иметь
+// независимые ссылки (Next.js 16 запрещает вложенные Link). Обложка и
+// заголовок ведут на новеллу; имя переводчика — на профиль переводчика,
+// если передан translatorSlug.
 export default function NovelCard({
   id,
   title,
   translator,
+  translatorSlug,
   metaInfo,
   rating,
   placeholderClass,
@@ -53,76 +60,83 @@ export default function NovelCard({
 }: NovelCardProps) {
   const excerpt = textExcerpt(description, 200);
   const hasTooltip = !!(excerpt || (genres && genres.length > 0));
+  const novelHref = `/novel/${id}`;
 
   return (
-    <Link href={`/novel/${id}`} className="novel-card">
-      <div className="novel-cover">
-        {coverUrl ? (
-          <img
-            src={coverUrl}
-            alt={title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        ) : (
-          <div className={`placeholder ${placeholderClass}`}>
-            {placeholderText}
-          </div>
-        )}
+    <div className="novel-card">
+      <Link href={novelHref} className="novel-card-cover-link" aria-label={title}>
+        <div className="novel-cover">
+          {coverUrl ? (
+            <img
+              src={coverUrl}
+              alt={title}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div className={`placeholder ${placeholderClass}`}>
+              {placeholderText}
+            </div>
+          )}
 
-        <span className="rating-chip">
-          <span className="star">★</span>{rating}
-        </span>
-        {/* Раньше тут жила заглушка-сердечко без onClick: клик «в закладки»
-           в каталоге ничего не делал. Управление полкой живёт на странице
-           новеллы (BookmarkButton), которая открывается по клику на карточку. */}
-        {flagText && (
-          <span className={`flag ${flagClass || ''}`}>{flagText}</span>
-        )}
-        {ageRating && ageRating === '18+' && (
-          <span className="age-badge-card" title="Контент 18+">18+</span>
-        )}
-        {chapterCount != null && chapterCount > 0 && (
-          <span className="reading-time-badge" title={`${chapterCount} глав`}>
-            {formatReadingTime(chapterCount)}
+          <span className="rating-chip">
+            <span className="star">★</span>{rating}
           </span>
-        )}
+          {flagText && (
+            <span className={`flag ${flagClass || ''}`}>{flagText}</span>
+          )}
+          {ageRating && ageRating === '18+' && (
+            <span className="age-badge-card" title="Контент 18+">18+</span>
+          )}
+          {chapterCount != null && chapterCount > 0 && (
+            <span className="reading-time-badge" title={`${chapterCount} глав`}>
+              {formatReadingTime(chapterCount)}
+            </span>
+          )}
 
-        {/* Hover-тултип с описанием, жанрами */}
-        {hasTooltip && (
-          <div className="novel-card-tooltip" role="tooltip">
-            <div className="novel-card-tooltip-head">
-              <span className="novel-card-tooltip-title">{title}</span>
-              {ageRating && <span className="note">{ageRating}</span>}
-            </div>
-            {excerpt && (
-              <p className="novel-card-tooltip-body">{excerpt}</p>
-            )}
-            {genres && genres.length > 0 && (
-              <div className="novel-card-tooltip-genres">
-                {genres.slice(0, 5).map((g) => (
-                  <span key={g} className="novel-card-tooltip-genre">
-                    {g}
-                  </span>
-                ))}
+          {/* Hover-тултип с описанием, жанрами */}
+          {hasTooltip && (
+            <div className="novel-card-tooltip" role="tooltip">
+              <div className="novel-card-tooltip-head">
+                <span className="novel-card-tooltip-title">{title}</span>
+                {ageRating && <span className="note">{ageRating}</span>}
               </div>
-            )}
-            <div className="novel-card-tooltip-meta">
-              <span>
-                <span className="star">★</span> {rating}
-              </span>
-              {chapterCount != null && chapterCount > 0 && (
-                <span>
-                  {formatReadingTime(chapterCount)} · {chapterCount} гл.
-                </span>
+              {excerpt && (
+                <p className="novel-card-tooltip-body">{excerpt}</p>
               )}
+              {genres && genres.length > 0 && (
+                <div className="novel-card-tooltip-genres">
+                  {genres.slice(0, 5).map((g) => (
+                    <span key={g} className="novel-card-tooltip-genre">
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="novel-card-tooltip-meta">
+                <span>
+                  <span className="star">★</span> {rating}
+                </span>
+                {chapterCount != null && chapterCount > 0 && (
+                  <span>
+                    {formatReadingTime(chapterCount)} · {chapterCount} гл.
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-      <div className="novel-title">{title}</div>
+          )}
+        </div>
+      </Link>
+      <Link href={novelHref} className="novel-title">{title}</Link>
       <div className="novel-meta">
-        <span className="by">{translator}</span> · {metaInfo}
+        {translatorSlug ? (
+          <Link href={`/t/${translatorSlug}`} className="by">
+            {translator}
+          </Link>
+        ) : (
+          <span className="by">{translator}</span>
+        )}
+        {metaInfo && <> · {metaInfo}</>}
       </div>
-    </Link>
+    </div>
   );
 }

@@ -9,6 +9,7 @@ import BookmarkButton from '@/components/BookmarkButton';
 import AdultGate from '@/components/AdultGate';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
+import { fetchTranslatorSlugs } from '@/lib/translator';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -330,6 +331,20 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
 
   const translatorInitial =
     (translatorProfile?.displayName || 'П').trim().charAt(0).toUpperCase();
+
+  // Slugs для блоков «Похожее» (коллаборативка + fallback)
+  const similarSlugMap = await fetchTranslatorSlugs(
+    supabase,
+    [
+      ...((similarByReaders ?? []) as Array<{ translator_id?: string | null }>).map(
+        (n) => n.translator_id
+      ),
+      ...(fallbackSimilar as Array<{ translator_id?: string | null }>).map(
+        (n) => n.translator_id
+      ),
+    ]
+  );
+  const fallbackSimilarSlugMap = similarSlugMap;
 
   return (
     <main>
@@ -681,7 +696,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
 
         {/* Киллер-фича #2 — созвучие читателей */}
         {similarByReaders && similarByReaders.length > 0 && (
-          <SimilarByReaders novels={similarByReaders} />
+          <SimilarByReaders novels={similarByReaders} translatorSlugs={similarSlugMap} />
         )}
 
         {/* Фолбэк: «От этого же автора», если коллаборативка пустая */}
@@ -700,12 +715,18 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                 average_rating: number | null;
                 rating_count: number | null;
                 chapter_count: number | null;
+                translator_id?: string | null;
               }>).map((n, index) => (
                 <NovelCard
                   key={n.id}
                   id={n.firebase_id}
                   title={n.title}
                   translator={n.author || 'Автор'}
+                  translatorSlug={
+                    n.translator_id
+                      ? fallbackSimilarSlugMap.get(n.translator_id) ?? null
+                      : null
+                  }
                   metaInfo={`${n.rating_count || 0} оценок`}
                   rating={n.average_rating ? Number(n.average_rating).toFixed(1) : '—'}
                   coverUrl={getCoverUrl(n.cover_url)}

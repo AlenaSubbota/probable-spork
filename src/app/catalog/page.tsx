@@ -4,6 +4,7 @@ import NovelCard from '@/components/NovelCard';
 import CatalogFilters from '@/components/CatalogFilters';
 import MoodPicker from '@/components/MoodPicker';
 import { getCoverUrl } from '@/lib/format';
+import { fetchTranslatorSlugs } from '@/lib/translator';
 import {
   getMood,
   getReadingBucket,
@@ -52,7 +53,7 @@ export default async function CatalogPage({
   let query = supabase
     .from('novels_view')
     .select(
-      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description',
+      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description, translator_id',
       { count: 'exact' }
     )
     .eq('moderation_status', 'published');
@@ -86,6 +87,12 @@ export default async function CatalogPage({
   query = query.range(from, to);
 
   const { data: novels, count } = await query;
+
+  // Slugs переводчиков для кликабельного имени в карточках
+  const translatorSlugMap = await fetchTranslatorSlugs(
+    supabase,
+    (novels ?? []).map((n) => n.translator_id)
+  );
 
   // ---- Список жанров для сайдбара (считаем по всему каталогу, без фильтров) ----
   const { data: allForGenres } = await supabase
@@ -166,6 +173,7 @@ export default async function CatalogPage({
                   id={novel.firebase_id}
                   title={novel.title}
                   translator={novel.author || 'Алёна'}
+                  translatorSlug={novel.translator_id ? translatorSlugMap.get(novel.translator_id) ?? null : null}
                   metaInfo={`${novel.chapter_count ?? 0} гл.`}
                   rating={
                     novel.average_rating

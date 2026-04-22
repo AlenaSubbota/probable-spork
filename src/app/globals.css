@@ -315,10 +315,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @media (max-width: 700px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); } }
 
 .novel-card {
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* Обложка и заголовок — самостоятельные <Link>, чтобы имя переводчика
+   в meta могло быть отдельной ссылкой (вложенные Link запрещены в Next 16). */
+.novel-card-cover-link {
+  display: block;
+  color: inherit;
 }
 .novel-cover {
   position: relative;
@@ -328,8 +333,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--accent-soft);
   box-shadow: var(--shadow-sm);
   transition: transform .25s, box-shadow .25s;
+  cursor: pointer;
 }
-.novel-card:hover .novel-cover {
+.novel-card:hover .novel-cover,
+.novel-card-cover-link:hover .novel-cover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
 }
@@ -402,7 +409,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  cursor: pointer;
+  transition: color .12s;
 }
+.novel-title:hover { color: var(--accent); }
 .novel-meta {
   font-size: 11.5px;
   color: var(--ink-mute);
@@ -410,7 +420,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   gap: 8px;
   align-items: center;
 }
-.novel-meta .by { color: var(--accent); font-weight: 600; }
+.novel-meta .by {
+  color: var(--accent);
+  font-weight: 600;
+  transition: color .12s;
+}
+.novel-meta a.by:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
 
 /* ---------- two-col (novel page) ---------- */
 
