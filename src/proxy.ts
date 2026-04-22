@@ -32,12 +32,16 @@ export async function proxy(req: NextRequest) {
   // OAuth failsafe: Supabase иногда усекает redirect_to до origin
   // и возвращает ?code=... на корень (или любой путь) вместо
   // /auth/callback. Если видим ?code= на публичной странице —
-  // перекидываем на наш callback-роут, он сделает exchange.
+  // перекидываем на наш callback-page, он сделает exchange на клиенте.
+  // Важно: используем req.nextUrl.clone() чтобы сохранить внешний host
+  // (chaptify.ru), а не внутренний docker-hostname из req.url.
   if (code && !path.startsWith('/auth/callback')) {
-    const callbackUrl = new URL('/auth/callback', req.url);
+    const callbackUrl = req.nextUrl.clone();
+    callbackUrl.pathname = '/auth/callback';
     callbackUrl.searchParams.set('code', code);
     const next = req.nextUrl.searchParams.get('next');
     if (next) callbackUrl.searchParams.set('next', next);
+    // чистим вообще все остальные query, на callback их не надо
     return NextResponse.redirect(callbackUrl);
   }
 
