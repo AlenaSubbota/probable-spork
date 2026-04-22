@@ -12,7 +12,13 @@
 --  3) Пересчитывает like_count как COUNT(*) из comment_likes
 --  4) Возвращает новое состояние {liked, count}
 -- Клиент не делает прямых UPDATE на comments.
+--
+-- Если функция уже существует с другим возвращаемым типом (legacy из
+-- tene, где она возвращала void), CREATE OR REPLACE упадёт с
+-- "cannot change return type". Поэтому сначала DROP.
 -- ============================================================
+
+DROP FUNCTION IF EXISTS public.toggle_comment_like(bigint);
 
 CREATE OR REPLACE FUNCTION public.toggle_comment_like(p_comment_id bigint)
 RETURNS jsonb
