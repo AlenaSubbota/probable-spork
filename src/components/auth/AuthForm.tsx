@@ -11,17 +11,14 @@ interface Props {
   mode: 'login' | 'register';
 }
 
-type EmailMode = 'password' | 'magic';
-
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || 'tenebrisverbot';
 const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://tene.fun';
 
 export default function AuthForm({ mode }: Props) {
   const router = useRouter();
-  const [emailMode, setEmailMode] = useState<EmailMode>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [status, setStatus] = useState<'idle' | 'busy' | 'magic-sent' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'busy' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -31,19 +28,6 @@ export default function AuthForm({ mode }: Props) {
     const supabase = createClient();
 
     try {
-      if (emailMode === 'magic') {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            shouldCreateUser: mode === 'register',
-          },
-        });
-        if (error) throw error;
-        setStatus('magic-sent');
-        return;
-      }
-
       if (mode === 'register') {
         const { error } = await supabase.auth.signUp({
           email,
@@ -173,32 +157,15 @@ export default function AuthForm({ mode }: Props) {
 
       <div className="auth-divider"><span>или</span></div>
 
-      {/* Email-форма */}
-      <div className="auth-email-tabs">
-        <button
-          type="button"
-          className={`auth-email-tab${emailMode === 'password' ? ' active' : ''}`}
-          onClick={() => setEmailMode('password')}
-        >
-          Email + пароль
-        </button>
-        <button
-          type="button"
-          className={`auth-email-tab${emailMode === 'magic' ? ' active' : ''}`}
-          onClick={() => setEmailMode('magic')}
-          title="Войти по ссылке из письма — без пароля"
-        >
-          ✉ Magic link
-        </button>
+      {/* Email-форма. Magic-link пока выключен: шаблон письма общий с
+          tene.fun на одной Supabase, поэтому юзер получает «добро
+          пожаловать в tene». Вернём когда разделим Site URL per-site. */}
+      <div className="auth-section-label" style={{ marginTop: 8 }}>
+        {isRegister ? 'Регистрация по email' : 'Вход по паролю'}
       </div>
 
-      {status === 'magic-sent' ? (
-        <div className="auth-success">
-          <strong>Проверь почту</strong>
-          <div>
-            Отправили на <b>{email}</b> ссылку — нажми, и ты войдёшь без пароля.
-          </div>
-        </div>
+      {false ? (
+        <div className="auth-success" />
       ) : (
         <form onSubmit={handleEmailSubmit} className="auth-email-form">
           <input
@@ -209,23 +176,15 @@ export default function AuthForm({ mode }: Props) {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          {emailMode === 'password' && (
-            <input
-              type="password"
-              className="form-input"
-              placeholder={isRegister ? 'Придумай пароль' : 'Пароль'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={6}
-              required
-            />
-          )}
-          {emailMode === 'magic' && (
-            <p className="auth-hint">
-              {/* Киллер-фича #3 — Magic link */}
-              Отправим на почту ссылку для входа. Пароль запоминать не нужно.
-            </p>
-          )}
+          <input
+            type="password"
+            className="form-input"
+            placeholder={isRegister ? 'Придумай пароль' : 'Пароль'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={6}
+            required
+          />
           <button
             type="submit"
             className="btn btn-primary"
@@ -234,8 +193,6 @@ export default function AuthForm({ mode }: Props) {
           >
             {status === 'busy'
               ? 'Ждите…'
-              : emailMode === 'magic'
-              ? 'Отправить ссылку'
               : isRegister
               ? 'Создать аккаунт'
               : 'Войти'}
