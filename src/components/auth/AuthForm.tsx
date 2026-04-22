@@ -51,9 +51,13 @@ export default function AuthForm({ mode }: Props) {
   const handleGoogleAuth = async () => {
     setError(null);
     const supabase = createClient();
+    // redirectTo ведёт на наш callback-route, где code обменяется на
+    // session и cookie ляжет на домене chaptify.ru — только после этого
+    // SSR-шапка увидит юзера. Ставить сюда '/' нельзя: там нет кода
+    // для exchangeCodeForSession().
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) setError(error.message);
   };
