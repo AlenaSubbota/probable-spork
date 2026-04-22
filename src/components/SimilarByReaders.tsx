@@ -12,15 +12,18 @@ interface Novel {
   chapter_count: number | null;
   is_completed: boolean | null;
   match_count: number;
+  translator_id?: string | null;
 }
 
 interface Props {
   novels: Novel[];
+  /** Map translator_id → slug для кликабельных имён в карточках */
+  translatorSlugs?: Map<string, string>;
 }
 
 // Киллер-фича #2 страницы новеллы: рекомендации на основе реальных
 // вкусов — те, кто поставил этой новелле 4+, также ставили 4+ вот этим.
-export default function SimilarByReaders({ novels }: Props) {
+export default function SimilarByReaders({ novels, translatorSlugs }: Props) {
   if (!novels || novels.length === 0) return null;
 
   return (
@@ -39,6 +42,11 @@ export default function SimilarByReaders({ novels }: Props) {
             id={n.firebase_id}
             title={n.title}
             translator={n.author || 'Алёна'}
+            translatorSlug={
+              n.translator_id && translatorSlugs
+                ? translatorSlugs.get(n.translator_id) ?? null
+                : null
+            }
             metaInfo={`${n.match_count} совпадений`}
             rating={n.average_rating ? Number(n.average_rating).toFixed(1) : '—'}
             coverUrl={getCoverUrl(n.cover_url)}

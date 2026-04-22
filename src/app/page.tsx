@@ -14,6 +14,7 @@ import StoriesStrip, { type StoryItem } from '@/components/home/StoriesStrip';
 import JournalStrip, { type JournalItem } from '@/components/home/JournalStrip';
 import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
+import { fetchTranslatorSlugs } from '@/lib/translator';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
 
@@ -487,6 +488,14 @@ export default async function HomePage() {
     // миграция 013 не накачена
   }
 
+  // Подтягиваем slugs переводчиков для popular + recent, чтобы имя в
+  // карточке было Link'ом на профиль.
+  const translatorIds = [
+    ...(popularNovels ?? []).map((n) => n.translator_id),
+    ...(recentNovels ?? []).map((n) => n.translator_id),
+  ];
+  const translatorSlugMap = await fetchTranslatorSlugs(supabase, translatorIds);
+
   return (
     <main>
       {/* Instagram-style stories вверху */}
@@ -547,6 +556,7 @@ export default async function HomePage() {
               id={novel.firebase_id}
               title={novel.title}
               translator={novel.author || 'Алёна'}
+              translatorSlug={novel.translator_id ? translatorSlugMap.get(novel.translator_id) ?? null : null}
               metaInfo={`${novel.rating_count || 0} оценок`}
               rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
               coverUrl={getCoverUrl(novel.cover_url)}
@@ -576,6 +586,7 @@ export default async function HomePage() {
                 id={novel.firebase_id}
                 title={novel.title}
                 translator={novel.author || 'Алёна'}
+                translatorSlug={novel.translator_id ? translatorSlugMap.get(novel.translator_id) ?? null : null}
                 metaInfo={date}
                 rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
                 coverUrl={getCoverUrl(novel.cover_url)}

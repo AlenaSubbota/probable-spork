@@ -292,6 +292,7 @@ export default async function TranslatorPage({ params }: PageProps) {
                 id={n.firebase_id}
                 title={n.title}
                 translator={displayName}
+                translatorSlug={effectiveSlug}
                 metaInfo={`${n.chapter_count ?? 0} гл.`}
                 rating={n.average_rating ? Number(n.average_rating).toFixed(1) : '—'}
                 coverUrl={getCoverUrl(n.cover_url)}
