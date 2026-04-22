@@ -24,6 +24,10 @@ jobs:
           push: true
           tags: alenasubbota/chaptify-web:latest
           # Передаем ключи как аргументы сборки, чтобы Next.js их "впек"
+          # в JS-бандл. NEXT_PUBLIC_* в Next.js нельзя задавать в runtime
+          # через docker-compose environment — только через build-arg.
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_TG_BOT_USERNAME=chaptify_bot
+            NEXT_PUBLIC_AUTH_API_URL=https://chaptify.ru
