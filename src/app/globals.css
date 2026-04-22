@@ -4806,6 +4806,101 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   letter-spacing: normal;
 }
 
+/* Inline-spoiler через <details> (BBCode [spoiler] и legacy >!!<) */
+.comment-spoiler-inline {
+  display: inline;
+}
+.comment-spoiler-inline > summary {
+  display: inline;
+  cursor: pointer;
+  color: var(--accent);
+  user-select: none;
+  list-style: none;
+}
+.comment-spoiler-inline > summary::-webkit-details-marker { display: none; }
+.comment-spoiler-inline[open] > summary {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-right: 4px;
+}
+.comment-spoiler-inline[open] > summary::before {
+  content: '▼ ';
+}
+.comment-spoiler-inline:not([open]) > summary::before {
+  content: '▶ ';
+}
+
+/* Удалённый комментарий */
+.comment-item--deleted .comment-text--deleted {
+  color: var(--ink-mute);
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* Действие-опасное на комментарии (удаление админом) */
+.comment-action-danger {
+  color: #c8392f !important;
+}
+.comment-action-danger:hover {
+  background: #fbeaea !important;
+}
+
+/* Метка «изменено» в заголовке коммента */
+.comment-edited {
+  color: var(--ink-mute);
+  font-size: 11px;
+}
+
+/* ---------- linked-accounts (профиль → связанные аккаунты) ---------- */
+.linked-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.linked-account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border, #e6e0d4);
+  border-radius: 8px;
+  background: var(--paper, #fff);
+}
+.linked-account-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--paper-warm, #f5f0e6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink, #2a2a2a);
+}
+.linked-account-body {
+  flex: 1;
+  min-width: 0;
+}
+.linked-account-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.linked-account-sub {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+  word-break: break-all;
+}
+.linked-account-status {
+  font-size: 12px;
+  color: var(--ink-mute);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--paper-warm, #f5f0e6);
+}
+
 /* ---------- notifications ---------- */
 
 .notif-list {

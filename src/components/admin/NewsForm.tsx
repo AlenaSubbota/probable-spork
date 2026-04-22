@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import BBCodeEditor from './BBCodeEditor';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 import { bbToHtml, htmlToBb } from '@/lib/bbcode';
 import {
   NEWS_TYPES,
@@ -61,6 +62,7 @@ export default function NewsForm({ initial, mode }: Props) {
   const [rubricInput, setRubricInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { items: toasts, push: pushToast, dismiss: dismissToast } = useToasts();
 
   const isJournal = isJournalType(values.type);
 
@@ -162,9 +164,11 @@ export default function NewsForm({ initial, mode }: Props) {
         .single();
       if (insErr) {
         setError(insErr.message);
+        pushToast('error', `Не опубликовалось: ${insErr.message}`);
         setSubmitting(false);
         return;
       }
+      pushToast('success', 'Новость опубликована.');
       router.push(`/admin/news`);
       router.refresh();
     } else {
@@ -174,9 +178,11 @@ export default function NewsForm({ initial, mode }: Props) {
         .eq('id', values.id!);
       if (upErr) {
         setError(upErr.message);
+        pushToast('error', `Не сохранилось: ${upErr.message}`);
         setSubmitting(false);
         return;
       }
+      pushToast('success', 'Новость обновлена.');
       setSubmitting(false);
       router.refresh();
     }
@@ -424,6 +430,7 @@ export default function NewsForm({ initial, mode }: Props) {
           {submitting ? 'Сохраняем…' : mode === 'create' ? 'Опубликовать' : 'Сохранить'}
         </button>
       </div>
+      <ToastStack items={toasts} onDismiss={dismissToast} />
     </form>
   );
 }

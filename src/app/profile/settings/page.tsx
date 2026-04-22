@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import SettingsForm from './SettingsForm';
+import LinkedAccounts from './LinkedAccounts';
 
 export const metadata = { title: 'Настройки — Chaptify' };
 
@@ -77,6 +78,8 @@ export default async function ProfileSettingsPage() {
               ?.show_reading_publicly ?? true,
         }}
       />
+
+      <LinkedAccounts telegramId={profile.telegram_id ?? null} />
     </main>
   );
 }
