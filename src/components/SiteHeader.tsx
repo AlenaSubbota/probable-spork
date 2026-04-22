@@ -133,9 +133,14 @@ export default async function SiteHeader() {
               </Link>
             </>
           ) : (
-            <Link href="/login" className="btn btn-primary">
-              Войти
-            </Link>
+            <>
+              <Link href="/login" className="btn btn-ghost">
+                Войти
+              </Link>
+              <Link href="/register" className="btn btn-primary">
+                Регистрация
+              </Link>
+            </>
           )}
         </div>
       </div>
