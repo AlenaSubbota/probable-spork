@@ -134,37 +134,50 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
   const toggleLike = async (comment: Comment) => {
     if (!userId) return;
     // Оптимистичный апдейт
+    const wasLiked = !!comment.user_has_liked;
     setComments((prev) =>
       prev.map((c) =>
         c.id === comment.id
           ? {
               ...c,
-              user_has_liked: !c.user_has_liked,
-              like_count: Math.max(0, (c.like_count ?? 0) + (c.user_has_liked ? -1 : 1)),
+              user_has_liked: !wasLiked,
+              like_count: Math.max(0, (c.like_count ?? 0) + (wasLiked ? -1 : 1)),
             }
           : c
       )
     );
 
-    if (comment.user_has_liked) {
-      await supabase
-        .from('comment_likes')
-        .delete()
-        .eq('user_id', userId)
-        .eq('comment_id', comment.id);
-      await supabase
-        .from('comments')
-        .update({ like_count: Math.max(0, (comment.like_count ?? 0) - 1) })
-        .eq('id', comment.id);
-    } else {
-      await supabase.from('comment_likes').insert({
-        user_id: userId,
-        comment_id: comment.id,
-      });
-      await supabase
-        .from('comments')
-        .update({ like_count: (comment.like_count ?? 0) + 1 })
-        .eq('id', comment.id);
+    // RPC из миграции 030: одним вызовом toggle + пересчёт like_count.
+    // Клиент не может UPDATE чужой коммент после RLS из миграции 029,
+    // поэтому всё через security-definer RPC.
+    const { data, error } = await supabase.rpc('toggle_comment_like', {
+      p_comment_id: comment.id,
+    });
+    if (error) {
+      // Откатываем оптимистичный апдейт
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === comment.id
+            ? { ...c, user_has_liked: wasLiked, like_count: comment.like_count }
+            : c
+        )
+      );
+      return;
+    }
+    const res = (data ?? {}) as { ok?: boolean; liked?: boolean; count?: number };
+    if (res.ok) {
+      // Синхронизируем с реальным count из БД
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === comment.id
+            ? {
+                ...c,
+                user_has_liked: !!res.liked,
+                like_count: res.count ?? c.like_count,
+              }
+            : c
+        )
+      );
     }
   };
 
