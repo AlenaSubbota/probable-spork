@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import CoverUpload from './CoverUpload';
 import BBCodeEditor from './BBCodeEditor';
+import TranslatorPicker, {
+  type TranslatorPickerValue,
+} from './TranslatorPicker';
 import { bbToHtml, htmlToBb } from '@/lib/bbcode';
 import {
   AGE_RATINGS,
@@ -38,6 +41,8 @@ export interface NovelFormValues {
   external_links: Array<{ label: string; url: string }>;
   // Путь к EPUB в bucket или полный URL. Показывает кнопку 📘 на странице.
   epub_path: string | null;
+  /** Переводчик — либо id зарегистрированного, либо внешний текстом */
+  translator: TranslatorPickerValue;
 }
 
 const EMPTY: NovelFormValues = {
@@ -57,15 +62,29 @@ const EMPTY: NovelFormValues = {
   genres: [],
   external_links: [],
   epub_path: null,
+  translator: {
+    translator_id: null,
+    external_name: null,
+    external_url: null,
+    external_consent: false,
+  },
 };
 
 interface Props {
   initial?: Partial<NovelFormValues> & { descriptionHtml?: string };
   mode: 'create' | 'edit';
   isAdmin?: boolean;
+  currentUserId?: string | null;
+  currentUserName?: string | null;
 }
 
-export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
+export default function NovelForm({
+  initial,
+  mode,
+  isAdmin = false,
+  currentUserId = null,
+  currentUserName = null,
+}: Props) {
   const router = useRouter();
   const [values, setValues] = useState<NovelFormValues>(() => {
     const merged = { ...EMPTY, ...initial };
@@ -102,6 +121,20 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
       return;
     }
 
+    // Проверяем выбор переводчика
+    const t = values.translator;
+    const hasRegistered = !!t.translator_id;
+    const externalName = t.external_name?.trim() ?? '';
+    const hasExternal = externalName.length > 0;
+    if (!hasRegistered && !hasExternal) {
+      setError('Выбери переводчика: или зарегистрированного, или укажи внешнего.');
+      return;
+    }
+    if (!hasRegistered && hasExternal && !t.external_consent) {
+      setError('Подтверди галочкой, что у тебя есть разрешение переводчика.');
+      return;
+    }
+
     setSubmitting(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -121,6 +154,8 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
       .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
       .filter((l) => l.url.length > 0);
 
+    // translator_id + external_* взаимоисключаются. Если зарегистрированный —
+    // сбрасываем внешние поля; если внешний — обнуляем translator_id.
     const payload = {
       title: values.title.trim(),
       title_original: values.title_original?.trim() || null,
@@ -138,6 +173,11 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
       genres: values.genres,
       external_links: cleanedLinks.length > 0 ? cleanedLinks : null,
       epub_path: values.epub_path?.trim() ? values.epub_path.trim() : null,
+      translator_id: hasRegistered ? t.translator_id : null,
+      external_translator_name: hasRegistered ? null : externalName,
+      external_translator_url: hasRegistered
+        ? null
+        : t.external_url?.trim() || null,
     };
 
     if (mode === 'create') {
@@ -149,7 +189,6 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
         .insert({
           firebase_id,
           ...payload,
-          translator_id: user.id,
           moderation_status: isAdmin ? 'published' : 'draft',
         })
         .select('firebase_id')
@@ -344,6 +383,18 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
             </div>
           </label>
         </div>
+      </div>
+
+      <div className="form-field">
+        <label title="Кто перевёл эту новеллу. Если он зарегистрирован у нас — выбери из списка. Если нет — укажи как внешнего переводчика (нужна галочка, что у тебя есть разрешение).">
+          Переводчик *
+        </label>
+        <TranslatorPicker
+          value={values.translator}
+          onChange={(v) => set('translator', v)}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+        />
       </div>
 
       <div className="form-field">

@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import ModerationCard, {
   type ModerationNovel,
 } from '@/components/admin/ModerationCard';
+import ClaimCard, { type Claim } from '@/components/admin/ClaimCard';
 
 export const metadata = { title: 'Модерация · Админка — Chaptify' };
 
@@ -81,6 +82,73 @@ export default async function AdminModerationPage() {
     .order('reviewed_at', { ascending: false })
     .limit(10);
 
+  // Pending claims: «это моя работа»
+  let claims: Claim[] = [];
+  try {
+    const { data: claimsRaw } = await supabase
+      .from('novel_translator_claims')
+      .select('id, novel_id, claimant_id, proof, created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true });
+
+    const novelIds = Array.from(
+      new Set((claimsRaw ?? []).map((c) => c.novel_id))
+    );
+    const claimantIds = Array.from(
+      new Set((claimsRaw ?? []).map((c) => c.claimant_id))
+    );
+    const [{ data: novelsForClaims }, { data: claimantsForClaims }] =
+      await Promise.all([
+        novelIds.length > 0
+          ? supabase
+              .from('novels')
+              .select('id, firebase_id, title, external_translator_name')
+              .in('id', novelIds)
+          : Promise.resolve({ data: [] }),
+        claimantIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('id, user_name, translator_display_name, translator_slug')
+              .in('id', claimantIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+    const novelsMap = new Map(
+      (novelsForClaims ?? []).map((n) => [n.id, n])
+    );
+    const claimantsMap = new Map(
+      (claimantsForClaims ?? []).map((u) => [u.id, u])
+    );
+    claims = (claimsRaw ?? []).flatMap((c) => {
+      const n = novelsMap.get(c.novel_id);
+      const u = claimantsMap.get(c.claimant_id);
+      if (!n) return [];
+      return [
+        {
+          id: c.id,
+          novel_id: c.novel_id,
+          novel_firebase_id: n.firebase_id,
+          novel_title: n.title,
+          external_name: n.external_translator_name ?? null,
+          claimant_id: c.claimant_id,
+          claimant_name:
+            (u as { translator_display_name?: string | null; user_name?: string | null } | undefined)
+              ?.translator_display_name ||
+            (u as { user_name?: string | null } | undefined)?.user_name ||
+            'Пользователь',
+          claimant_slug:
+            (u as { translator_slug?: string | null; user_name?: string | null } | undefined)
+              ?.translator_slug ||
+            (u as { user_name?: string | null } | undefined)?.user_name ||
+            null,
+          proof: c.proof ?? null,
+          created_at: c.created_at,
+        },
+      ];
+    });
+  } catch {
+    // миграция 024 не накачена
+  }
+
   return (
     <main className="container admin-page">
       <div className="admin-breadcrumbs">
@@ -98,6 +166,22 @@ export default async function AdminModerationPage() {
           </p>
         </div>
       </header>
+
+      {claims.length > 0 && (
+        <section style={{ marginBottom: 32 }}>
+          <div className="section-head">
+            <h2>Заявки «Это моя работа»</h2>
+            <span className="more" style={{ cursor: 'default' }}>
+              {claims.length} шт.
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {claims.map((c) => (
+              <ClaimCard key={c.id} claim={c} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section style={{ marginBottom: 32 }}>
         <div className="section-head">

@@ -6,6 +6,7 @@ import FirstChapterPreview from '@/components/FirstChapterPreview';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import ReleasePace from '@/components/ReleasePace';
 import BookmarkButton from '@/components/BookmarkButton';
+import NovelClaimButton from '@/components/NovelClaimButton';
 import AdultGate from '@/components/AdultGate';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
@@ -464,6 +465,46 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                   >
                     Профиль
                   </span>
+                )}
+              </div>
+            )}
+
+            {!translatorProfile && novel.external_translator_name && (
+              <div className="translator-card translator-card--external">
+                <div
+                  className="avatar"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, var(--ink-mute), var(--ink-soft))',
+                  }}
+                  aria-hidden="true"
+                >
+                  <span>
+                    {novel.external_translator_name.trim().charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="name">{novel.external_translator_name}</div>
+                  <div className="role">
+                    Внешний переводчик · не зарегистрирован у нас
+                  </div>
+                </div>
+                {novel.external_translator_url ? (
+                  <a
+                    href={novel.external_translator_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-ghost"
+                  >
+                    Профиль ↗
+                  </a>
+                ) : null}
+                {user && (viewerIsAdmin || vp?.role === 'translator') && (
+                  <NovelClaimButton
+                    novelId={novel.id}
+                    novelTitle={novel.title}
+                    externalName={novel.external_translator_name}
+                  />
                 )}
               </div>
             )}
