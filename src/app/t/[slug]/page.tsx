@@ -19,14 +19,25 @@ export default async function TranslatorPage({ params }: PageProps) {
   const supabase = await createClient();
   const { data: { user: viewer } } = await supabase.auth.getUser();
 
-  // Ищем переводчика: сперва по translator_slug, иначе по user_name (legacy tene)
-  const { data: allMatches } = await supabase
+  // Ищем переводчика: сперва по translator_slug, иначе по user_name (legacy tene).
+  // Важно: НЕ используем .or() со строковой интерполяцией — пробелы/юникод в
+  // user_name (например «Alena ᥫ᭡») ломают PostgREST-парсер. Две отдельные
+  // .eq()-выборки правильно параметризуются и безопасны для любых символов.
+  let { data: byField } = await supabase
     .from('profiles')
     .select('*')
-    .or(`translator_slug.eq.${slug},user_name.eq.${slug}`)
-    .limit(1);
+    .eq('translator_slug', slug)
+    .maybeSingle();
+  if (!byField) {
+    const { data: byName } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_name', slug)
+      .maybeSingle();
+    byField = byName;
+  }
 
-  const profile = allMatches?.[0] as
+  const profile = byField as
     | {
         id: string;
         user_name: string | null;
