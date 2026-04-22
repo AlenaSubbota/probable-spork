@@ -23,6 +23,18 @@ export const FONT_OPTIONS: FontOption[] = [
 
 export type TextAlign = 'left' | 'justify';
 
+// Тема читалки — три пресета:
+// - light:  кремовая бумага (как сейчас по умолчанию, без изменений)
+// - sepia:  тёплая состаренная бумага (меньше синего света)
+// - dark:   тёмно-серый фон + мягкий тёплый текст (для ночного чтения)
+export type ReaderTheme = 'light' | 'sepia' | 'dark';
+
+export const READER_THEMES: Array<{ key: ReaderTheme; label: string; desc: string }> = [
+  { key: 'light', label: 'Светлая', desc: 'Кремовая бумага' },
+  { key: 'sepia', label: 'Сепия',   desc: 'Старая бумага, меньше синего света' },
+  { key: 'dark',  label: 'Тёмная',  desc: 'Для ночного чтения' },
+];
+
 export interface ReaderSettings {
   fontFamily:      FontFamilyKey;
   fontSize:        number;
@@ -30,7 +42,8 @@ export interface ReaderSettings {
   textAlign:       TextAlign;
   textIndent:      number;   // em
   paragraphSpacing: number;  // em
-  focusMode:       boolean;  // киллер-фича #1
+  focusMode:       boolean;
+  theme:           ReaderTheme;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -41,6 +54,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   textIndent: 1.5,
   paragraphSpacing: 0.8,
   focusMode: false,
+  theme: 'light',
 };
 
 // Пределы значений (чтобы случайно не сломать глазами)

@@ -5,6 +5,7 @@ import UserAvatar from '@/components/UserAvatar';
 import QuoteCollection, { type Quote } from '@/components/profile/QuoteCollection';
 import ReadingStreak, { type ActivityDay } from '@/components/profile/ReadingStreak';
 import BookDiet from '@/components/profile/BookDiet';
+import ReadingTotals from '@/components/profile/ReadingTotals';
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -72,18 +73,78 @@ export default async function ProfilePage() {
 
   // ---- Прочитанные новеллы (для книжной диеты) ----
   const readNovelIds = Object.keys((profile.last_read ?? {}) as Record<string, unknown>);
-  let readNovels: Array<{ id: number; title: string; genres: string[]; country: string | null }> = [];
+  let readNovels: Array<{
+    id: number;
+    title: string;
+    genres: string[];
+    country: string | null;
+    translator_id: string | null;
+  }> = [];
   if (readNovelIds.length > 0) {
     const { data } = await supabase
       .from('novels_view')
-      .select('id, title, genres, country')
+      .select('id, title, genres, country, translator_id')
       .in('id', readNovelIds.map((s) => parseInt(s, 10)).filter(Boolean));
     readNovels = (data ?? []).map((n) => ({
       id: n.id,
       title: n.title,
       genres: Array.isArray(n.genres) ? (n.genres as string[]) : [],
       country: (n as { country?: string | null }).country ?? null,
+      translator_id: (n as { translator_id?: string | null }).translator_id ?? null,
     }));
+  }
+
+  // ---- Агрегат «Моя статистика» ----
+  // Берём самые поздние chapterId по каждой новелле из last_read,
+  // суммируем, переводим в часы ≈ × 8 мин.
+  const lr = (profile.last_read ?? {}) as Record<
+    string,
+    { novelId?: number; chapterId?: number; timestamp?: string }
+  >;
+  let totalChaptersRead = 0;
+  const chaptersByTranslator = new Map<string, number>();
+  const novelsStarted = readNovels.length;
+  for (const [novelIdStr, entry] of Object.entries(lr)) {
+    const ch = entry?.chapterId;
+    if (!ch || ch <= 0) continue;
+    totalChaptersRead += ch;
+    const novelInfo = readNovels.find((n) => String(n.id) === novelIdStr);
+    if (novelInfo?.translator_id) {
+      chaptersByTranslator.set(
+        novelInfo.translator_id,
+        (chaptersByTranslator.get(novelInfo.translator_id) ?? 0) + ch
+      );
+    }
+  }
+  const estHoursRead = Math.round((totalChaptersRead * 8) / 60);
+
+  // Любимый переводчик — у кого больше всех прочитано
+  let favoriteTranslator: {
+    name: string;
+    slug: string | null;
+    chapters: number;
+  } | null = null;
+  if (chaptersByTranslator.size > 0) {
+    const [topId, topChapters] = Array.from(chaptersByTranslator.entries()).sort(
+      (a, b) => b[1] - a[1]
+    )[0];
+    const { data: topProfile } = await supabase
+      .from('profiles')
+      .select('translator_display_name, translator_slug, user_name')
+      .eq('id', topId)
+      .maybeSingle();
+    const p = topProfile as {
+      translator_display_name?: string | null;
+      translator_slug?: string | null;
+      user_name?: string | null;
+    } | null;
+    if (p) {
+      favoriteTranslator = {
+        name: p.translator_display_name || p.user_name || 'Переводчик',
+        slug: p.translator_slug || p.user_name || null,
+        chapters: topChapters,
+      };
+    }
   }
 
   // ---- Подборки «Попробуй ещё» из непокрытых жанров ----
@@ -126,7 +187,7 @@ export default async function ProfilePage() {
   try {
     const { data } = await supabase
       .from('user_quotes')
-      .select('id, novel_id, chapter_number, quote_text, note, created_at')
+      .select('id, novel_id, chapter_number, quote_text, note, created_at, is_public')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -152,6 +213,7 @@ export default async function ProfilePage() {
           created_at: q.created_at,
           novel_firebase_id: nov.firebase_id,
           novel_title: nov.title,
+          is_public: !!q.is_public,
         });
       }
     }
@@ -225,6 +287,14 @@ export default async function ProfilePage() {
           <div className="stat-card-cta">Управлять →</div>
         </Link>
       </div>
+
+      {/* Агрегат: глав прочитано / часов / любимый переводчик */}
+      <ReadingTotals
+        chaptersRead={totalChaptersRead}
+        novelsStarted={novelsStarted}
+        estHoursRead={estHoursRead}
+        favoriteTranslator={favoriteTranslator}
+      />
 
       {/* Киллер-фича #2 — стрик чтения */}
       <ReadingStreak days={activity} />

@@ -34,6 +34,10 @@ export interface NovelFormValues {
   description: string;              // BB-код
   cover_url: string | null;
   genres: string[];
+  // Ссылки на оригинал / novelupdates / raws — произвольные пары { label, url }.
+  external_links: Array<{ label: string; url: string }>;
+  // Путь к EPUB в bucket или полный URL. Показывает кнопку 📘 на странице.
+  epub_path: string | null;
 }
 
 const EMPTY: NovelFormValues = {
@@ -51,6 +55,8 @@ const EMPTY: NovelFormValues = {
   description: '',
   cover_url: null,
   genres: [],
+  external_links: [],
+  epub_path: null,
 };
 
 interface Props {
@@ -110,6 +116,11 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
       ? bbToHtml(values.description)
       : null;
 
+    // Отфильтруем пустые строки и обрежем пробелы, чтобы в БД не летел мусор.
+    const cleanedLinks = (values.external_links ?? [])
+      .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
+      .filter((l) => l.url.length > 0);
+
     const payload = {
       title: values.title.trim(),
       title_original: values.title_original?.trim() || null,
@@ -125,6 +136,8 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
       description: descriptionHtml,
       cover_url: values.cover_url,
       genres: values.genres,
+      external_links: cleanedLinks.length > 0 ? cleanedLinks : null,
+      epub_path: values.epub_path?.trim() ? values.epub_path.trim() : null,
     };
 
     if (mode === 'create') {
@@ -365,6 +378,80 @@ export default function NovelForm({ initial, mode, isAdmin = false }: Props) {
           minHeight={200}
           hint="Кнопки сверху расставят нужные теги автоматически. [b]жирный[/b], [i]курсив[/i], [quote]цитата[/quote], [spoiler]скрытый текст[/spoiler]."
         />
+      </div>
+
+      <div className="form-field">
+        <label title="Ссылки на оригинал: novelupdates, raws, авторский сайт, профиль автора. Необязательно.">
+          Ссылки на оригинал
+        </label>
+        <div className="external-links-editor">
+          {values.external_links.map((link, i) => (
+            <div key={i} className="external-link-row">
+              <input
+                className="form-input"
+                placeholder="Название (NovelUpdates / RAW / Автор)"
+                value={link.label}
+                onChange={(e) => {
+                  const next = [...values.external_links];
+                  next[i] = { ...next[i], label: e.target.value };
+                  set('external_links', next);
+                }}
+              />
+              <input
+                className="form-input"
+                type="url"
+                placeholder="https://…"
+                value={link.url}
+                onChange={(e) => {
+                  const next = [...values.external_links];
+                  next[i] = { ...next[i], url: e.target.value };
+                  set('external_links', next);
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  const next = values.external_links.filter((_, idx) => idx !== i);
+                  set('external_links', next);
+                }}
+                aria-label="Убрать ссылку"
+                title="Убрать ссылку"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() =>
+              set('external_links', [...values.external_links, { label: '', url: '' }])
+            }
+          >
+            + Добавить ссылку
+          </button>
+        </div>
+        <p className="form-hint">
+          Эти ссылки появятся на карточке новеллы блоком «Оригинал» —
+          читатели смогут пойти к автору.
+        </p>
+      </div>
+
+      <div className="form-field">
+        <label title="Ссылка или путь к готовому EPUB. Можно положить файл в bucket 'epub' и указать относительный путь, или вставить полный URL.">
+          EPUB (для офлайн-чтения)
+        </label>
+        <input
+          className="form-input"
+          value={values.epub_path ?? ''}
+          onChange={(e) => set('epub_path', e.target.value || null)}
+          placeholder="https://… или novels/my-novel.epub"
+        />
+        <p className="form-hint">
+          Если заполнено — на странице новеллы появится кнопка
+          «📘 EPUB». Читатели смогут скачать и читать офлайн.
+        </p>
       </div>
 
       {error && (

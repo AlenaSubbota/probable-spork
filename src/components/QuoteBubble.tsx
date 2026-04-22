@@ -7,6 +7,8 @@ interface Props {
   novelId: number;
   chapterNumber: number;
   containerRef: React.RefObject<HTMLElement | null>;
+  novelFirebaseId?: string;
+  novelTitle?: string;
 }
 
 interface BubbleState {
@@ -18,11 +20,18 @@ interface BubbleState {
 
 // Показывает всплывающую кнопку «Сохранить цитату» при выделении
 // текста внутри containerRef. Сохраняет в public.user_quotes.
-export default function QuoteBubble({ novelId, chapterNumber, containerRef }: Props) {
+export default function QuoteBubble({
+  novelId,
+  chapterNumber,
+  containerRef,
+  novelFirebaseId,
+  novelTitle,
+}: Props) {
   const [state, setState] = useState<BubbleState>({
     visible: false, top: 0, left: 0, text: '',
   });
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle');
   const hideTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -106,6 +115,42 @@ export default function QuoteBubble({ novelId, chapterNumber, containerRef }: Pr
     }
   };
 
+  // Поделиться: копируем текст цитаты + ссылку на главу в буфер.
+  // Native Share API на мобильных выпадает в шторку, на десктопе — clipboard.
+  const handleShare = async () => {
+    if (!novelFirebaseId) return;
+    const url =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/novel/${novelFirebaseId}/${chapterNumber}`
+        : `/novel/${novelFirebaseId}/${chapterNumber}`;
+    const shareText =
+      `«${state.text}»\n\n` +
+      (novelTitle ? `— из «${novelTitle}», глава ${chapterNumber}\n` : '') +
+      url;
+
+    const nav = typeof navigator !== 'undefined' ? navigator : null;
+    if (nav && typeof nav.share === 'function') {
+      try {
+        await nav.share({
+          title: novelTitle ? `Цитата из «${novelTitle}»` : 'Цитата',
+          text: shareText,
+        });
+        setShareStatus('copied');
+        window.setTimeout(() => setShareStatus('idle'), 1200);
+        return;
+      } catch {
+        // пользователь закрыл шторку — валимся на clipboard
+      }
+    }
+    try {
+      await nav?.clipboard?.writeText(shareText);
+      setShareStatus('copied');
+      window.setTimeout(() => setShareStatus('idle'), 1200);
+    } catch {
+      // если clipboard запрещён — просто ничего не делаем
+    }
+  };
+
   if (!state.visible) return null;
 
   const label =
@@ -115,14 +160,32 @@ export default function QuoteBubble({ novelId, chapterNumber, containerRef }: Pr
     '⊹ Сохранить цитату';
 
   return (
-    <button
-      type="button"
-      className={`quote-bubble${status === 'saved' ? ' saved' : ''}${status === 'error' ? ' error' : ''}`}
+    <div
+      className="quote-bubble-wrap"
       style={{ top: `${state.top}px`, left: `${state.left}px` }}
       onMouseDown={(e) => e.preventDefault()}
-      onClick={handleSave}
     >
-      {label}
-    </button>
+      <button
+        type="button"
+        className={`quote-bubble${status === 'saved' ? ' saved' : ''}${
+          status === 'error' ? ' error' : ''
+        }`}
+        onClick={handleSave}
+      >
+        {label}
+      </button>
+      {novelFirebaseId && (
+        <button
+          type="button"
+          className={`quote-bubble quote-bubble--share${
+            shareStatus === 'copied' ? ' saved' : ''
+          }`}
+          onClick={handleShare}
+          title="Скопировать цитату со ссылкой"
+        >
+          {shareStatus === 'copied' ? '✓ Скопировано' : '↗ Поделиться'}
+        </button>
+      )}
+    </div>
   );
 }

@@ -103,6 +103,12 @@ export default async function EditNovelPage({ params }: PageProps) {
           description: '',
           cover_url: novel.cover_url,
           genres: Array.isArray(novel.genres) ? (novel.genres as string[]) : [],
+          external_links: Array.isArray(novel.external_links)
+            ? (novel.external_links as Array<{ label: string; url: string }>).filter(
+                (l) => l && typeof l.url === 'string'
+              )
+            : [],
+          epub_path: novel.epub_path ?? null,
         }}
       />
 

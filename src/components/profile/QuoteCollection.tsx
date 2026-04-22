@@ -14,6 +14,7 @@ export interface Quote {
   created_at: string;
   novel_firebase_id: string;
   novel_title: string;
+  is_public: boolean;
 }
 
 interface Props {
@@ -35,6 +36,26 @@ export default function QuoteCollection({ initial }: Props) {
       return;
     }
     setQuotes((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  // Тумблер «показать всем» — флажок is_public из миграции 014.
+  // Публичные цитаты появляются в блоке «Цитата дня» на главной.
+  const handleTogglePublic = async (id: number, next: boolean) => {
+    const supabase = createClient();
+    setQuotes((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, is_public: next } : q))
+    );
+    const { error } = await supabase
+      .from('user_quotes')
+      .update({ is_public: next })
+      .eq('id', id);
+    if (error) {
+      alert('Не получилось обновить: ' + error.message);
+      // откат оптимистичного апдейта
+      setQuotes((prev) =>
+        prev.map((q) => (q.id === id ? { ...q, is_public: !next } : q))
+      );
+    }
   };
 
   const toggleExpand = (novelId: number) => {
@@ -116,6 +137,23 @@ export default function QuoteCollection({ initial }: Props) {
                         → глава {q.chapter_number}
                       </Link>
                       <span className="quote-time">{timeAgo(q.created_at)}</span>
+                      <label
+                        className="quote-public-toggle"
+                        title={
+                          q.is_public
+                            ? 'Цитата публичная — может появиться в блоке «Цитата дня» на главной'
+                            : 'Сделать цитату публичной — может появиться в блоке «Цитата дня» на главной'
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={q.is_public}
+                          onChange={(e) =>
+                            handleTogglePublic(q.id, e.target.checked)
+                          }
+                        />
+                        <span>{q.is_public ? '🌐 публично' : '🔒 только я'}</span>
+                      </label>
                       <button
                         type="button"
                         className="quote-delete"

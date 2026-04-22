@@ -8,6 +8,7 @@ export interface BookmarkItem {
   title: string;
   cover_url: string | null;
   author: string | null;
+  translator_slug: string | null;
   status: BookmarkTab;     // auto-derived
   chapter_count: number;
   last_chapter_read: number | null;
@@ -62,7 +63,13 @@ export default function BookmarkCard({ item }: Props) {
         </Link>
 
         {item.author && (
-          <div className="bookmark-card-author">{item.author}</div>
+          <div className="bookmark-card-author">
+            {item.translator_slug ? (
+              <Link href={`/t/${item.translator_slug}`}>{item.author}</Link>
+            ) : (
+              item.author
+            )}
+          </div>
         )}
 
         {item.status !== 'planned' && item.last_chapter_read != null && (

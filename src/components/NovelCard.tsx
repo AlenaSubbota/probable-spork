@@ -72,7 +72,9 @@ export default function NovelCard({
         <span className="rating-chip">
           <span className="star">★</span>{rating}
         </span>
-        <button className="bookmark-btn" aria-label="В закладки">♥</button>
+        {/* Раньше тут жила заглушка-сердечко без onClick: клик «в закладки»
+           в каталоге ничего не делал. Управление полкой живёт на странице
+           новеллы (BookmarkButton), которая открывается по клику на карточку. */}
         {flagText && (
           <span className={`flag ${flagClass || ''}`}>{flagText}</span>
         )}
