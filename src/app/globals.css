@@ -6667,6 +6667,116 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-color: var(--accent-soft);
 }
 
+/* ---------- Reader: chapter thanks + tips ---------- */
+
+.chapter-thanks {
+  margin: 32px 0 24px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, var(--surface), var(--accent-wash));
+  border: 1px solid var(--accent-soft);
+  border-radius: 14px;
+}
+.chapter-thanks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.chapter-thanks-counter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.chapter-thanks-heart {
+  font-size: 22px;
+  color: var(--rose);
+}
+.chapter-thanks-coins {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--gold, #e0a86a);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.chapter-thanks-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chapter-thanks-tip {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+.chapter-thanks-tip-head {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+.chapter-thanks-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.chapter-thanks-preset {
+  min-width: 56px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.chapter-thanks-preset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chapter-thanks-preset.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chapter-thanks-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.chapter-thanks-custom input {
+  width: 80px;
+  padding: 7px 10px;
+}
+.chapter-thanks-hint {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+}
+.chapter-thanks-error {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fde4ea;
+  color: #7a2439;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.chapter-thanks-message {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #e8f3e4;
+  color: #3f7a3a;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
 /* ---------- Admin: Translator picker ---------- */
 
 .translator-picker {

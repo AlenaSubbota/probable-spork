@@ -44,6 +44,10 @@ function iconFor(type: string): string {
     case 'comment_like':                     return '❤';
     case 'new_subscriber':                   return '💝';
     case 'new_chapter':                      return '📖';
+    case 'chapter_tip':                      return '💝';
+    case 'novel_claim_pending':              return '🔖';
+    case 'novel_claim_approved':             return '✅';
+    case 'novel_claim_rejected':             return '⚠';
     case 'novel_pending':                    return '🛡';
     case 'novel_approved':                   return '✅';
     case 'novel_rejected':                   return '⚠';
