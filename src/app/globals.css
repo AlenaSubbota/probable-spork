@@ -8154,6 +8154,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border: 1px solid var(--accent-soft);
   border-radius: 14px;
 }
+/* Кнопка «спасибо» — фиксированная min-width, чтобы переключение
+   «♥ Спасибо» ↔ «✓ Спасибо» не сдвигало счётчик / соседние блоки.
+   Раньше лейбл менялся с короткого на длинный («Поблагодарил(а).
+   Нажми чтобы снять») — кнопка росла, layout прыгал. */
+.chapter-thanks-btn {
+  min-width: 130px;
+  flex-shrink: 0;
+}
 .chapter-thanks-head {
   display: flex;
   align-items: center;

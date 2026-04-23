@@ -157,14 +157,16 @@ export default function ChapterThanks({
             Войти, чтобы поблагодарить
           </Link>
         ) : (
+          /* Симметричные лейблы «♥ Спасибо» / «✓ Спасибо» одинаковой длины —
+             кнопка при toggle не прыгает и не сдвигает соседние блоки. */
           <button
             type="button"
-            className={`btn ${myThanked ? 'btn-ghost' : 'btn-primary'}`}
+            className={`btn ${myThanked ? 'btn-ghost' : 'btn-primary'} chapter-thanks-btn`}
             onClick={handleClick}
             disabled={busy}
-            title={myThanked ? 'Клик — снять лайк' : 'Бесплатное «спасибо»'}
+            title={myThanked ? 'Нажми, чтобы снять' : 'Бесплатное «спасибо»'}
           >
-            {myThanked ? '✓ Поблагодарил(а). Нажми, чтобы снять' : '♥ Спасибо'}
+            {myThanked ? '✓ Спасибо' : '♥ Спасибо'}
           </button>
         )}
       </div>
