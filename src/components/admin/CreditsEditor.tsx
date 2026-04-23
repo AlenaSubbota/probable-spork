@@ -98,8 +98,11 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
     }
     let cancelled = false;
     const t = setTimeout(async () => {
+      // Ищем через public_profiles (мигр. 040). profiles напрямую
+      // отдаёт только свой ряд по RLS — поиск не находил никого кроме
+      // себя. С public_profiles возвращаются все пользователи.
       const { data } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, user_name, avatar_url, translator_slug, translator_display_name')
         .or(`user_name.ilike.%${q}%,translator_slug.ilike.%${q}%,translator_display_name.ilike.%${q}%`)
         .limit(8);
@@ -179,12 +182,13 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
   return (
     <section className="admin-form credits-editor">
       <h2 style={{ fontFamily: 'var(--font-serif)', margin: '0 0 6px' }}>
-        Команда новеллы
+        Переводчики и команда новеллы
       </h2>
       <p style={{ color: 'var(--ink-mute)', fontSize: 13.5, margin: '0 0 14px' }}>
-        Кто работает над этой новеллой. Доли — % от будущих выплат по
-        всем главам. Можно оставить 0 % — если человек помогает без денег.
-        Сумма долей не обязана быть ровно 100 %, но чем дальше от — тем
+        Кто работает над этой новеллой. Можно добавить второго переводчика,
+        редактора, корректора, иллюстратора — кого нужно. Доли % — ориентир
+        для будущих выплат по главам: 0 % означает «помогает без денежного
+        интереса». Сумма не обязана быть ровно 100 %, но чем дальше — тем
         запутаннее. Обычно основной переводчик берёт 60–80 %.
       </p>
 
@@ -198,8 +202,9 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
               style={{ padding: '14px 18px', marginBottom: 18, textAlign: 'left' }}
             >
               <p style={{ margin: 0 }}>
-                Пока только основной переводчик. Добавь редактора, корректора,
-                иллюстратора — кого угодно.
+                Пока в команде только основной переводчик. Можно добавить
+                со-переводчика, редактора, корректора, иллюстратора —
+                кого угодно.
               </p>
             </div>
           ) : (
@@ -358,21 +363,37 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
               </div>
             )}
 
-            <div className="credits-add-row">
-              <div className="form-field" style={{ flex: 1 }}>
-                <label>Роль</label>
-                <select
-                  className="form-input"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                >
-                  {ALL_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_META[r].emoji} {ROLE_META[r].label}
-                    </option>
-                  ))}
-                </select>
+            {/* Быстрые чипы для частых ролей — один тап вместо выбора
+                из select'а. Подсвечиваем активный чип. */}
+            <div className="form-field">
+              <label>Роль</label>
+              <div className="credits-quick-roles">
+                {(['translator', 'co_translator', 'editor', 'proofreader', 'illustrator'] as const).map((r) => (
+                  <button
+                    type="button"
+                    key={r}
+                    className={`chip${role === r ? ' active' : ''}`}
+                    onClick={() => setRole(r)}
+                  >
+                    {ROLE_META[r].emoji} {ROLE_META[r].label}
+                  </button>
+                ))}
               </div>
+              <select
+                className="form-input"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                style={{ marginTop: 6 }}
+              >
+                {ALL_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_META[r].emoji} {ROLE_META[r].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="credits-add-row">
+              <div className="form-field" style={{ flex: 1 }}></div>
               <div className="form-field" style={{ width: 100 }}>
                 <label>Доля, %</label>
                 <input

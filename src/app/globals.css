@@ -566,6 +566,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: #fff;
 }
 
+/* Быстрые чипы ролей в CreditsEditor */
+.credits-quick-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
 /* ---------- novel grid ---------- */
 
 .novel-grid {
