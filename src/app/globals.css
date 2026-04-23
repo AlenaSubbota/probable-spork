@@ -646,12 +646,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   text-decoration: underline;
 }
 /* На узкой колонке (3 в ряд на 360 px = ~100 px на карточку) текст
-   поджимаем: клэмп 2 → 1 строки, мельче шрифт, meta обрезается с
-   ellipsis вместо переноса. */
+   поджимаем: клэмп 2 строки, мельче шрифт, overflow-wrap чтобы очень
+   длинные слова / названия без пробелов (часто встречаются у корейских
+   и китайских ников-переводчиков) переносились вместо вылета. */
 @media (max-width: 540px) {
   .novel-title {
     font-size: 12.5px;
     -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .novel-meta {
     font-size: 10.5px;
@@ -659,8 +662,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
   }
-  .novel-card { gap: 6px; }
+  .novel-card { gap: 6px; min-width: 0; }
 }
 
 /* ---------- two-col (novel page) ---------- */
@@ -674,11 +678,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @media (max-width: 820px) {
   .novel-top { grid-template-columns: 1fr; gap: 20px; }
 }
-/* На мобиле обложка во всю ширину контейнера → слишком высокая (3/4
-   aspect-ratio). Делаем компактный вид: обложка-плитка по центру, а
-   вся текстовая инфа под ней остаётся выравненной по левому краю —
-   жанры, автор, описание, кнопки читаются как колонка, а не центр,
-   иначе выглядит неряшливо (заголовок в центре, остальное влево). */
+/* На мобиле делаем постерный вид: обложка-плитка по центру, вся
+   текстовая инфа (заголовок, жанры, чипы-метки, автор, инфо-строка)
+   тоже центрируется — колонка в центре экрана. По просьбе Алёны:
+   раньше одно по центру, другое слева — выглядело хаотично. */
 @media (max-width: 540px) {
   .novel-top {
     padding: 20px 0 24px;
@@ -688,7 +691,26 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     max-width: 200px;
     margin: 0 auto;
   }
+  .novel-info {
+    text-align: center;
+  }
   .novel-info h1 { font-size: 26px; line-height: 1.15; }
+  /* Чипы / плашки (жанр, «Завершена» / «Обновляется», «8 ч», 18+) —
+     по центру, wrap в несколько рядов если не помещаются. */
+  .novel-info > div:first-child {
+    justify-content: center;
+  }
+  /* Автор / информационная строка «автор · год · страна» */
+  .novel-info .info-row {
+    justify-content: center;
+  }
+  /* Кнопки «Читать / В закладки / EPUB» — тоже по центру, wrap. */
+  .novel-info .cta-row,
+  .novel-info .novel-ctas,
+  .novel-info > div:has(.btn) {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
 }
 
 .novel-top .cover-large {
@@ -9227,6 +9249,26 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @media (min-width: 720px) {
   .trending-grid {
     grid-template-columns: repeat(6, 1fr);
+  }
+}
+/* На мобиле auto-fill minmax(140px) давал 2 колонки на 390 px — Алёна
+   хочет 3 (как .novel-grid). Принудительно 3 колонки + мелкий gap.
+   overflow-wrap на карточках — чтобы длинные названия вроде «В мире
+   не существует плохих военных собак» не вылезали за пределы. */
+@media (max-width: 540px) {
+  .trending-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .trending-card { min-width: 0; }
+  .trending-title {
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+    -webkit-line-clamp: 2;
+  }
+  .trending-rank {
+    font-size: 10.5px;
+    padding: 2px 6px;
   }
 }
 .trending-card {
