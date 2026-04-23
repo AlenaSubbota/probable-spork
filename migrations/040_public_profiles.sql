@@ -53,8 +53,7 @@ SELECT
     WHEN COALESCE((p.settings::jsonb)->>'show_reading_publicly', 'true')::boolean
       THEN p.bookmarks
     ELSE NULL
-  END AS bookmarks,
-  p.created_at
+  END AS bookmarks
 FROM public.profiles p;
 
 ALTER VIEW public.public_profiles OWNER TO supabase_admin;
