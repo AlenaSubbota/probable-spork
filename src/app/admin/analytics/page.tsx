@@ -5,6 +5,7 @@ import PeriodCard from '@/components/analytics/PeriodCard';
 import TopMoments, { type Moment } from '@/components/analytics/TopMoments';
 import NovelsTable, { type NovelMetrics } from '@/components/analytics/NovelsTable';
 import TopSupporters, { type Supporter } from '@/components/analytics/TopSupporters';
+import HourlyHeatmap, { type HeatmapCell } from '@/components/analytics/HourlyHeatmap';
 
 interface PageProps {
   searchParams: Promise<{ period?: string }>;
@@ -303,6 +304,26 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
     }
   }
 
+  // Тепловая карта «когда читают» — только для переводчика
+  // собственных данных (мигр. 043). Админ свои отдельно не тянет —
+  // блок в одного переводчика всё равно нишевой.
+  let hourlyCells: HeatmapCell[] = [];
+  if (!isAdmin) {
+    try {
+      const { data } = await supabase.rpc('translator_hourly_heatmap', {
+        p_translator: user.id,
+        p_days: 30,
+      });
+      if (Array.isArray(data)) {
+        hourlyCells = (data as Array<{ dow: number; hour: number; reads: number }>).map(
+          (c) => ({ dow: c.dow, hour: c.hour, reads: c.reads })
+        );
+      }
+    } catch {
+      // миграция 043 не накачена
+    }
+  }
+
   return (
     <main className="container admin-page admin-page--wide">
       <div className="admin-breadcrumbs">
@@ -406,6 +427,13 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
 
       {/* Киллер-фича #3: тепловая карта по новеллам + воронка drop-off */}
       <NovelsTable novels={novelMetrics} periodLabel={PERIOD_LABELS[period]} />
+
+      {/* Когда публиковать — часовая heatmap читателей */}
+      {!isAdmin && hourlyCells.length > 0 && (
+        <section style={{ marginTop: 24 }}>
+          <HourlyHeatmap cells={hourlyCells} />
+        </section>
+      )}
 
       {/* Подсказка про данные */}
       <p style={{ color: 'var(--ink-mute)', fontSize: 12, marginTop: 16 }}>

@@ -43,10 +43,11 @@ interface Props {
 }
 
 const PROVIDER_LABEL: Record<string, string> = {
-  boosty: 'Boosty',
-  tribute: 'Tribute',
+  boosty:   'Boosty',
+  tribute:  'Tribute',
   vk_donut: 'VK Donut',
-  other: 'Другой',
+  patreon:  'Patreon',
+  other:    'Другое',
 };
 
 function formatExpires(iso: string | null): string {
@@ -73,6 +74,18 @@ export default function SubscribersClient({ pending, reviewed, active }: Props) 
   const [busyId, setBusyId] = useState<number | null>(null);
   const [declineFor, setDeclineFor] = useState<number | null>(null);
   const [declineReason, setDeclineReason] = useState('');
+  const [providerFilter, setProviderFilter] = useState<string>('all');
+
+  // Список уникальных провайдеров среди активных — для табов-фильтра.
+  // Ленту заявок не фильтруем: они обычно все одного провайдера + их мало.
+  const activeByProvider = new Map<string, number>();
+  for (const s of active) {
+    activeByProvider.set(s.provider, (activeByProvider.get(s.provider) ?? 0) + 1);
+  }
+  const filteredActive =
+    providerFilter === 'all'
+      ? active
+      : active.filter((s) => s.provider === providerFilter);
 
   const approve = async (id: number) => {
     setBusyId(id);
@@ -281,13 +294,42 @@ export default function SubscribersClient({ pending, reviewed, active }: Props) 
       {/* Active subs */}
       <section className="market-section">
         <h2>Активные подписчики ({active.length})</h2>
+
+        {active.length > 0 && activeByProvider.size > 1 && (
+          <nav className="subscribers-provider-tabs" aria-label="Фильтр провайдеров">
+            <button
+              type="button"
+              className={`subs-provider-tab${providerFilter === 'all' ? ' is-active' : ''}`}
+              onClick={() => setProviderFilter('all')}
+            >
+              Все · {active.length}
+            </button>
+            {Array.from(activeByProvider.entries())
+              .sort((a, b) => b[1] - a[1])
+              .map(([prov, cnt]) => (
+                <button
+                  key={prov}
+                  type="button"
+                  className={`subs-provider-tab${providerFilter === prov ? ' is-active' : ''}`}
+                  onClick={() => setProviderFilter(prov)}
+                >
+                  {PROVIDER_LABEL[prov] ?? prov} · {cnt}
+                </button>
+              ))}
+          </nav>
+        )}
+
         {active.length === 0 ? (
           <div className="empty-state" style={{ padding: 18 }}>
             <p>Пока никого. После первого одобрения подписчик появится здесь.</p>
           </div>
+        ) : filteredActive.length === 0 ? (
+          <div className="empty-state" style={{ padding: 18 }}>
+            <p>В этом провайдере сейчас никого.</p>
+          </div>
         ) : (
           <div className="applications-list">
-            {active.map((s) => {
+            {filteredActive.map((s) => {
               const initial = (s.user_name ?? '?').trim().charAt(0).toUpperCase() || '?';
               const href = s.user_slug ? `/t/${s.user_slug}` : `/u/${s.user_id}`;
               return (

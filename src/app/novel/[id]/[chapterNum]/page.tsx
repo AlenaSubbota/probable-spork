@@ -155,7 +155,7 @@ export default async function ChapterPage({ params }: PageProps) {
       novel.translator_id
         ? supabase
             .from('translator_payment_methods')
-            .select('id, provider, url, instructions')
+            .select('id, provider, url, instructions, tg_chat_id')
             .eq('translator_id', novel.translator_id)
             .eq('enabled', true)
             .order('sort_order', { ascending: true })

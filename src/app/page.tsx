@@ -14,6 +14,7 @@ import StoriesStrip, { type StoryItem } from '@/components/home/StoriesStrip';
 import JournalStrip, { type JournalItem } from '@/components/home/JournalStrip';
 import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
+import StarOfTheWeek, { type StarOfTheWeekData } from '@/components/home/StarOfTheWeek';
 import { fetchTranslatorSlugs } from '@/lib/translator';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
@@ -497,6 +498,38 @@ export default async function HomePage() {
   ];
   const translatorSlugMap = await fetchTranslatorSlugs(supabase, translatorIds);
 
+  // ---- Звезда недели — RPC из миграции 042 ----
+  // Если за последние 7 дней никто ничего не набрал — блок не рендерится.
+  let starOfTheWeek: StarOfTheWeekData | null = null;
+  try {
+    const { data: starRows } = await supabase.rpc('star_translator_of_the_week');
+    const row = Array.isArray(starRows) ? starRows[0] : null;
+    if (row) {
+      const r = row as {
+        translator_id: string;
+        user_name: string | null;
+        translator_slug: string | null;
+        translator_display_name: string | null;
+        translator_avatar_url: string | null;
+        avatar_url: string | null;
+        new_subscribers: number;
+        chapters_published: number;
+        coins_earned: number;
+      };
+      starOfTheWeek = {
+        translator_id: r.translator_id,
+        slug: r.translator_slug || r.user_name || null,
+        display_name: r.translator_display_name || r.user_name || 'Переводчик',
+        avatar_url: r.translator_avatar_url || r.avatar_url || null,
+        new_subscribers: r.new_subscribers ?? 0,
+        chapters_published: r.chapters_published ?? 0,
+        coins_earned: r.coins_earned ?? 0,
+      };
+    }
+  } catch {
+    // миграция 042 ещё не накачена — блок не покажется
+  }
+
   return (
     <main>
       {/* Instagram-style stories вверху */}
@@ -515,6 +548,9 @@ export default async function HomePage() {
 
       {/* 🔥 На волне — новеллы с самым активным темпом глав за неделю */}
       <TrendingNovels items={trendingItems} />
+
+      {/* ✦ Звезда недели — переводчик с максимальным ростом */}
+      {starOfTheWeek && <StarOfTheWeek data={starOfTheWeek} />}
 
       {/* Цитата дня — случайная публичная */}
       <QuoteOfTheDay quote={quoteOfTheDay} />

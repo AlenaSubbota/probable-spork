@@ -9,6 +9,7 @@ import BookmarkButton from '@/components/BookmarkButton';
 import NovelClaimButton from '@/components/NovelClaimButton';
 import AdultGate from '@/components/AdultGate';
 import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
+import MyNovelHistory from '@/components/novel/MyNovelHistory';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
 import { fetchTranslatorSlugs } from '@/lib/translator';
@@ -235,6 +236,84 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
   const totalChapters = chaptersCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalChapters / CHAPTERS_PER_PAGE));
   const firstChapter = firstChapterRow ?? null;
+
+  // ---- Личная история читателя с этой новеллой ----
+  // Тянется только для залогиненного. Переводчик свою же новеллу видит
+  // тоже — там может быть забавная картина «начал 3 мес назад, дочитал
+  // до 57». Собирается из уже-подгружённых profiles + параллельные лёгкие
+  // запросы к user_quotes / chapter_thanks / reading_days. Всё падает
+  // в try/catch — если миграций нет, блок просто не появится.
+  let myHistory: {
+    currentChapter: number | null;
+    startedAt: string | null;
+    quotesCount: number;
+    thanksCount: number;
+    activeDays: number;
+  } | null = null;
+  if (user) {
+    try {
+      const lr = (vp?.bookmarks && (vp as unknown as { last_read?: unknown }).last_read) as
+        | Record<string, { chapterId?: number; timestamp?: string }>
+        | undefined;
+      const profileLastRead = lr ?? null;
+      // Нам нужен last_read из самого profile (собственного). Из vp уже всё
+      // есть, но last_read там не запрашивали — делаем лёгкий select.
+      const { data: lrRow } = await supabase
+        .from('profiles')
+        .select('last_read')
+        .eq('id', user.id)
+        .maybeSingle();
+      const lrObj =
+        (lrRow as { last_read?: Record<string, { chapterId?: number; timestamp?: string }> } | null)
+          ?.last_read ?? profileLastRead ?? {};
+      const entry = lrObj[String(novel.id)];
+      const currentChapter =
+        typeof entry?.chapterId === 'number' && entry.chapterId > 0
+          ? entry.chapterId
+          : null;
+      const startedAt = entry?.timestamp ?? null;
+
+      const [{ count: qCount }, { count: tCount }, { data: days }] = await Promise.all([
+        supabase
+          .from('user_quotes')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('novel_id', novel.id),
+        supabase
+          .from('chapter_thanks')
+          .select('user_id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('novel_id', novel.id),
+        // reading_days без новеллы не разбит — считаем только
+        // общий стрик. Для «дней с этой книгой» берём UNIQUE DATE(timestamp)
+        // из last_read + timestamp самой записи. Это приближение: одна
+        // строка на новеллу в last_read. Честная разбивка — отдельная
+        // миграция + RPC, пока обходимся стартом чтения.
+        Promise.resolve({ data: null as null }),
+      ]);
+
+      // «Дней с книгой» — прикидка: от startedAt до сегодня, но не больше
+      // чем общее число активных дней юзера за период. Поскольку честной
+      // разбивки нет, покажем просто число дней с первого открытия
+      // (если есть старт) — читателю это звучит как «книга со мной N дней».
+      let activeDays = 0;
+      if (startedAt) {
+        const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 86_400_000);
+        activeDays = Math.max(0, diff);
+      }
+      void days;
+
+      myHistory = {
+        currentChapter,
+        startedAt,
+        quotesCount: qCount ?? 0,
+        thanksCount: tCount ?? 0,
+        activeDays,
+      };
+    } catch {
+      myHistory = null;
+    }
+  }
 
   // Какие главы уже куплены текущим читателем — для подсветки в списке.
   // RPC из миграции 018; если её ещё нет, тихо падаем и не подсвечиваем.
@@ -691,6 +770,20 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
         )}
 
         <NovelCredits credits={novelCredits as CreditRow[]} />
+
+        {myHistory && (
+          <MyNovelHistory
+            novelId={novel.id}
+            novelFirebaseId={novel.firebase_id}
+            totalChapters={totalChapters}
+            currentChapter={myHistory.currentChapter}
+            startedAt={myHistory.startedAt}
+            quotesCount={myHistory.quotesCount}
+            thanksCount={myHistory.thanksCount}
+            activeDays={myHistory.activeDays}
+            novelIsCompleted={!!novel.is_completed}
+          />
+        )}
 
         <div className="chapter-list">
           <div className="chapter-list-head">

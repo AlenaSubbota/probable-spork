@@ -13,6 +13,9 @@ import RoadmapBoard, { type RoadmapItem } from '@/components/translator/RoadmapB
 import QuietBanner from '@/components/translator/QuietBanner';
 import ProfileRatingBadge from '@/components/marketplace/ProfileRatingBadge';
 import ProfileReviewsList from '@/components/marketplace/ProfileReviewsList';
+import TranslatorFilmography, {
+  type FilmographyEntry,
+} from '@/components/translator/TranslatorFilmography';
 import { getCoverUrl } from '@/lib/format';
 
 interface PageProps {
@@ -136,6 +139,61 @@ export default async function TranslatorPage({ params }: PageProps) {
     chapter_count: n.chapter_count as number | null,
     is_completed: n.is_completed as boolean | null,
   }));
+
+  // ---- Фильмография: все участия переводчика в команде новелл (мигр. 034) ----
+  // В «Все новеллы» выше — только где он главный (novels.translator_id==id).
+  // Тут дополнительно показываем «где ещё помогал» — редактор, корректор,
+  // иллюстратор и т.п. Одна строка на связь.
+  let filmography: FilmographyEntry[] = [];
+  try {
+    const { data: teamRows } = await supabase
+      .from('novel_translators')
+      .select('novel_id, role, share_percent, note')
+      .eq('user_id', profile.id);
+    const rows = (teamRows ?? []) as Array<{
+      novel_id: number;
+      role: string;
+      share_percent: number | null;
+      note: string | null;
+    }>;
+    if (rows.length > 0) {
+      const ids = Array.from(new Set(rows.map((r) => r.novel_id)));
+      const { data: nns } = await supabase
+        .from('novels_view')
+        .select('id, firebase_id, title, cover_url, translator_id, moderation_status')
+        .in('id', ids)
+        .eq('moderation_status', 'published');
+      const nMap = new Map(
+        (nns ?? []).map((n) => [
+          n.id as number,
+          n as {
+            id: number;
+            firebase_id: string;
+            title: string;
+            cover_url: string | null;
+            translator_id: string | null;
+          },
+        ])
+      );
+      filmography = rows.flatMap((r) => {
+        const nv = nMap.get(r.novel_id);
+        if (!nv) return [];
+        return [{
+          novel_id: nv.id,
+          novel_firebase_id: nv.firebase_id,
+          novel_title: nv.title,
+          cover_url: nv.cover_url,
+          role: r.role,
+          is_main_translator: nv.translator_id === profile.id && r.role === 'translator',
+          share_percent:
+            typeof r.share_percent === 'number' ? r.share_percent : null,
+          note: r.note,
+        }];
+      });
+    }
+  } catch {
+    // миграция 034 не накачена — пропускаем блок
+  }
 
   // ---- Heatmap выпусков (последние 180 дней) ----
   const novelIds = novelsNormalized.map((n) => n.id);
@@ -412,6 +470,9 @@ export default async function TranslatorPage({ params }: PageProps) {
 
       {/* Публичное расписание выхода глав */}
       <TranslatorSchedule slots={scheduleSlots} todayDow={todayDow} />
+
+      {/* Фильмография (IMDb-стиль): роли помимо «главного переводчика» */}
+      <TranslatorFilmography entries={filmography} />
 
       {/* Все новеллы переводчика */}
       <section className="section">
