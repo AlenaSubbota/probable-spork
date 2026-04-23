@@ -32,6 +32,7 @@ export default async function ProfileSettingsPage() {
     settings?: Record<string, unknown> | null;
     quiet_until?: string | null;
     quiet_note?: string | null;
+    chaptify_bot_chat_id?: number | null;
   };
 
   const isTranslator =
@@ -86,7 +87,10 @@ export default async function ProfileSettingsPage() {
         }}
       />
 
-      <LinkedAccounts telegramId={profile.telegram_id ?? null} />
+      <LinkedAccounts
+        telegramId={profile.telegram_id ?? null}
+        hasChaptifyBot={profile.chaptify_bot_chat_id != null}
+      />
 
       {isTranslator && <RoadmapEditor translatorId={user.id} />}
     </main>

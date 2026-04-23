@@ -2,20 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import TelegramLoginWidget from '@/components/auth/TelegramLoginWidget';
+
+const TG_BOT_USERNAME = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || 'chaptifybot';
+const AUTH_API_URL    = process.env.NEXT_PUBLIC_AUTH_API_URL || '';
 
 // Раздел «Связанные аккаунты» в настройках профиля.
-// Показывает, какими способами пользователь может войти в свой аккаунт:
-// email+пароль, Google OAuth, Telegram (через tene-аккаунт).
-// Позволяет привязать дополнительный способ к существующему аккаунту.
-//
-// ВАЖНО: в Supabase self-hosted для linkIdentity() должно быть разрешено
-// «Manual Linking» (Auth → Providers → Enable Account Linking). Если не
-// включено — linkIdentity() вернёт ошибку manual_linking_disabled, UI
-// покажет её в тосте.
-//
-// Telegram — пока read-only (текущий @chaptifybot flow создаёт новый
-// аккаунт, не умеет привязывать к существующему). Доработка бота —
-// отдельный шаг.
+// Поддерживает:
+//   - email (read-only, только отображение)
+//   - Google через supabase.auth.linkIdentity (требует Manual Linking в GoTrue)
+//   - Telegram через наш auth-service-chaptify /auth/link-telegram
 
 interface Identity {
   id: string;
@@ -27,22 +23,36 @@ interface Identity {
 }
 
 const PROVIDERS = [
-  { id: 'google',   label: 'Google',   icon: 'G' },
-  // { id: 'yandex',   label: 'Яндекс',   icon: 'Я' }, // когда добавим провайдера в Supabase
+  { id: 'google', label: 'Google', icon: 'G' },
 ];
 
-export default function LinkedAccounts({ telegramId }: { telegramId: number | null }) {
+interface TelegramUser {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
+}
+
+interface Props {
+  telegramId: number | null;
+  hasChaptifyBot: boolean;   // есть ли chaptify_bot_chat_id
+}
+
+export default function LinkedAccounts({ telegramId, hasChaptifyBot }: Props) {
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
+  const [showTgWidget, setShowTgWidget] = useState(false);
+  const [localTelegramId, setLocalTelegramId] = useState<number | null>(telegramId);
 
   const reload = async () => {
     setLoading(true);
     const supabase = createClient();
 
-    // Форсим обновление сессии: после возврата из Google supabase-js
-    // мог не успеть засинхронизировать identities из свежего JWT.
     try {
       await supabase.auth.refreshSession();
     } catch {
@@ -61,8 +71,6 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
 
   useEffect(() => {
     reload();
-    // race-страховка: после возврата с callback session/identity может
-    // прицепиться чуть позже — повторим reload через 600мс.
     const t = setTimeout(reload, 600);
     return () => clearTimeout(t);
   }, []);
@@ -72,11 +80,6 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
     setMsg(null);
     const supabase = createClient();
 
-    // Явно запрашиваем URL + skipBrowserRedirect:true, чтобы:
-    //  1) Увидеть любую ошибку (manual_linking_disabled, session, etc.)
-    //     в data/error, а не в виде молчаливого редиректа.
-    //  2) Самим делать window.location.href = data.url —
-    //     без surprises от supabase-js версии.
     let data: { url?: string } | null = null;
     let error: { message?: string } | null = null;
     try {
@@ -100,21 +103,17 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
         text:
           `Не получилось привязать Google: ${reason}. ` +
           `Скорее всего на Supabase (GoTrue) не включён Manual Linking — ` +
-          `проверь переменную GOTRUE_SECURITY_MANUAL_LINKING_ENABLED=true ` +
-          `и перезапусти сервис auth.`,
+          `проверь переменную GOTRUE_SECURITY_MANUAL_LINKING_ENABLED=true.`,
         tone: 'err',
       });
-      // eslint-disable-next-line no-console
       console.error('[link-identity] failed', { error, data });
       return;
     }
-    // Уходим на Google. При возврате /auth/callback обменяет код,
-    // identity добавится в профиль, редирект на /profile/settings.
     window.location.href = data.url;
   };
 
   const handleUnlink = async (identity: Identity) => {
-    if (identities.length < 2) {
+    if (identities.length < 2 && !localTelegramId) {
       setMsg({
         text: 'Нельзя отвязать последний способ входа — останешься без доступа к аккаунту.',
         tone: 'err',
@@ -125,7 +124,6 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
     setBusy(identity.provider);
     setMsg(null);
     const supabase = createClient();
-    // unlinkIdentity принимает весь объект identity
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.auth.unlinkIdentity(identity as any);
     setBusy(null);
@@ -137,8 +135,97 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
     reload();
   };
 
+  // --- Telegram flow ---
+  const handleTgAuth = async (user: TelegramUser) => {
+    setBusy('telegram');
+    setMsg(null);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setBusy(null);
+      setMsg({ text: 'Сессия потеряна — перезайди.', tone: 'err' });
+      return;
+    }
+    try {
+      const resp = await fetch(`${AUTH_API_URL}/auth/link-telegram`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ widgetData: user }),
+      });
+      const data = (await resp.json()) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        telegram_id?: number;
+      };
+      setBusy(null);
+      if (!resp.ok || !data.ok) {
+        setMsg({
+          text:
+            data.message ??
+            `Не получилось привязать Telegram: ${data.error ?? resp.statusText}`,
+          tone: 'err',
+        });
+        return;
+      }
+      setLocalTelegramId(data.telegram_id ?? user.id);
+      setShowTgWidget(false);
+      setMsg({ text: '✓ Telegram привязан', tone: 'ok' });
+    } catch (e) {
+      setBusy(null);
+      setMsg({
+        text: `Не получилось: ${e instanceof Error ? e.message : 'сеть'}`,
+        tone: 'err',
+      });
+    }
+  };
+
+  const handleTgUnlink = async () => {
+    if (!confirm('Отвязать Telegram? Уведомления в бот тоже выключатся.')) return;
+    setBusy('telegram');
+    setMsg(null);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setBusy(null);
+      return;
+    }
+    try {
+      const resp = await fetch(`${AUTH_API_URL}/auth/unlink-telegram`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = (await resp.json()) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+      };
+      setBusy(null);
+      if (!resp.ok || !data.ok) {
+        setMsg({
+          text: data.message ?? `Не получилось: ${data.error ?? resp.statusText}`,
+          tone: 'err',
+        });
+        return;
+      }
+      setLocalTelegramId(null);
+      setMsg({ text: '✓ Telegram отвязан', tone: 'ok' });
+    } catch (e) {
+      setBusy(null);
+      setMsg({
+        text: `Не получилось: ${e instanceof Error ? e.message : 'сеть'}`,
+        tone: 'err',
+      });
+    }
+  };
+
   const hasProvider = (p: string) => identities.some((i) => i.provider === p);
   const emailIdentity = identities.find((i) => i.provider === 'email');
+
+  const showBotBanner = !!localTelegramId && !hasChaptifyBot;
 
   return (
     <section className="settings-block">
@@ -163,7 +250,7 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
         <p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Загружаем…</p>
       ) : (
         <div className="linked-accounts-list">
-          {/* Email — отдельным блоком, всегда read-only */}
+          {/* Email — read-only */}
           {emailIdentity && (
             <div className="linked-account-row">
               <div className="linked-account-icon" aria-hidden="true">✉</div>
@@ -177,7 +264,7 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
             </div>
           )}
 
-          {/* OAuth-провайдеры */}
+          {/* OAuth */}
           {PROVIDERS.map((p) => {
             const linked = hasProvider(p.id);
             const identity = identities.find((i) => i.provider === p.id);
@@ -215,21 +302,66 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
             );
           })}
 
-          {/* Telegram */}
+          {/* Telegram — работает через auth-service-chaptify */}
           <div className="linked-account-row">
             <div className="linked-account-icon" aria-hidden="true">✈</div>
             <div className="linked-account-body">
               <div className="linked-account-title">Telegram</div>
               <div className="linked-account-sub">
-                {telegramId
-                  ? `Привязан (id: ${telegramId})`
-                  : 'Через @chaptifybot (пока только для новых аккаунтов)'}
+                {localTelegramId
+                  ? `Привязан (id: ${localTelegramId})`
+                  : 'Не привязан'}
               </div>
             </div>
-            <span className="linked-account-status">
-              {telegramId ? 'Привязан' : 'Скоро'}
-            </span>
+            {localTelegramId ? (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={handleTgUnlink}
+                disabled={busy === 'telegram'}
+              >
+                {busy === 'telegram' ? '…' : 'Отвязать'}
+              </button>
+            ) : showTgWidget ? (
+              <div style={{ flexShrink: 0 }}>
+                <TelegramLoginWidget botName={TG_BOT_USERNAME} onAuth={handleTgAuth} />
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setShowTgWidget(true)}
+                disabled={busy === 'telegram'}
+              >
+                Привязать
+              </button>
+            )}
           </div>
+        </div>
+      )}
+
+      {/* Плашка «подпишись на уведомления» если TG привязан, но bot_chat_id пуст */}
+      {showBotBanner && (
+        <div className="bot-notify-banner">
+          <div className="bot-notify-banner-icon" aria-hidden="true">🔔</div>
+          <div className="bot-notify-banner-body">
+            <div className="bot-notify-banner-title">
+              Получай уведомления в Telegram
+            </div>
+            <div className="bot-notify-banner-sub">
+              Telegram привязан. Осталось открыть бот и написать <code>/start</code> —
+              и я буду присылать важные события (чаевые, отклики на маркетплейсе,
+              новые подписчики, друзья).
+            </div>
+          </div>
+          <a
+            href={`https://t.me/${TG_BOT_USERNAME}?start=notify`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="btn btn-primary"
+          >
+            Открыть @{TG_BOT_USERNAME}
+          </a>
         </div>
       )}
 
