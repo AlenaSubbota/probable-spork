@@ -67,12 +67,14 @@ export default async function ChapterPage({ params }: PageProps) {
   }
 
   // Проверяем доступ. Если глава бесплатная — сразу пускаем.
-  // Иначе пробуем RPC can_read_chapter (после миграции 001). Если RPC нет
-  // или бросает ошибку — фоллбэк: пускаем всех (не ломаем beta-флоу tene).
+  // Иначе пробуем RPC can_read_chapter_chaptify (миграция 036). Это
+  // chaptify-специфичная обёртка — пропускает автора, команду из
+  // novel_translators и админа; остальное делегирует общему
+  // can_read_chapter (который tene не меняем).
   let hasAccess = !chapter.is_paid;
   if (chapter.is_paid && user) {
     try {
-      const { data: allowed } = await supabase.rpc('can_read_chapter', {
+      const { data: allowed } = await supabase.rpc('can_read_chapter_chaptify', {
         p_user: user.id,
         p_novel: novel.id,
         p_chapter: chapter.chapter_number,
