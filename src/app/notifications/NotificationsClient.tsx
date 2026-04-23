@@ -53,6 +53,8 @@ function iconFor(type: string): string {
     case 'novel_rejected':                   return '⚠';
     case 'translator_application_approved':  return '🎉';
     case 'translator_application_rejected':  return '📋';
+    case 'marketplace_application':          return '🤝';
+    case 'marketplace_status':               return '📬';
     default:                                 return '🔔';
   }
 }
