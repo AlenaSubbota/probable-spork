@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import BoostyClaimBlock from './BoostyClaimBlock';
+import ClaimBlock, { type PaymentMethod } from './BoostyClaimBlock';
 
 interface Props {
   novelId: number;
@@ -16,7 +16,10 @@ interface Props {
   translatorSlug: string | null;
   translatorId: string | null;
   translatorName: string | null;
-  translatorBoostyUrl: string | null;
+  /** Список подключённых переводчиком платформ (только enabled). */
+  paymentMethods: PaymentMethod[];
+  /** Принимает ли переводчик оплату монетами за главу. */
+  acceptsCoins: boolean;
   existingClaim: {
     id: number;
     code: string;
@@ -26,14 +29,6 @@ interface Props {
   } | null;
 }
 
-// Показывается вместо текста главы, если глава платная и у пользователя
-// нет доступа. Три пути:
-//   A. Подписка на Boosty у переводчика + claim-code (если переводчик
-//      настроил payout_boosty_url) — рекомендуемый путь, деньги идут
-//      переводчику напрямую.
-//   B. Купить разово за монеты — внутренняя валюта chaptify (для тех,
-//      кто читает редко или не хочет подписки).
-//   C. [будущее] Подписка на переводчика через chaptify — пока заглушка.
 export default function ChapterPaywall({
   novelId,
   novelFirebaseId,
@@ -44,7 +39,8 @@ export default function ChapterPaywall({
   translatorSlug,
   translatorId,
   translatorName,
-  translatorBoostyUrl,
+  paymentMethods,
+  acceptsCoins,
   existingClaim,
 }: Props) {
   const router = useRouter();
@@ -89,6 +85,8 @@ export default function ChapterPaywall({
     router.refresh();
   };
 
+  const hasAnyOption = paymentMethods.length > 0 || acceptsCoins;
+
   return (
     <div className="paywall">
       <div className="paywall-icon" aria-hidden="true">🔒</div>
@@ -96,66 +94,74 @@ export default function ChapterPaywall({
         Глава {chapterNumber} · «{novelTitle}»
       </h2>
       <p className="paywall-sub">
-        Это платная глава. Открой её одним из способов ниже.
+        {hasAnyOption
+          ? 'Это платная глава. Выбери способ — любой из этих открывает доступ.'
+          : 'Переводчик пока не настроил оплату. Напиши автору через профиль — он подскажет.'}
       </p>
 
-      {/* Вариант A: подписка на Boosty — если переводчик её настроил */}
-      {translatorId && translatorBoostyUrl && (
-        <BoostyClaimBlock
-          translatorId={translatorId}
-          translatorName={translatorName ?? 'переводчик'}
-          boostyUrl={translatorBoostyUrl}
-          existingClaim={existingClaim}
-        />
+      {/* Внешние платёжные методы (Boosty, Tribute, VK Donut, …) */}
+      {translatorId && paymentMethods.length > 0 && (
+        <div className="paywall-claims">
+          {paymentMethods.map((m) => (
+            <ClaimBlock
+              key={m.id}
+              translatorId={translatorId}
+              translatorName={translatorName ?? 'переводчик'}
+              method={m}
+              existingClaim={existingClaim}
+            />
+          ))}
+        </div>
       )}
 
       <div className="paywall-options">
-        {/* Вариант B: разовая покупка за монеты */}
-        <div className="paywall-option">
-          <div className="paywall-option-head">Купить главу за монеты</div>
-          <div className="paywall-option-price">
-            <span className="paywall-coins">{chapterPrice}</span>
-            <span className="paywall-coins-unit">монет</span>
-          </div>
-          <div className="paywall-balance">
-            На счету:{' '}
-            <strong className={canAfford ? '' : 'paywall-balance--low'}>
-              {userBalance.toLocaleString('ru-RU')}
-            </strong>{' '}
-            монет
-          </div>
-          {canAfford ? (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleBuy}
-              disabled={busy}
-              style={{ width: '100%' }}
-            >
-              {busy ? 'Покупаем…' : `Купить за ${chapterPrice} монет`}
-            </button>
-          ) : (
-            <Link
-              href="/profile/topup"
-              className="btn btn-primary"
-              style={{ width: '100%' }}
-            >
-              Пополнить баланс
-            </Link>
-          )}
-          {error && (
-            <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>
-              {error}
+        {/* Монеты — только если переводчик это принимает */}
+        {acceptsCoins && (
+          <div className="paywall-option">
+            <div className="paywall-option-head">Купить главу за монеты</div>
+            <div className="paywall-option-price">
+              <span className="paywall-coins">{chapterPrice}</span>
+              <span className="paywall-coins-unit">монет</span>
             </div>
-          )}
-        </div>
+            <div className="paywall-balance">
+              На счету:{' '}
+              <strong className={canAfford ? '' : 'paywall-balance--low'}>
+                {userBalance.toLocaleString('ru-RU')}
+              </strong>{' '}
+              монет
+            </div>
+            {canAfford ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleBuy}
+                disabled={busy}
+                style={{ width: '100%' }}
+              >
+                {busy ? 'Покупаем…' : `Купить за ${chapterPrice} монет`}
+              </button>
+            ) : (
+              <Link
+                href="/profile/topup"
+                className="btn btn-primary"
+                style={{ width: '100%' }}
+              >
+                Пополнить баланс
+              </Link>
+            )}
+            {error && (
+              <div style={{ color: 'var(--rose)', fontSize: 12, marginTop: 8 }}>
+                {error}
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Вариант C: ссылка на переводчика */}
         {translatorSlug && (
           <div className="paywall-option paywall-option--mini">
-            <div className="paywall-option-head">Посмотреть все способы</div>
+            <div className="paywall-option-head">Все способы и контакты</div>
             <div className="paywall-balance" style={{ marginBottom: 8 }}>
-              Страница переводчика — там может быть Boosty, Telegram и другое.
+              Страница переводчика — там все его ссылки и способы связи.
             </div>
             <Link
               href={`/t/${translatorSlug}`}

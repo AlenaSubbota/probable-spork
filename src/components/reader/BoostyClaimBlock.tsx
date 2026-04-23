@@ -5,11 +5,31 @@ import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
 
+export type Provider = 'boosty' | 'tribute' | 'vk_donut' | 'patreon' | 'other';
+
+export interface PaymentMethod {
+  id: number;
+  provider: Provider;
+  url: string;
+  instructions: string | null;
+}
+
+const PROVIDER_META: Record<Provider, {
+  label: string;
+  icon: string;
+  color: string;    // акцент карточки
+}> = {
+  boosty:   { label: 'Boosty',   icon: '💛', color: '#ffc839' },
+  tribute:  { label: 'Tribute',  icon: '💰', color: '#f8b04a' },
+  vk_donut: { label: 'VK Donut', icon: '🟦', color: '#4a76a8' },
+  patreon:  { label: 'Patreon',  icon: '🧡', color: '#ff424d' },
+  other:    { label: 'Другое',   icon: '✨', color: '#a06a4d' },
+};
+
 interface Props {
   translatorId: string;
   translatorName: string;
-  boostyUrl: string | null;
-  /** Если у читателя уже есть pending-claim — передаём сюда, чтобы показать код и статус. */
+  method: PaymentMethod;
   existingClaim?: {
     id: number;
     code: string;
@@ -19,20 +39,19 @@ interface Props {
   } | null;
 }
 
-// Блок на paywall: «открыть платные главы через Boosty-подписку».
-// Чтение флоу:
-//   1. Клик «Оплатить на Boosty» — уходит на Boosty
+// Карточка одного способа оплаты. Флоу:
+//   1. Клик «Оплатить на <платформе>» — уходит на внешнюю ссылку
 //   2. После оплаты — возврат, «У меня есть подписка» → форма
-//   3. Читатель вводит свой Boosty-ник и нажимает «Отправить заявку»
-//   4. Генерируется уникальный код (C-XXXXXXXX) — его нужно написать
-//      переводчику в ЛС или в комменте к посту. Переводчик сверяет и
-//      подтверждает одну кнопкой — открывается доступ.
-export default function BoostyClaimBlock({
+//   3. Читатель вводит свой ник на платформе и нажимает «Отправить»
+//   4. Переводчик получает уведомление → одобряет в /admin/subscribers
+//      → подписка активируется и все платные главы открываются.
+export default function ClaimBlock({
   translatorId,
   translatorName,
-  boostyUrl,
+  method,
   existingClaim,
 }: Props) {
+  const meta = PROVIDER_META[method.provider];
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [externalName, setExternalName] = useState('');
@@ -43,14 +62,14 @@ export default function BoostyClaimBlock({
 
   const handleSubmit = async () => {
     if (externalName.trim().length < 2) {
-      push('error', 'Напиши свой ник на Boosty — переводчику так проще найти тебя.');
+      push('error', `Напиши свой ник на ${meta.label} — переводчику так проще найти тебя.`);
       return;
     }
     setBusy(true);
     const supabase = createClient();
     const { data, error } = await supabase.rpc('submit_subscription_claim', {
       p_translator_id: translatorId,
-      p_provider:      'boosty',
+      p_provider:      method.provider,
       p_external:      externalName.trim(),
       p_note:          note.trim() || null,
       p_tier_months:   tierMonths,
@@ -81,45 +100,38 @@ export default function BoostyClaimBlock({
     push('success', 'Заявка отправлена. Переводчику пришло уведомление.');
   };
 
-  // Если нет Boosty-URL — блок не показываем (paywall решит что рисовать)
-  if (!boostyUrl) return null;
-
   return (
-    <div className="boosty-claim-block">
-      <div className="boosty-claim-head">
+    <div className="claim-block" style={{ borderLeftColor: meta.color }}>
+      <div className="claim-block-head">
+        <span className="claim-block-icon" aria-hidden="true">{meta.icon}</span>
         <div>
-          <div className="boosty-claim-title">
-            Открыть через подписку на Boosty
+          <div className="claim-block-title">
+            Подписка на {meta.label}
           </div>
-          <div className="boosty-claim-sub">
-            {translatorName} получает оплату напрямую через Boosty.
-            Chaptify только сверит, что ты подписан(а), и откроет все платные главы.
+          <div className="claim-block-sub">
+            {method.instructions
+              ? method.instructions
+              : `${translatorName} получает оплату напрямую через ${meta.label}.`}
           </div>
         </div>
       </div>
 
       {claim ? (
-        <ClaimStatus claim={claim} />
+        <ClaimStatus claim={claim} providerLabel={meta.label} />
       ) : open ? (
-        <div className="boosty-claim-form">
-          <ol className="boosty-claim-steps">
+        <div className="claim-form">
+          <ol className="claim-steps">
+            <li>Подпишись по ссылке переводчика (если ещё нет).</li>
+            <li>Отправь заявку здесь — получишь <strong>уникальный код</strong>.</li>
             <li>
-              Подпишись на Boosty по ссылке переводчика (если ещё нет).
+              Напиши этот код переводчику в личку {meta.label} или в комменте
+              к посту. Так он/она свяжет твой аккаунт с chaptify.
             </li>
-            <li>
-              Отправь заявку здесь — получишь <strong>уникальный код</strong>.
-            </li>
-            <li>
-              Напиши этот код {translatorName} в личку Boosty или в комменте
-              к посту. Так переводчик поймёт, какой ты аккаунт на chaptify.
-            </li>
-            <li>
-              Переводчик одобрит — платные главы откроются автоматически.
-            </li>
+            <li>Переводчик одобрит — доступ откроется автоматически.</li>
           </ol>
 
           <div className="form-field">
-            <label>Твой ник на Boosty *</label>
+            <label>Твой ник на {meta.label} *</label>
             <input
               className="form-input"
               value={externalName}
@@ -142,9 +154,6 @@ export default function BoostyClaimBlock({
               <option value={6}>6 месяцев</option>
               <option value={12}>12 месяцев</option>
             </select>
-            <div className="form-hint">
-              От этого зависит, на сколько откроется доступ.
-            </div>
           </div>
 
           <div className="form-field">
@@ -178,14 +187,14 @@ export default function BoostyClaimBlock({
           </div>
         </div>
       ) : (
-        <div className="boosty-claim-cta">
+        <div className="claim-cta">
           <a
-            href={boostyUrl}
+            href={method.url}
             target="_blank"
             rel="noreferrer noopener"
             className="btn btn-primary"
           >
-            Оплатить на Boosty →
+            Оплатить на {meta.label} →
           </a>
           <button
             type="button"
@@ -202,37 +211,40 @@ export default function BoostyClaimBlock({
   );
 }
 
-function ClaimStatus({ claim }: { claim: NonNullable<Props['existingClaim']> }) {
+function ClaimStatus({
+  claim,
+  providerLabel,
+}: {
+  claim: NonNullable<Props['existingClaim']>;
+  providerLabel: string;
+}) {
   if (claim.status === 'pending') {
     return (
-      <div className="boosty-claim-pending">
-        <div className="boosty-claim-pending-head">
-          📨 Заявка отправлена · ждём одобрения
+      <div className="claim-pending">
+        <div className="claim-pending-head">📨 Заявка отправлена · ждём одобрения</div>
+        <div className="claim-pending-sub">
+          Напиши этот код переводчику в {providerLabel}:
         </div>
-        <div className="boosty-claim-pending-sub">
-          Напиши этот код переводчику в личку Boosty или в комменте:
+        <div className="claim-code">{claim.code}</div>
+        <div className="claim-pending-sub">
+          Твой ник: <strong>@{claim.external_username}</strong> · срок: {claim.tier_months} мес.
         </div>
-        <div className="boosty-claim-code">{claim.code}</div>
-        <div className="boosty-claim-pending-sub">
-          Твой ник: <strong>@{claim.external_username}</strong>{' '}
-          · срок: {claim.tier_months} мес.
-        </div>
-        <div className="boosty-claim-pending-hint">
-          Как только переводчик одобрит — получишь уведомление, и платные
-          главы откроются. Обычно в течение дня.
+        <div className="claim-pending-hint">
+          Как только переводчик одобрит — получишь уведомление. Обычно в
+          течение дня.
         </div>
       </div>
     );
   }
   if (claim.status === 'approved') {
     return (
-      <div className="boosty-claim-approved">
+      <div className="claim-approved">
         ✓ Подписка активна. Главы открыты.
       </div>
     );
   }
   return (
-    <div className="boosty-claim-declined">
+    <div className="claim-declined">
       <div>✗ Заявка отклонена переводчиком.</div>
       <Link href="#" onClick={(e) => { e.preventDefault(); window.location.reload(); }}>
         Попробовать снова

@@ -9602,3 +9602,179 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   opacity: 0.8;
 }
 .paywall-option--mini:hover { opacity: 1; }
+
+/* ---------- Payment methods editor ---------- */
+.payment-methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.payment-method-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--paper-warm, #faf6ee);
+  border: 1px solid var(--border, #e6e0d4);
+  border-radius: 10px;
+}
+.payment-method-row.is-disabled {
+  opacity: 0.5;
+}
+.payment-method-icon {
+  font-size: 22px;
+  text-align: center;
+}
+.payment-method-body { min-width: 0; }
+.payment-method-title {
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.payment-method-badge {
+  font-size: 10px;
+  color: var(--ink-mute);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--paper-warm, #f5f0e6);
+  border: 1px solid var(--border, #e6e0d4);
+  text-transform: lowercase;
+}
+.payment-method-url {
+  font-size: 12px;
+  margin-top: 2px;
+  word-break: break-all;
+}
+.payment-method-url a { color: var(--accent); }
+.payment-method-instr {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 4px;
+  font-style: italic;
+}
+.payment-method-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.payment-method-actions .btn {
+  min-width: 32px;
+  height: 30px;
+  padding: 0 8px;
+}
+.payment-methods-add {
+  padding: 14px 16px;
+  background: var(--paper, #fff);
+  border: 1px dashed var(--border, #e6e0d4);
+  border-radius: 10px;
+  margin-top: 14px;
+}
+
+/* ---------- Claim blocks (многопровайдерные) ---------- */
+.paywall-claims {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.claim-block {
+  padding: 16px 18px;
+  background: #fffbf1;
+  border: 1px solid #f0d9a6;
+  border-left: 4px solid #ffc839;
+  border-radius: 10px;
+}
+.claim-block-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.claim-block-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.claim-block-title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: #6b4a16;
+}
+.claim-block-sub {
+  font-size: 13px;
+  color: #8a6a2a;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.claim-cta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.claim-form,
+.claim-pending {
+  background: var(--paper, #fff);
+  border: 1px dashed #e6c88e;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 8px;
+}
+.claim-steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #5e4410;
+}
+.claim-steps li + li { margin-top: 3px; }
+.claim-pending-head {
+  font-weight: 600;
+  color: #6b4a16;
+  margin-bottom: 6px;
+}
+.claim-pending-sub {
+  font-size: 13px;
+  color: #8a6a2a;
+  margin: 3px 0;
+}
+.claim-pending-hint {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 6px;
+}
+.claim-code {
+  display: inline-block;
+  padding: 8px 14px;
+  background: #fff;
+  border: 2px solid #d3a541;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: #6b4a16;
+  letter-spacing: .1em;
+  margin: 6px 0;
+  user-select: all;
+}
+.claim-approved {
+  padding: 10px 14px;
+  background: #e0f0e3;
+  color: #2a7a44;
+  font-weight: 600;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+.claim-declined {
+  padding: 10px 14px;
+  background: #fbeae8;
+  color: #a5342b;
+  border-radius: 8px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
