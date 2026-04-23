@@ -102,6 +102,9 @@ export default async function AdminDashboard() {
           <Link href="/admin/payouts" className="btn btn-ghost">
             💳 Настройки выплат
           </Link>
+          <Link href="/admin/subscribers" className="btn btn-ghost">
+            💌 Подписчики
+          </Link>
           {isAdmin && (
             <>
               <Link
