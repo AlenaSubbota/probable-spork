@@ -5,6 +5,8 @@ import ReaderContent from '@/components/ReaderContent';
 import CommentsSection from '@/components/CommentsSection';
 import ChapterThanks from '@/components/reader/ChapterThanks';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
+import SimilarByReaders from '@/components/SimilarByReaders';
+import { fetchTranslatorSlugs } from '@/lib/translator';
 
 interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
@@ -359,6 +361,29 @@ export default async function ChapterPage({ params }: PageProps) {
       tp?.translator_display_name || tp?.user_name || null;
   }
 
+  // Похожие новеллы в конце главы — чтобы читатель после дочитанной
+  // главы не застрял в пустоте, а плавно перешёл к следующей книге.
+  // RPC `get_similar_novels_by_readers` из tene работает по таблице
+  // `novel_ratings` (кто ставил 4+ этой же ставил 4+ вот этим).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let similarByReaders: any[] = [];
+  let similarSlugMap: Map<string, string> = new Map();
+  try {
+    const { data } = await supabase.rpc('get_similar_novels_by_readers', {
+      p_novel_id: novel.id,
+      p_limit: 6,
+    });
+    if (Array.isArray(data) && data.length > 0) {
+      similarByReaders = data;
+      const ids = (data as Array<{ translator_id?: string | null }>)
+        .map((n) => n.translator_id)
+        .filter((v): v is string => !!v);
+      similarSlugMap = await fetchTranslatorSlugs(supabase, ids);
+    }
+  } catch {
+    // RPC ещё не накачена — тихо пропускаем блок
+  }
+
   return (
     <div className="reader-page">
       <header className="reader-header">
@@ -449,6 +474,13 @@ export default async function ChapterPage({ params }: PageProps) {
         <hr className="reader-divider" />
 
         <CommentsSection novelId={novel.id} chapterNumber={chapter.chapter_number} />
+
+        {similarByReaders.length > 0 && (
+          <SimilarByReaders
+            novels={similarByReaders}
+            translatorSlugs={similarSlugMap}
+          />
+        )}
       </main>
     </div>
   );
