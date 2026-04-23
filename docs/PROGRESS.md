@@ -1649,3 +1649,98 @@ DEFINER RPC.
 Без новых миграций — всё текстово / UI-правки. RPC
 `translator_earnings_pending` пока остался (он читает старые покупки
 глав, безобиден) — удалять не стали.
+
+## Итерация 51 — мобильная адаптация (5 фаз, коммиты 99c4a1b…ec0919b)
+
+Tene адаптирован под мобильные, chaptify был нет. Здесь — базовый
+проход под iPhone / Android. Цель: 360–430 px всё выглядит адекватно,
+тап-таргеты ≥ 44 px, iOS safe-area учитывается.
+
+### Фаза 1 (99c4a1b) — фундамент
+
+- `src/app/layout.tsx`: `export const viewport: Viewport` с
+  `viewportFit: 'cover'`, `themeColor: '#F5EFE6'`. Это включает
+  `env(safe-area-inset-*)` на iPhone X+. `userScalable` оставили
+  дефолтно true — не отбираем pinch-zoom у людей со слабым зрением.
+- `globals.css` html/body: `overflow-x:hidden`,
+  `-webkit-tap-highlight-color: transparent`, `touch-action: manipulation`.
+- `.container` на ≤540 px: padding 0 24 → 14 px (остаётся 332 px на
+  360-м экране).
+- `.btn`: height 40 → 44 px (Apple HIG).
+- **Новый** `src/components/MobileMenu.tsx` (client component) —
+  гамбургер + drawer слева: form-поиск, ссылки каталога, новости/
+  сообщения/уведомления с badge, separator, профиль/настройки/справка.
+  Scroll-lock body во время открытия, Esc и клик по overlay закрывают,
+  auto-close на смену pathname.
+- `SiteHeader` на ≤760 px: `.main-nav` и `.search-box` скрываются,
+  виден гамбургер + лого (18/28 px) + UserMenu. На ≥761 px drawer
+  спрятан через `display:none !important`.
+
+### Фаза 2 (ea71a2d) — главная
+
+- `.novel-grid`: breakpoints 6 (dflt) → 4 (≤1100) → 3 (≤760, gap 14) →
+  **2 (≤540, gap 12)**. Раньше 3 колонки тянулись до 700 px, и на
+  375-м экране обложка была ~100 px шириной, деформировалась.
+- `.story-tile` на ≤540 px: 172×58 → 148×54, title 14→13. Stripe
+  нормально влезает.
+- `.section-head` на ≤540 px: h2 22→18 px, align-items center (раньше
+  baseline → «N ›» вылетала над заголовком).
+
+### Фаза 3 (a0c4250) — страница новеллы + читалка
+
+- `.novel-top` на ≤540 px: grid 1fr, обложка max-width 200 px и
+  `margin: 0 auto`, заголовок 34→26 px и центрируется. Раньше на
+  мобиле обложка тянулась во всю ширину, занимая пол-экрана высотой.
+- `.chapter-item` на ≤540 px: grid `1fr auto` (вместо `1fr auto auto`),
+  первая колонка (название+дата) занимает полную первую строку
+  (`grid-column: 1 / -1`). Плашка цены и кнопки уходят во вторую
+  строку — название больше не обрезается до «Глав…».
+- `.reader-main` на ≤540 px: padding 36/22/120 → 20/14/80, заголовок
+  26→22.
+- `.wallet-block` (TranslatorWallet) на ≤540 px: padding 22/26 → 18/16,
+  amount-input 100→80 px, balance 36→28 px.
+
+### Фаза 4 (e77c91e) — переводчик, профиль, admin
+
+- `.translator-hero` на ≤540 px: grid 1fr, центр-текст, avatar
+  margin:auto, stats центрируется. Было 72 px avatar + 1fr body на
+  360-м — крошилось.
+- `.profile-hero` на ≤540 px: flex-direction column, текст центр,
+  кнопки Настройки/Админка/Выйти под шапкой justify-content:center +
+  flex-wrap:wrap.
+- `.bbcode-toolbar` на ≤540 px: `flex-wrap:nowrap` + `overflow-x:auto`
+  (свайп) вместо многорядного. Кнопки 30→36 px высотой. Скроллбар
+  скрыт.
+- `.admin-form-footer`: `padding-bottom: calc(16px + env(safe-area-inset-bottom))` — на iPhone home-indicator больше не перекрывает
+  кнопку «Сохранить».
+
+### Фаза 5 (ec0919b) — iOS-полировка
+
+- `.site-header`: `padding-top: env(safe-area-inset-top)`. Липкий
+  header остаётся прижат к верху, но внутреннее содержимое сдвигается
+  вниз на высоту notch. Без этого логотип лез под динамический остров.
+- `.chip`: min-height 36 px + inline-flex + align-items:center. Палец
+  попадает уверенно (раньше 28 px высота была на грани).
+- `.form-input / .form-textarea`: font-size 14 → **16 px**. Это
+  критично: iOS Safari на focus-ах инпутов <16 px авто-zoom-in всей
+  странице, после чего layout съезжает. 16 px это убирает.
+- `.form-input:-webkit-autofill`: маскируем жёлтый фон автозаполнения
+  через inset-shadow цвета `--surface-2`. В тёплой палитре жёлтый
+  смотрелся бы грязно.
+
+### Что осталось на будущую итерацию
+
+- **Админ-таблицы** (marketplace-listings, moderation queue, claims)
+  на совсем узких экранах могут перерисоваться в карточки —
+  сейчас они остаются таблицами с горизонтальным скроллом. Терпимо.
+- **ReaderSettings drawer** на iPhone — работает, но анимация
+  открытия снизу может наехать на home-indicator. Нужен
+  `env(safe-area-inset-bottom)` в его padding.
+- **ContinueReadingShelf / MyShelfStrip** — сейчас overflow-x scroll
+  с aggressive snap; на iPad может работать странно при landscape
+  ориентации. Проверка → фикс, если поймаем жалобу.
+- **Landscape-режим телефона** — не тестировал специально; большинство
+  правил работает через min/max-width, но возможно некоторые
+  sticky-элементы на landscape 320×840 налезут друг на друга.
+- Отдельный пользовательский smoke-test на реальных устройствах
+  (Алёне и мне) перед анонсом в сторис.
