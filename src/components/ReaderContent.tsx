@@ -12,6 +12,7 @@ import {
 import ReaderSettingsPanel from './ReaderSettings';
 import QuoteBubble from './QuoteBubble';
 import SleepTimerOverlay from './SleepTimerOverlay';
+import ChapterTOC from './reader/ChapterTOC';
 
 interface GlossaryItem {
   term_original: string;
@@ -50,6 +51,7 @@ export default function ReaderContent({
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tocOpen, setTocOpen] = useState(false);
 
   // Таймер сна.
   // selectedPreset — изначально выбранный пресет (для подсветки в UI), не тикает.
@@ -392,6 +394,16 @@ export default function ReaderContent({
       data-theme={settings.theme ?? 'light'}
     >
       <div className="reader-toolbar">
+        {novelFirebaseId && (
+          <button
+            type="button"
+            className="chip"
+            onClick={() => setTocOpen(true)}
+            title="Оглавление"
+          >
+            ≡ Оглавление
+          </button>
+        )}
         <button
           type="button"
           className={`chip${settings.focusMode ? ' active' : ''}`}
@@ -409,6 +421,17 @@ export default function ReaderContent({
           ⚙ Настройки
         </button>
       </div>
+
+      {novelFirebaseId && (
+        <ChapterTOC
+          open={tocOpen}
+          onClose={() => setTocOpen(false)}
+          novelId={novelId}
+          novelFirebaseId={novelFirebaseId}
+          novelTitle={novelTitle ?? null}
+          currentChapter={chapterNumber}
+        />
+      )}
 
       <div
         ref={contentRef}
