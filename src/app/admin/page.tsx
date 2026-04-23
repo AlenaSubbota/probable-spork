@@ -99,8 +99,8 @@ export default async function AdminDashboard() {
           <Link href="/admin/schedule" className="btn btn-ghost">
             📅 Расписание
           </Link>
-          <Link href="/admin/payouts" className="btn btn-ghost">
-            💳 Настройки выплат
+          <Link href="/profile/settings" className="btn btn-ghost">
+            💳 Способы оплаты
           </Link>
           <Link href="/admin/subscribers" className="btn btn-ghost">
             💌 Подписчики
@@ -128,9 +128,6 @@ export default async function AdminDashboard() {
                     {pendingCount}
                   </span>
                 )}
-              </Link>
-              <Link href="/admin/all-payouts" className="btn btn-ghost">
-                💰 Выплаты переводчикам
               </Link>
               <Link href="/admin/news" className="btn btn-ghost">
                 📢 Новости

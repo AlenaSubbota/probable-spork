@@ -219,8 +219,9 @@ export default function SettingsForm({
               placeholder="https://boosty.to/alenasubbota"
             />
             <div className="form-hint">
-              Настройки Tribute webhook — на странице{' '}
-              <a href="/admin/payouts" className="more">/admin/payouts</a>.
+              Это поле оставлено для совместимости — рекомендуется добавлять
+              ссылку через блок «Способы оплаты» ниже, он поддерживает
+              несколько провайдеров сразу и Boosty-автосинк.
             </div>
           </div>
         </section>

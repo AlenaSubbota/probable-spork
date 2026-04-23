@@ -354,34 +354,34 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
         </div>
       </header>
 
-      {/* Блок «К выплате» — только для переводчика */}
-      {pendingPayout && pendingPayout.coinsGross > 0 && (
-        <div className="pending-payout">
+      {/* Исторический блок «К выплате» больше не рендерится после
+          перехода на per-translator кошельки (мигр. 045). Chaptify не
+          держит деньги и не выплачивает переводчику — платёж идёт
+          напрямую от читателя. Оставили pendingPayout-пересчёт в
+          коде на случай аналитики, но вытянули как справочный статус. */}
+      {pendingPayout && pendingPayout.chapterCount > 0 && (
+        <div className="pending-payout" style={{ background: 'var(--bg-soft)' }}>
           <div className="pending-payout-head">
-            <span className="pending-payout-emoji" aria-hidden="true">💰</span>
+            <span className="pending-payout-emoji" aria-hidden="true">📘</span>
             <div>
-              <div className="pending-payout-label">К выплате (накоплено)</div>
-              <div className="pending-payout-amount">
-                {pendingPayout.coinsGross.toLocaleString('ru-RU')} монет ≈{' '}
-                {pendingPayout.coinsGross.toLocaleString('ru-RU')} ₽
+              <div className="pending-payout-label">Твои продажи за период</div>
+              <div className="pending-payout-amount" style={{ fontSize: 22 }}>
+                {pendingPayout.chapterCount.toLocaleString('ru-RU')}{' '}
+                {plural(pendingPayout.chapterCount, 'глава', 'главы', 'глав')}{' '}
+                куплено
               </div>
               <div className="pending-payout-sub">
-                {pendingPayout.chapterCount}{' '}
-                {plural(pendingPayout.chapterCount, 'глава', 'главы', 'глав')}{' '}
-                куплено · {pendingPayout.uniqueBuyers}{' '}
+                {pendingPayout.uniqueBuyers}{' '}
                 {plural(
                   pendingPayout.uniqueBuyers,
                   'читатель',
                   'читателя',
                   'читателей'
                 )}{' '}
-                заплатили
+                открыли главы монетами. Монеты они получили, заплатив
+                тебе напрямую — chaptify в расчётах не участвует.
               </div>
             </div>
-          </div>
-          <div className="pending-payout-note">
-            Админ переводит деньги раз в месяц. Настрой способ выплаты в{' '}
-            <Link href="/admin/payouts" className="more">/admin/payouts</Link>.
           </div>
         </div>
       )}
