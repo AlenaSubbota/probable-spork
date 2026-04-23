@@ -13,8 +13,11 @@
 -- требовал CreditsEditor при сортировке.
 -- ============================================================
 
--- Пересоздаём view с created_at
-CREATE OR REPLACE VIEW public.novel_credits AS
+-- Пересоздаём view с created_at.
+-- CREATE OR REPLACE не может добавить колонку в середине (Postgres кидает
+-- "cannot change name of view column"), поэтому сначала DROP.
+DROP VIEW IF EXISTS public.novel_credits;
+CREATE VIEW public.novel_credits AS
 SELECT
   nt.id,
   nt.novel_id,
