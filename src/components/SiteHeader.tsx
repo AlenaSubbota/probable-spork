@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import UserMenu from './UserMenu';
 import MobileMenu from './MobileMenu';
+import ThemeToggle from './ThemeToggle';
 
 export default async function SiteHeader() {
   const supabase = await createClient();
@@ -108,6 +109,9 @@ export default async function SiteHeader() {
         </form>
 
         <div className="header-actions">
+          <div className="header-theme-toggle">
+            <ThemeToggle />
+          </div>
           {user ? (
             <UserMenu
               userName={userName}

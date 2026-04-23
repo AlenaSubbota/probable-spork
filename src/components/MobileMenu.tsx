@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import ThemeToggle from './ThemeToggle';
 
 interface Props {
   isLoggedIn: boolean;
@@ -156,6 +157,11 @@ export default function MobileMenu({
             </>
           )}
         </nav>
+
+        <div className="mobile-drawer-sep" aria-hidden="true" />
+        <div className="mobile-drawer-theme">
+          <ThemeToggle />
+        </div>
       </aside>
     </>
   );
