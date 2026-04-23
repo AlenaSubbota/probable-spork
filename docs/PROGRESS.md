@@ -1905,3 +1905,81 @@ grid-columns / flex без wrap. Второй аудит через Explore-аг
   полная тёмная тема сайта). Это крупная работа, требующая глубокого
   прочтения tene `ChapterReader.jsx` и нового дизайна темы.
   Разнесу отдельной итерацией 54, чтобы не смешивать с мелкими фиксами.
+
+## Итерация 54 — апгрейд читалки + глобальная тёмная тема
+
+### TOC drawer (`9e7919c`)
+
+- Новый компонент `src/components/reader/ChapterTOC.tsx`. Портал в
+  `document.body`, z-index 9999 — перекрывает sticky-header.
+- Кнопка «≡ Оглавление» в reader-toolbar. Загружает все опубликованные
+  главы новеллы за один запрос, подсвечивает текущую, показывает бейдж
+  с ценой у платных.
+- Esc / клик по overlay / клик по главе закрывают. Body scroll-lock
+  на iOS через `position: fixed; top: -scrollY` (тот же паттерн что
+  в MobileMenu).
+- Safe-area top/right/bottom — в dropdown не залезает ни notch, ни
+  home-indicator.
+
+### Глобальная тёмная тема приложения (`baf3764`)
+
+Корень жалобы «тёмная тема — откровенное дерьмо»: `reader-wrapper[data-theme="dark"]` переопределяла переменные только внутри читалки.
+Шапка, футер и страницы вокруг оставались светлыми — ночью в лицо.
+
+- `html[data-theme="dark"]` теперь переопределяет ВСЕ основные
+  CSS-переменные (`--bg`, `--bg-soft`, `--surface`, `--surface-2`,
+  `--border`, `--border-strong`, `--ink`, `--ink-soft`, `--ink-mute`,
+  `--accent`, `--accent-hover`, `--accent-soft`, `--accent-wash`,
+  `--gold`, `--rose`, `--leaf`, `--shadow-sm`, `--shadow-md`).
+- Палитра — тёплый графит (#1A1714 / #29241E) + кофейный акцент
+  (#D6A06C) + off-white (#EFEADD). Сохраняет «бумажный» характер
+  сайта, не плоский чёрный.
+- `color-scheme: dark` для адресной строки мобильного браузера.
+- `.site-header` background переведён с hardcoded `rgba(245, 239, 230, 0.85)`
+  на `color-mix(in srgb, var(--bg) 88%, transparent)` — на тёмной теме
+  шапка тоже тёмная.
+- Новый компонент `ThemeToggle` — три чипа «☀ Светлая / ☾ Тёмная /
+  ◐ Авто». Состояние в localStorage `chaptify-theme`. Режим 'auto'
+  слушает `prefers-color-scheme: dark` и авто-переключается.
+- Anti-FOUC: inline-`<script>` в `<head>` применяет `data-theme` ДО
+  первого paint — иначе страница мигала бы светлой при загрузке в
+  dark-режиме.
+- Размещение ThemeToggle: в `header-actions` на десктопе (≥761 px)
+  и в `mobile-drawer` на мобиле.
+
+Reader dark-тема остаётся независимо — можно сайт оставить светлым,
+а читалку переключить на dark (например, ночное чтение на светлом
+сайте).
+
+### Режим чтения «Страницы» (`50c73fd`)
+
+Алёна: «переключение со свитка в страницы, как в tene».
+
+- Добавлен `readMode: 'scroll' | 'pages'` в `ReaderSettings` (мигр.
+  типа, не БД; localStorage `chaptify-reader-settings`).
+- Toggle в ReaderSettings-панели — два чипа «Свиток / Страницы».
+- В `ReaderContent` прокидываем `data-read-mode` на `reader-wrapper`.
+- CSS `reader-wrapper[data-read-mode='pages'] .novel-content`:
+  * `column-width: calc(100vw - 40px); column-gap: 40px;
+    column-fill: auto` — 1 колонка на экран.
+  * `height: calc(100dvh - 200px)` — 100dvh честнее 100vh на iOS
+    (учитывает схлопывание адресной строки).
+  * `overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory`
+    — горизонтальный свайп с «прилипанием» к странице.
+  * `-webkit-overflow-scrolling: touch` + `overscroll-behavior-x: contain`
+    для iOS momentum.
+  * `break-inside: avoid` на детях — абзац не рвётся между страниц.
+- Hint-анимация «»» справа снизу при первом входе в режим — показывает
+  что можно свайпать. 2.2s ease-out, один раз, затем исчезает.
+
+### Что не вошло
+
+- **Точное определение номера страницы / X из Y** — требует
+  JS-измерений scrollWidth / offsetWidth, отдельного компонента.
+  Для MVP достаточно scroll-snap.
+- **Восстановление позиции при переключении режима** — сейчас при
+  переключении scroll ↔ pages прогресс в главе сбрасывается. В
+  следующей итерации если понадобится: через `last_read.paragraphIndex`.
+- **Кнопки ‹ / › по бокам для десктопа** — в CSS/JS есть, но
+  решила не делать чтобы MVP был проще. Trackpad/mouse-wheel горизонтальный
+  скролл работает натурально, клавиатурные стрелки тоже.
