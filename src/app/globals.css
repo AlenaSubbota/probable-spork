@@ -891,6 +891,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 26px;
 }
 .profile-hero .handle { color: var(--ink-mute); font-size: 14px; }
+@media (max-width: 540px) {
+  .profile-hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 22px 18px;
+    gap: 14px;
+  }
+  .profile-hero h2 { font-size: 22px; }
+  .profile-hero > div:last-child {
+    /* Контейнер с кнопками «Настройки / Админка / Выйти» на мобиле
+       встаёт под шапкой и растягивается по ширине. */
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}
 
 .card-grid-3 {
   display: grid;
@@ -2121,7 +2137,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .admin-form-footer {
   position: sticky;
   bottom: 0;
+  /* iOS safe-area: чтобы футер формы не прятался за home-indicator */
   padding: 16px 0;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0));
   margin-top: 24px;
   background: var(--bg);
   border-top: 1px solid var(--border);
@@ -2985,6 +3003,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .translator-support {
     grid-column: 1 / -1;
   }
+}
+@media (max-width: 540px) {
+  .translator-hero {
+    grid-template-columns: 1fr;
+    text-align: center;
+    padding: 20px 16px;
+    gap: 14px;
+  }
+  .translator-hero-avatar { margin: 0 auto; }
+  .translator-hero-stats { justify-content: center; }
+  .translator-support { text-align: left; }
 }
 
 .translator-hero-avatar {
@@ -6086,6 +6115,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 500;
   cursor: pointer;
   transition: all 0.1s;
+}
+/* На ≤540 px делаем тулбар горизонтально скроллящимся, а не
+   многорядным: переводчику проще свайпнуть, чем смотреть три
+   ряда 10-кнопочных чипов. */
+@media (max-width: 540px) {
+  .bbcode-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .bbcode-toolbar::-webkit-scrollbar { display: none; }
+  .bbcode-btn { flex-shrink: 0; height: 36px; min-width: 38px; }
 }
 .bbcode-btn:hover {
   background: var(--accent-wash);
