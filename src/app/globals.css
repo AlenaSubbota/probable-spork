@@ -4912,6 +4912,49 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--paper-warm, #f5f0e6);
 }
 
+/* Плашка «подпишись на бота для уведомлений» */
+.bot-notify-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #e5f5ea 0%, #d9ecdf 100%);
+  border: 1px solid #b6d3c0;
+  border-radius: 10px;
+}
+.bot-notify-banner-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.bot-notify-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+.bot-notify-banner-title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 14.5px;
+  color: #2a5a3e;
+  margin-bottom: 4px;
+}
+.bot-notify-banner-sub {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #47694e;
+}
+.bot-notify-banner-sub code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* Контейнер для Telegram widget внутри row */
+.tg-widget-host {
+  display: inline-block;
+}
+
 /* ---------- notifications ---------- */
 
 .notif-list {
