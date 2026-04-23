@@ -600,7 +600,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   gap: 36px;
   padding: 36px 0;
 }
-@media (max-width: 820px) { .novel-top { grid-template-columns: 1fr; } }
+@media (max-width: 820px) {
+  .novel-top { grid-template-columns: 1fr; gap: 20px; }
+}
+/* На мобиле обложка во всю ширину контейнера → слишком высокая (3/4
+   aspect-ratio). Делаем компактный «плакатный» вид: обложка меньше, по
+   центру + инфо под ней без двухколоночной шапки. */
+@media (max-width: 540px) {
+  .novel-top {
+    padding: 20px 0 24px;
+    gap: 16px;
+  }
+  .novel-top .cover-large {
+    max-width: 200px;
+    margin: 0 auto;
+  }
+  .novel-info h1 { font-size: 26px; line-height: 1.15; text-align: center; }
+  .novel-info .subtitle { text-align: center; }
+}
 
 .novel-top .cover-large {
   aspect-ratio: 3/4;
@@ -775,6 +792,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .chapter-item:last-child { border-bottom: none; }
 .chapter-item:hover { background: var(--accent-wash); }
+/* На мобиле tag-price и кнопка «Править» съедают половину строки,
+   название главы влезает в одну букву. Даём глав-названию первую
+   строку целиком, плашки цены и кнопки оттесняем вниз. */
+@media (max-width: 540px) {
+  .chapter-item {
+    grid-template-columns: 1fr auto;
+    gap: 8px 10px;
+    padding: 12px 14px;
+  }
+  .chapter-item > div:first-of-type { grid-column: 1 / -1; }
+  .chapter-item .title { font-size: 14px; }
+}
 
 /* Overlay-link на всю карточку главы. Дочерние элементы (название,
    дата, плашка цены) сами не интерактивны — гасим у них pointer-events,
@@ -1568,6 +1597,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   max-width: 760px;
   margin: 0 auto;
   padding: 36px 22px 120px;
+}
+@media (max-width: 540px) {
+  .reader-main { padding: 20px 14px 80px; }
+  .reader-title { font-size: 22px; margin-bottom: 24px; }
+  .reader-nav { margin-top: 32px; }
 }
 .reader-title {
   font-family: var(--font-serif);
@@ -4449,6 +4483,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: linear-gradient(135deg, var(--surface), var(--accent-wash));
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+@media (max-width: 540px) {
+  .wallet-block { padding: 18px 16px; margin: 16px 0; }
+  .wallet-amount-input { max-width: 80px; font-size: 13px; }
+  .wallet-balance-val { font-size: 28px; }
 }
 .wallet-head {
   display: flex;
