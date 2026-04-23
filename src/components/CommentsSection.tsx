@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import { timeAgo } from '@/lib/format';
 import { commentToHtml } from '@/lib/commentFormat';
+import CommentToolbar from './CommentToolbar';
 
 interface Comment {
   id: number;
@@ -278,11 +279,10 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
             </div>
           ) : isEditingThis ? (
             <div className="comment-edit-form">
-              <textarea
-                className="form-textarea"
-                rows={3}
+              <CommentToolbar
                 value={editingText}
-                onChange={(e) => setEditingText(e.target.value)}
+                onChange={setEditingText}
+                rows={3}
                 maxLength={2000}
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
@@ -317,7 +317,7 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
               >
                 {c.user_has_liked ? '❤' : '♡'} {c.like_count ?? 0}
               </button>
-              {userId && depth === 0 && (
+              {userId && (
                 <button
                   type="button"
                   className="comment-reply-btn"
@@ -360,18 +360,19 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
               }}
               className="comment-reply-form"
             >
-              <textarea
-                className="form-textarea"
-                rows={2}
-                placeholder="Напиши ответ… [b]жирный[/b], [spoiler]скрыто[/spoiler]"
+              <CommentToolbar
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={setReplyText}
+                rows={2}
                 maxLength={2000}
+                placeholder={`Ответ для ${c.user_name ?? 'читателя'}…`}
+                autoFocus
               />
               <button
                 type="submit"
                 className="btn btn-primary"
                 disabled={submitting || !replyText.trim()}
+                style={{ marginTop: 6 }}
               >
                 Ответить
               </button>
@@ -400,21 +401,14 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
           }}
           className="comment-form"
         >
-          <textarea
-            className="form-textarea"
-            rows={3}
-            placeholder="Напиши что-нибудь о главе…"
+          <CommentToolbar
             value={newText}
-            onChange={(e) => setNewText(e.target.value)}
+            onChange={setNewText}
+            rows={3}
             maxLength={2000}
+            placeholder="Напиши что-нибудь о главе… Выдели текст и нажми кнопку форматирования."
           />
-          <div className="comment-form-foot">
-            <div className="comment-form-hint">
-              <code>[b]жирный[/b]</code>{' '}
-              <code>[i]курсив[/i]</code>{' '}
-              <code>[spoiler]скрыто[/spoiler]</code>{' '}
-              <code>[url]http…[/url]</code>
-            </div>
+          <div className="comment-form-foot" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
             <button
               type="submit"
               className="btn btn-primary"
