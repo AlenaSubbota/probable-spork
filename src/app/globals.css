@@ -9460,3 +9460,145 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .credits-candidate:hover {
   background: var(--paper-warm, #f5f0e6);
 }
+
+/* ---------- Boosty claim block в paywall ---------- */
+.boosty-claim-block {
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #fff7e6 0%, #ffe9c7 100%);
+  border: 1px solid #f0d9a6;
+  border-radius: 12px;
+  margin-bottom: 22px;
+}
+.boosty-claim-title {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: #6b4a16;
+  margin-bottom: 4px;
+}
+.boosty-claim-sub {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #8a6a2a;
+  margin-bottom: 14px;
+}
+.boosty-claim-cta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.boosty-claim-form {
+  background: #fffbf1;
+  border: 1px dashed #e6c88e;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.boosty-claim-steps {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #5e4410;
+}
+.boosty-claim-steps li + li { margin-top: 4px; }
+.boosty-claim-pending {
+  background: #fffbf1;
+  border: 1px dashed #e6c88e;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 10px;
+}
+.boosty-claim-pending-head {
+  font-weight: 600;
+  color: #6b4a16;
+  margin-bottom: 8px;
+}
+.boosty-claim-pending-sub {
+  font-size: 13px;
+  color: #8a6a2a;
+  margin: 4px 0;
+}
+.boosty-claim-pending-hint {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 8px;
+}
+.boosty-claim-code {
+  display: inline-block;
+  padding: 8px 14px;
+  background: #fff;
+  border: 2px solid #d3a541;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: #6b4a16;
+  letter-spacing: .1em;
+  margin: 8px 0;
+  user-select: all;
+}
+.boosty-claim-approved {
+  padding: 10px 14px;
+  background: #e0f0e3;
+  color: #2a7a44;
+  font-weight: 600;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+.boosty-claim-declined {
+  padding: 10px 14px;
+  background: #fbeae8;
+  color: #a5342b;
+  border-radius: 8px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Детали заявки в /admin/subscribers */
+.claim-details {
+  padding: 10px 0;
+  border-top: 1px dashed var(--border, #e6e0d4);
+  border-bottom: 1px dashed var(--border, #e6e0d4);
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.claim-details-row {
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.claim-details-label {
+  color: var(--ink-mute);
+  min-width: 140px;
+}
+.claim-code-badge {
+  background: var(--paper-warm, #f5f0e6);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 600;
+  letter-spacing: .06em;
+}
+.claim-hint {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 6px;
+  font-style: italic;
+}
+.claim-decline-form {
+  padding-top: 10px;
+  border-top: 1px dashed var(--border, #e6e0d4);
+}
+
+/* Paywall-option mini (альтернативная ссылка) */
+.paywall-option--mini {
+  padding: 14px;
+  opacity: 0.8;
+}
+.paywall-option--mini:hover { opacity: 1; }

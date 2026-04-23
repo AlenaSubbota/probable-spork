@@ -231,6 +231,44 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     }
   }
 
+  // Есть ли активная подписка (любая — Boosty claim, tribute, etc.)?
+  // Если есть — все платные главы показываем как открытые.
+  let hasActiveSubscription = false;
+  if (user && novel.translator_id) {
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('id, expires_at')
+      .eq('user_id', user.id)
+      .eq('translator_id', novel.translator_id)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle();
+    if (sub) {
+      const exp = (sub as { expires_at?: string | null }).expires_at;
+      hasActiveSubscription = !exp || new Date(exp).getTime() > Date.now();
+    }
+  }
+
+  // Член команды новеллы (основной переводчик, редактор, корректор…) читает
+  // всё платное бесплатно — can_read_chapter их пропускает (миграция 034).
+  // Здесь этот флаг нужен только для UI: не рисовать «Купить».
+  const isTeam = canEdit; // canEdit уже = translator_id===user.id || admin
+  let isExtendedTeam = isTeam;
+  if (user && !isTeam) {
+    try {
+      const { data: memberRow } = await supabase
+        .from('novel_translators')
+        .select('id')
+        .eq('novel_id', novel.id)
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      if (memberRow) isExtendedTeam = true;
+    } catch {
+      /* миграция 034 не накачена */
+    }
+  }
+
   // Fallback для новелл без коллаборативки: ранжируем кандидатов по score.
   // Раньше брали только новеллы того же автора — мимо если переводчик
   // одиночка; теперь собираем пул по жанрам / переводчику / стране
@@ -646,10 +684,14 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
               : null;
             const isDraft = publishedMs === null;
             const isScheduled = publishedMs !== null && publishedMs > Date.now();
+            // Доступ к главе уже есть: платная + куплена, бесплатная, член
+            // команды (переводчик/редактор/…) или активная подписка.
+            const hasAccess =
+              !chapter.is_paid || isOwned || isExtendedTeam || hasActiveSubscription;
             return (
               <div
                 key={chapter.id}
-                className={`chapter-item${isOwned ? ' chapter-item--owned' : ''}${
+                className={`chapter-item${hasAccess && chapter.is_paid ? ' chapter-item--owned' : ''}${
                   isDraft ? ' chapter-item--draft' : ''
                 }${isScheduled ? ' chapter-item--scheduled' : ''}`}
                 style={{ position: 'relative' }}
@@ -691,12 +733,16 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                 </div>
                 <span
                   className={`tag-price ${
-                    chapter.is_paid ? (isOwned ? 'owned' : 'paid') : 'free'
+                    chapter.is_paid ? (hasAccess ? 'owned' : 'paid') : 'free'
                   }`}
                 >
                   {chapter.is_paid
-                    ? isOwned
-                      ? `✓ ${price} монет`
+                    ? hasAccess
+                      ? isExtendedTeam
+                        ? '✓ команда'
+                        : hasActiveSubscription
+                          ? '✓ подписка'
+                          : `✓ ${price} монет`
                       : `${price} ${pluralCoins(price)}`
                     : 'Бесплатно'}
                 </span>
@@ -712,18 +758,14 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                   )}
                   <Link
                     href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
-                    className={
-                      !chapter.is_paid || isOwned ? 'btn btn-primary' : 'btn btn-ghost'
-                    }
+                    className={hasAccess ? 'btn btn-primary' : 'btn btn-ghost'}
                     style={{ height: 32, padding: '0 14px', fontSize: 13 }}
                   >
                     {isDraft || isScheduled
                       ? 'Предпросмотр'
-                      : chapter.is_paid
-                      ? isOwned
-                        ? 'Читать'
-                        : 'Купить'
-                      : 'Читать'}
+                      : hasAccess
+                      ? 'Читать'
+                      : 'Открыть'}
                   </Link>
                 </div>
               </div>

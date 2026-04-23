@@ -122,21 +122,59 @@ export default async function ChapterPage({ params }: PageProps) {
 
   // Если нет доступа — показываем paywall, не тянем текст
   if (!hasAccess && user) {
-    // Подтягиваем баланс + slug переводчика для UI paywall
-    const [{ data: profileRaw }, { data: tp }] = await Promise.all([
+    // Подтягиваем баланс + slug + boosty url переводчика + свой
+    // pending-claim если есть.
+    const [
+      { data: profileRaw },
+      { data: tp },
+      { data: myClaim },
+    ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
       novel.translator_id
         ? supabase
             .from('profiles')
-            .select('translator_slug, user_name')
+            .select(
+              'translator_slug, user_name, translator_display_name, payout_boosty_url'
+            )
             .eq('id', novel.translator_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      novel.translator_id
+        ? supabase
+            .from('subscription_claims')
+            .select('id, code, status, external_username, tier_months')
+            .eq('user_id', user.id)
+            .eq('translator_id', novel.translator_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
     const balance =
       (profileRaw as { coin_balance?: number | null } | null)?.coin_balance ?? 0;
-    const tpAny = tp as { translator_slug?: string | null; user_name?: string | null } | null;
+    const tpAny = tp as {
+      translator_slug?: string | null;
+      user_name?: string | null;
+      translator_display_name?: string | null;
+      payout_boosty_url?: string | null;
+    } | null;
     const translatorSlug = tpAny?.translator_slug || tpAny?.user_name || null;
+    const translatorName =
+      tpAny?.translator_display_name || tpAny?.user_name || null;
+    const translatorBoostyUrl = tpAny?.payout_boosty_url || null;
+
+    // Фильтр: показываем pending/declined claim, чтобы юзер видел статус;
+    // approved — тогда бы hasAccess уже был бы true (но на всякий случай
+    // не передаём, чтобы не путать).
+    const claimRow = myClaim as {
+      id: number;
+      code: string;
+      status: 'pending' | 'approved' | 'declined';
+      external_username: string | null;
+      tier_months: number;
+    } | null;
+    const existingClaim =
+      claimRow && claimRow.status !== 'approved' ? claimRow : null;
 
     return (
       <div className="reader-page">
@@ -158,6 +196,10 @@ export default async function ChapterPage({ params }: PageProps) {
             chapterPrice={chapter.price_coins ?? 10}
             userBalance={balance}
             translatorSlug={translatorSlug}
+            translatorId={novel.translator_id ?? null}
+            translatorName={translatorName}
+            translatorBoostyUrl={translatorBoostyUrl}
+            existingClaim={existingClaim}
           />
         </main>
       </div>

@@ -55,6 +55,9 @@ function iconFor(type: string): string {
     case 'translator_application_rejected':  return '📋';
     case 'marketplace_application':          return '🤝';
     case 'marketplace_status':               return '📬';
+    case 'subscription_claim':               return '💌';
+    case 'subscription_approved':            return '✅';
+    case 'subscription_declined':            return '⚠';
     default:                                 return '🔔';
   }
 }
