@@ -11,6 +11,8 @@ import TranslatorSchedule, {
 import TributesWall, { type Tribute } from '@/components/translator/TributesWall';
 import RoadmapBoard, { type RoadmapItem } from '@/components/translator/RoadmapBoard';
 import QuietBanner from '@/components/translator/QuietBanner';
+import ProfileRatingBadge from '@/components/marketplace/ProfileRatingBadge';
+import ProfileReviewsList from '@/components/marketplace/ProfileReviewsList';
 import { getCoverUrl } from '@/lib/format';
 
 interface PageProps {
@@ -261,6 +263,35 @@ export default async function TranslatorPage({ params }: PageProps) {
     // миграция 031 ещё не накачена
   }
 
+  // ---- Рейтинг + последние отзывы по маркетплейсу (миграция 033) ----
+  let marketRating = { avg: 0, count: 0 };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let marketReviews: any[] = [];
+  try {
+    const { data: ratingRow } = await supabase
+      .from('marketplace_ratings')
+      .select('avg_rating, reviews_count')
+      .eq('user_id', profile.id)
+      .maybeSingle();
+    if (ratingRow) {
+      marketRating = {
+        avg: Number(ratingRow.avg_rating ?? 0),
+        count: Number(ratingRow.reviews_count ?? 0),
+      };
+    }
+    if (marketRating.count > 0) {
+      const { data: reviewRows } = await supabase
+        .from('marketplace_reviews_view')
+        .select('*')
+        .eq('subject_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      marketReviews = reviewRows ?? [];
+    }
+  } catch {
+    // миграция 033 ещё не накачена
+  }
+
   const totalChapters = novelsNormalized.reduce(
     (s, n) => s + (n.chapter_count ?? 0),
     0
@@ -286,6 +317,7 @@ export default async function TranslatorPage({ params }: PageProps) {
         <div className="translator-hero-body">
           <h1>{displayName}</h1>
           <div className="translator-hero-slug">@{effectiveSlug}</div>
+          <ProfileRatingBadge avgRating={marketRating.avg} count={marketRating.count} />
           {profile.translator_about && (
             <p className="translator-hero-about">{profile.translator_about}</p>
           )}
@@ -352,6 +384,13 @@ export default async function TranslatorPage({ params }: PageProps) {
 
       {/* Стена благодарностей */}
       <TributesWall tributes={tributes} />
+
+      {/* Отзывы о работе из маркетплейса */}
+      <ProfileReviewsList
+        reviews={marketReviews}
+        avgRating={marketRating.avg}
+        count={marketRating.count}
+      />
 
       {/* Киллер #1: рукопожатие */}
       <TranslatorHandshake

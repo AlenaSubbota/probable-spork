@@ -15,6 +15,7 @@ import {
 import ApplyForm from './ApplyForm';
 import ApplicationsManager from './ApplicationsManager';
 import WithdrawButton from './WithdrawButton';
+import ReviewSection from './ReviewSection';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -75,6 +76,48 @@ export default async function ListingDetailPage({ params }: PageProps) {
       .eq('listing_id', listingId)
       .order('created_at', { ascending: false });
     applications = (data ?? []) as typeof applications;
+  }
+
+  // ---- Данные для секции отзывов ----
+  // Отзывы доступны только если листинг закрыт. Counterparties — кого
+  // текущий пользователь может отозвать:
+  //  - автор листинга может отозвать всех accepted applicants
+  //  - accepted applicant может отозвать автора листинга
+  type Counterparty = { id: string; name: string | null; avatar: string | null; slug: string | null };
+  let counterparties: Counterparty[] = [];
+  const listingClosed = status === 'closed';
+  if (user && listingClosed) {
+    if (isAuthor) {
+      // Достаём всех accepted applicants
+      const { data: acceptedApps } = await supabase
+        .from('marketplace_applications_view')
+        .select('applicant_id, applicant_name, applicant_avatar, applicant_slug')
+        .eq('listing_id', listingId)
+        .eq('status', 'accepted');
+      counterparties = (acceptedApps ?? []).map((a) => ({
+        id: a.applicant_id as string,
+        name: a.applicant_name as string | null,
+        avatar: a.applicant_avatar as string | null,
+        slug: a.applicant_slug as string | null,
+      }));
+    } else {
+      // Я accepted applicant? → counterparty = автор листинга
+      const { data: myAccepted } = await supabase
+        .from('marketplace_applications')
+        .select('id')
+        .eq('listing_id', listingId)
+        .eq('applicant_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      if (myAccepted) {
+        counterparties = [{
+          id: listing.author_id as string,
+          name: listing.author_name as string | null,
+          avatar: listing.author_avatar as string | null,
+          slug: listing.author_slug as string | null,
+        }];
+      }
+    }
   }
 
   const authorHref = listing.author_slug
@@ -207,6 +250,15 @@ export default async function ListingDetailPage({ params }: PageProps) {
         <ApplicationsManager
           applications={applications}
           listingId={listingId}
+        />
+      )}
+
+      {/* Отзывы — только на закрытых листингах и только участникам */}
+      {user && listingClosed && counterparties.length > 0 && (
+        <ReviewSection
+          listingId={listingId}
+          counterparties={counterparties}
+          currentUserId={user.id}
         />
       )}
     </main>

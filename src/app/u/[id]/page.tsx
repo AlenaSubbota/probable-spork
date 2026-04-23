@@ -5,6 +5,8 @@ import UserAvatar from '@/components/UserAvatar';
 import FriendshipButton from '@/components/social/FriendshipButton';
 import { detectReadingNow, type FriendshipStatus } from '@/lib/social';
 import { timeAgo } from '@/lib/format';
+import ProfileRatingBadge from '@/components/marketplace/ProfileRatingBadge';
+import ProfileReviewsList from '@/components/marketplace/ProfileReviewsList';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -120,6 +122,35 @@ export default async function PublicUserProfile({ params }: PageProps) {
       : 0
     : 0;
 
+  // ---- Рейтинг + отзывы из маркетплейса ----
+  let marketRating = { avg: 0, count: 0 };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let marketReviews: any[] = [];
+  try {
+    const { data: ratingRow } = await supabase
+      .from('marketplace_ratings')
+      .select('avg_rating, reviews_count')
+      .eq('user_id', p.id)
+      .maybeSingle();
+    if (ratingRow) {
+      marketRating = {
+        avg: Number(ratingRow.avg_rating ?? 0),
+        count: Number(ratingRow.reviews_count ?? 0),
+      };
+    }
+    if (marketRating.count > 0) {
+      const { data: reviewRows } = await supabase
+        .from('marketplace_reviews_view')
+        .select('*')
+        .eq('subject_id', p.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      marketReviews = reviewRows ?? [];
+    }
+  } catch {
+    // миграция 033 ещё не накачена
+  }
+
   return (
     <main className="container section">
       <div className="admin-breadcrumbs">
@@ -141,6 +172,7 @@ export default async function PublicUserProfile({ params }: PageProps) {
 
         <div className="user-profile-body">
           <h1>{displayName}</h1>
+          <ProfileRatingBadge avgRating={marketRating.avg} count={marketRating.count} />
           <div className="user-profile-meta">
             {p.user_name && <span>@{p.user_name}</span>}
             {isAdmin && <span className="note">Админ</span>}
@@ -223,6 +255,13 @@ export default async function PublicUserProfile({ params }: PageProps) {
           <div>Пока нет совпадений — ты можешь первой порекомендовать что-нибудь.</div>
         </div>
       )}
+
+      {/* Отзывы о работе из маркетплейса */}
+      <ProfileReviewsList
+        reviews={marketReviews}
+        avgRating={marketRating.avg}
+        count={marketRating.count}
+      />
     </main>
   );
 }
