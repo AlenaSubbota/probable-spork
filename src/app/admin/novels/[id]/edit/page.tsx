@@ -111,6 +111,9 @@ export default async function EditNovelPage({ params }: PageProps) {
           descriptionHtml: novel.description ?? '',
           description: '',
           cover_url: novel.cover_url,
+          covers: Array.isArray(novel.covers)
+            ? (novel.covers as string[]).filter((v) => typeof v === 'string')
+            : [],
           genres: Array.isArray(novel.genres) ? (novel.genres as string[]) : [],
           external_links: Array.isArray(novel.external_links)
             ? (novel.external_links as Array<{ label: string; url: string }>).filter(

@@ -578,6 +578,161 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin-bottom: 6px;
 }
 
+/* ---------- NovelCoverCarousel (свайп по обложкам в карточке) ---------- */
+
+.novel-cover-carousel {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+.cover-carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(20, 14, 8, 0.55);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity .15s, background .12s;
+  cursor: pointer;
+}
+.novel-cover:hover .cover-carousel-btn { opacity: 1; }
+.cover-carousel-btn:hover { background: rgba(20, 14, 8, 0.85); }
+.cover-carousel-btn--prev { left: 6px; }
+.cover-carousel-btn--next { right: 6px; }
+.cover-carousel-dots {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(20, 14, 8, 0.35);
+  backdrop-filter: blur(4px);
+}
+.cover-carousel-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transition: background .12s, width .12s;
+}
+.cover-carousel-dot.is-active {
+  background: #fff;
+  width: 16px;
+  border-radius: 3px;
+}
+/* На мобиле боковые стрелки бесполезны (узкий экран, палец закроет) —
+   оставляем свайп + dots. */
+@media (max-width: 540px) {
+  .cover-carousel-btn { display: none; }
+  .cover-carousel-dots { bottom: 4px; padding: 2px 5px; }
+  .cover-carousel-dot { width: 5px; height: 5px; }
+  .cover-carousel-dot.is-active { width: 12px; }
+}
+
+/* ---------- ExtraCoversUpload (галерея доп. обложек) ---------- */
+
+.extra-covers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+.extra-cover-tile {
+  position: relative;
+  aspect-ratio: 3/4;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+}
+.extra-cover-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.extra-cover-tile .placeholder {
+  width: 100%; height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--surface);
+  font-family: var(--font-serif);
+  font-size: 18px;
+}
+.extra-cover-index {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 6px;
+  background: rgba(20, 14, 8, 0.55);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.extra-cover-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+}
+.extra-cover-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(20, 14, 8, 0.55);
+  color: #fff;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .12s;
+}
+.extra-cover-btn:hover { background: rgba(20, 14, 8, 0.75); }
+.extra-cover-btn--danger:hover { background: var(--rose); }
+.extra-cover-add {
+  aspect-ratio: 3/4;
+  border-radius: 8px;
+  border: 2px dashed var(--border);
+  background: var(--bg-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-mute);
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+  gap: 4px;
+  padding: 8px;
+  text-align: center;
+}
+.extra-cover-add:hover,
+.extra-cover-add.dragover {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+.extra-cover-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+.extra-cover-hint { font-size: 11.5px; }
+
 /* ---------- CommentToolbar (BBCode кнопки + preview) ---------- */
 
 .comment-toolbar-wrap {

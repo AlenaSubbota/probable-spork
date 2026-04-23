@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { formatReadingTime } from '@/lib/catalog';
+import { getCoverUrl } from '@/lib/format';
+import NovelCoverCarousel from './NovelCoverCarousel';
 
 interface NovelCardProps {
   id: string;
@@ -14,6 +16,9 @@ interface NovelCardProps {
   flagText?: string;
   flagClass?: string;
   coverUrl?: string | null;
+  /** Дополнительные обложки (novels.covers jsonb). Если передано и
+     длина > 0, карточка показывает карусель со свайпом. */
+  extraCovers?: string[] | null;
   chapterCount?: number | null;
   // Опционально: краткое описание для hover-тултипа
   description?: string | null;
@@ -53,6 +58,7 @@ export default function NovelCard({
   flagText,
   flagClass,
   coverUrl,
+  extraCovers,
   chapterCount,
   description,
   genres,
@@ -61,21 +67,30 @@ export default function NovelCard({
   const excerpt = textExcerpt(description, 200);
   const hasTooltip = !!(excerpt || (genres && genres.length > 0));
   const novelHref = `/novel/${id}`;
+  // Собираем список обложек: главная (coverUrl) + дополнительные.
+  // Превращаем path'ы в полные URL'ы через getCoverUrl.
+  const allCovers = [
+    coverUrl,
+    ...((extraCovers ?? []).map((p) => getCoverUrl(p))),
+  ].filter((u): u is string => !!u);
+  const placeholder = (
+    <div className={`placeholder ${placeholderClass}`}>{placeholderText}</div>
+  );
 
   return (
     <div className="novel-card">
       <Link href={novelHref} className="novel-card-cover-link" aria-label={title}>
         <div className="novel-cover">
-          {coverUrl ? (
+          {allCovers.length > 1 ? (
+            <NovelCoverCarousel covers={allCovers} alt={title} placeholder={placeholder} />
+          ) : allCovers[0] ? (
             <img
-              src={coverUrl}
+              src={allCovers[0]}
               alt={title}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
-            <div className={`placeholder ${placeholderClass}`}>
-              {placeholderText}
-            </div>
+            placeholder
           )}
 
           <span className="rating-chip">

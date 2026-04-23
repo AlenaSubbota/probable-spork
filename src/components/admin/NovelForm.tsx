@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import CoverUpload from './CoverUpload';
+import ExtraCoversUpload from './ExtraCoversUpload';
 import BBCodeEditor from './BBCodeEditor';
 import TranslatorPicker, {
   type TranslatorPickerValue,
@@ -37,6 +38,9 @@ export interface NovelFormValues {
   release_year: number | null;
   description: string;              // BB-код
   cover_url: string | null;
+  /** Дополнительные обложки (novels.covers jsonb). Главная остаётся в
+     cover_url отдельно — на карточках и SSR она же дефолт. */
+  covers: string[];
   genres: string[];
   // Ссылки на оригинал / novelupdates / raws — произвольные пары { label, url }.
   external_links: Array<{ label: string; url: string }>;
@@ -60,6 +64,7 @@ const EMPTY: NovelFormValues = {
   release_year: null,
   description: '',
   cover_url: null,
+  covers: [],
   genres: [],
   external_links: [],
   epub_path: null,
@@ -172,6 +177,9 @@ export default function NovelForm({
       release_year: values.release_year,
       description: descriptionHtml,
       cover_url: values.cover_url,
+      // Дополнительные обложки — мигр. 046. Если пусто — NULL, а не
+      // пустой массив, чтобы tene-запросы получали совместимое значение.
+      covers: values.covers && values.covers.length > 0 ? values.covers : null,
       genres: values.genres,
       external_links: cleanedLinks.length > 0 ? cleanedLinks : null,
       epub_path: values.epub_path?.trim() ? values.epub_path.trim() : null,
@@ -226,10 +234,16 @@ export default function NovelForm({
   return (
     <form onSubmit={handleSubmit} className="admin-form">
       <div className="admin-form-grid">
-        <CoverUpload
-          value={values.cover_url}
-          onChange={(v) => set('cover_url', v)}
-        />
+        <div>
+          <CoverUpload
+            value={values.cover_url}
+            onChange={(v) => set('cover_url', v)}
+          />
+          <ExtraCoversUpload
+            value={values.covers}
+            onChange={(v) => set('covers', v)}
+          />
+        </div>
 
         <div className="admin-form-fields">
           <div className="form-field">
