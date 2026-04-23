@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import UserMenu from './UserMenu';
+import MobileMenu from './MobileMenu';
 
 export default async function SiteHeader() {
   const supabase = await createClient();
@@ -61,6 +62,14 @@ export default async function SiteHeader() {
   return (
     <header className="site-header">
       <div className="container header-row">
+        {/* Гамбургер — виден только на мобиле (CSS скрывает на ≥641px) */}
+        <MobileMenu
+          isLoggedIn={!!user}
+          unreadDm={unreadDm}
+          unreadNotif={unreadNotif}
+          unreadNews={unreadNews}
+        />
+
         <Link href="/" className="logo">
           <div className="logo-mark">C</div>
           Chaptify
