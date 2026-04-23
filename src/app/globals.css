@@ -85,6 +85,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: rgba(245, 239, 230, 0.85);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
+  /* iOS: учитываем notch — внутренний padding-top сдвигает row,
+     но сам липкий верхний край остаётся прилеплен к 0. */
+  padding-top: env(safe-area-inset-top, 0);
 }
 
 .header-row {
@@ -450,6 +453,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .chip {
   padding: 8px 14px;
+  /* min-height 36 px — на мобиле палец попадает уверенно. Для чипов-
+     фильтров (жанры, настроения) это норма: даже 44 px HIG-минимум
+     тут не обязателен, это не основные кнопки. */
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2086,11 +2095,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  font-size: 14px;
+  /* font-size ≥16 px в iOS избегает авто-зум-ин на focus в инпутах.
+     Если поставить 14 px — Safari увеличивает весь экран, чтобы
+     «помочь» прочитать поле, и layout прыгает. */
+  font-size: 16px;
   font-family: inherit;
   color: var(--ink);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+/* iOS autofill по умолчанию заливает input жёлтым фоном — в нашей
+   тёплой палитре смотрится грязно. Маскируем через inset-shadow. */
+.form-input:-webkit-autofill,
+.form-textarea:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  transition: background-color 5000s ease-in-out 0s;
 }
 .form-textarea {
   min-height: 100px;
