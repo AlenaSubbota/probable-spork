@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import NovelForm from '@/components/admin/NovelForm';
 import GlossaryPanel from '@/components/admin/GlossaryPanel';
+import CreditsEditor from '@/components/admin/CreditsEditor';
 import type {
   AgeRating,
   Country,
@@ -125,6 +126,14 @@ export default async function EditNovelPage({ params }: PageProps) {
           },
         }}
       />
+
+      <div style={{ marginTop: 48 }}>
+        <CreditsEditor
+          novelId={novel.id}
+          novelTitle={novel.title}
+          translatorId={novel.translator_id ?? null}
+        />
+      </div>
 
       <div style={{ marginTop: 48 }}>
         <GlossaryPanel novelId={novel.id} initial={glossary ?? []} />

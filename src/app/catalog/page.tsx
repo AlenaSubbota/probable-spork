@@ -49,11 +49,21 @@ export default async function CatalogPage({
   const to = from + PAGE_SIZE - 1;
 
   // ---- Запрос каталога ----
+  //
+  // Жанры хранятся в jsonb-массиве. Попытки фильтровать через PostgREST
+  // (.overlaps, .contains, .or+cs[...]) в нашей версии ненадёжны для
+  // кириллических значений — молча возвращают пусто. Вместо этого
+  // тянем широкий набор и фильтруем по genres в JS. Новелл в каталоге
+  // пока несколько десятков, это дёшево.
+  //
   // Скрываем черновики/на модерации/отклонённые от читателей.
+  const wantGenre = params.genre ?? null;
+  const wantMoodGenres = mood && mood.genres.length > 0 ? mood.genres : null;
+
   let query = supabase
     .from('novels_view')
     .select(
-      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description, translator_id',
+      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description, translator_id, moderation_status',
       { count: 'exact' }
     )
     .eq('moderation_status', 'published');
@@ -61,35 +71,12 @@ export default async function CatalogPage({
   if (params.status === 'completed') query = query.eq('is_completed', true);
   if (params.status === 'ongoing')   query = query.eq('is_completed', false);
 
-  // Возрастное ограничение: теперь в отдельной колонке, не в жанрах
   if (params.age && ['6+', '12+', '16+', '18+'].includes(params.age)) {
     query = query.eq('age_rating', params.age);
   }
 
-  // Фильтр по жанру (одиночный). Для jsonb-массива genres@>'["X"]' работает
-  // надёжно — это .contains в supabase-js. .overlaps использует && op,
-  // который для jsonb-колонки PostgreSQL строго не определён и в нашей
-  // версии PostgREST может вернуть пусто без ошибки.
-  if (params.genre) {
-    query = query.contains('genres', [params.genre]);
-  }
-
-  // Настроение: любой из жанров mood'а + минимальный рейтинг.
-  //
-  // jsonb-массив + OR по нескольким жанрам — собираем .or() из cs.["X"]
-  // условий, чтобы каждое было contains-проверкой. .overlaps() на jsonb
-  // ненадёжен.
-  //
-  // По рейтингу: в novels_view average_rating = COALESCE(..., 0) — у
-  // legacy-новелл из tene без оценок там ноль. Жёсткий gte(minRating)
-  // их вырезает → каталог пуст. Пропускаем 0 (ещё не оценили) ИЛИ >= minRating.
+  // Для mood — только порог по рейтингу фильтруем в SQL (0 включаем).
   if (mood) {
-    if (mood.genres.length > 0) {
-      const orExpr = mood.genres
-        .map((g) => `genres.cs.["${g.replace(/"/g, '\\"')}"]`)
-        .join(',');
-      query = query.or(orExpr);
-    }
     query = query.or(
       `average_rating.eq.0,average_rating.gte.${mood.minRating}`
     );
@@ -101,9 +88,32 @@ export default async function CatalogPage({
   }
 
   query = query.order(sort.column, { ascending: sort.ascending, nullsFirst: false });
-  query = query.range(from, to);
 
-  const { data: novels, count } = await query;
+  // Жанр-фильтр требует пост-обработки → снимаем range до фильтрации в JS
+  // только если есть genre-фильтр. Иначе — обычная серверная пагинация.
+  const needsJsFilter = !!wantGenre || !!wantMoodGenres;
+  if (!needsJsFilter) {
+    query = query.range(from, to);
+  }
+
+  const { data: rawNovels, count: rawCount } = await query;
+
+  const genresMatch = (nGenres: unknown, targets: string[]): boolean => {
+    if (!Array.isArray(nGenres)) return false;
+    const set = new Set(nGenres.filter((x): x is string => typeof x === 'string'));
+    return targets.some((g) => set.has(g));
+  };
+
+  let filtered = rawNovels ?? [];
+  if (wantGenre) {
+    filtered = filtered.filter((n) => genresMatch(n.genres, [wantGenre]));
+  }
+  if (wantMoodGenres) {
+    filtered = filtered.filter((n) => genresMatch(n.genres, wantMoodGenres));
+  }
+
+  const count = needsJsFilter ? filtered.length : rawCount;
+  const novels = needsJsFilter ? filtered.slice(from, to + 1) : filtered;
 
   // Slugs переводчиков для кликабельного имени в карточках
   const translatorSlugMap = await fetchTranslatorSlugs(

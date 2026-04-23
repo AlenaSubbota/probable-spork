@@ -8,6 +8,7 @@ import ReleasePace from '@/components/ReleasePace';
 import BookmarkButton from '@/components/BookmarkButton';
 import NovelClaimButton from '@/components/NovelClaimButton';
 import AdultGate from '@/components/AdultGate';
+import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
 import { fetchTranslatorSlugs } from '@/lib/translator';
@@ -145,6 +146,21 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     }
   }
   const translatorSlug = translatorProfile?.slug ?? null;
+
+  // Команда новеллы — novel_translators + имена/аватарки. Если миграция 034
+  // ещё не накачена, view отсутствует — пропускаем.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let novelCredits: any[] = [];
+  try {
+    const { data: cred } = await supabase
+      .from('novel_credits')
+      .select('*')
+      .eq('novel_id', novel.id)
+      .order('sort_order', { ascending: true });
+    novelCredits = cred ?? [];
+  } catch {
+    novelCredits = [];
+  }
 
   // Пагинация: от пагинации зависят и выборка, и счётчик.
   // Переводчик / админ видит все главы (в т.ч. черновики и запланированные).
@@ -605,6 +621,8 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           </section>
         )}
 
+        <NovelCredits credits={novelCredits as CreditRow[]} />
+
         <div className="chapter-list">
           <div className="chapter-list-head">
             <h3>Главы ({totalChapters})</h3>
@@ -634,7 +652,16 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                 className={`chapter-item${isOwned ? ' chapter-item--owned' : ''}${
                   isDraft ? ' chapter-item--draft' : ''
                 }${isScheduled ? ' chapter-item--scheduled' : ''}`}
+                style={{ position: 'relative' }}
               >
+                {/* Overlay-link поверх всей карточки, чтобы клик по любой
+                    части (название, дата, ценник) открывал главу. Кнопки
+                    внизу имеют z-index выше — ловят клики раньше. */}
+                <Link
+                  href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
+                  className="chapter-item-overlay"
+                  aria-label={`Открыть главу ${chapter.chapter_number}`}
+                />
                 <div>
                   <div className="title">
                     {displayTitle}

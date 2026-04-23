@@ -164,26 +164,52 @@ export default async function ChapterPage({ params }: PageProps) {
     );
   }
 
-  // Загружаем текст из storage + глоссарий для inline-подсказок
-  const [textResult, { data: glossaryRaw }] = await Promise.all([
-    chapter.content_path
-      ? supabase.storage.from('chapter_content').download(chapter.content_path)
-      : Promise.resolve({ data: null, error: null } as { data: Blob | null; error: { message: string } | null }),
+  // Загружаем текст + глоссарий.
+  //
+  // Для анонимных читателей бесплатной главы supabase.storage.download
+  // валится с RLS ошибкой (bucket chapter_content обычно требует
+  // authenticated). Проксируем через auth-service-chaptify, который
+  // через service_role отдаёт тело бесплатной главы без RLS-боли.
+  // Платные главы скачиваем через supabase.storage — только если уже
+  // есть доступ (hasAccess), юзер залогинен, bucket-policy разрешит.
+  const shouldUseProxy = !user && !chapter.is_paid && !!chapter.content_path;
+
+  const fetchChapterText = async (): Promise<string | null> => {
+    if (!chapter.content_path) return null;
+    if (shouldUseProxy) {
+      try {
+        // SSR fetch требует абсолютный URL. AUTH_API_URL в build-time
+        // залит как https://chaptify.ru; запрос уйдёт через наш же
+        // nginx → auth-service-chaptify.
+        const base = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://chaptify.ru';
+        const url = `${base}/auth/free-chapter/${novel.id}/${chapter.chapter_number}`;
+        const resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) {
+          return `<p style="color:var(--rose)">Не удалось загрузить текст: ${resp.status} ${resp.statusText}.</p>`;
+        }
+        return await resp.text();
+      } catch (e) {
+        return `<p style="color:var(--rose)">Не удалось загрузить текст: ${e instanceof Error ? e.message : 'сеть'}.</p>`;
+      }
+    }
+    const { data: fileData, error: storageError } = await supabase.storage
+      .from('chapter_content')
+      .download(chapter.content_path);
+    if (storageError || !fileData) {
+      return `<p style="color:var(--rose)">Не удалось загрузить текст: ${storageError?.message ?? 'неизвестная ошибка'}.</p>`;
+    }
+    return await fileData.text();
+  };
+
+  const [rawText, { data: glossaryRaw }] = await Promise.all([
+    fetchChapterText(),
     supabase
       .from('novel_glossaries')
       .select('term_original, term_translation, category')
       .eq('novel_id', novel.id),
   ]);
 
-  let finalContent = '';
-  if (chapter.content_path) {
-    const { data: fileData, error: storageError } = textResult;
-    if (!storageError && fileData) {
-      finalContent = await fileData.text();
-    } else {
-      finalContent = `<p style="color:var(--rose)">Не удалось загрузить текст: ${storageError?.message ?? 'неизвестная ошибка'}.</p>`;
-    }
-  }
+  let finalContent = rawText ?? '';
 
   const glossary = (glossaryRaw ?? []).map((g) => ({
     term_original: g.term_original as string,
