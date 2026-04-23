@@ -15,8 +15,9 @@ interface SettingsValues {
   translator_about: string;
   payout_boosty_url: string;
   show_reading_publicly: boolean;
-  quiet_until: string;  // yyyy-MM-dd для <input type="date">
+  quiet_until: string;
   quiet_note: string;
+  accepts_coins_for_chapters: boolean;
 }
 
 interface Props {
@@ -62,6 +63,7 @@ export default function SettingsForm({
       const quietRaw = values.quiet_until.trim();
       payload.quiet_until = quietRaw ? `${quietRaw}T23:59:59Z` : null;
       payload.quiet_note = values.quiet_note.trim() || null;
+      payload.accepts_coins_for_chapters = values.accepts_coins_for_chapters;
     }
     // Приватность хранится в profiles.settings jsonb
     payload.settings = {
@@ -220,6 +222,35 @@ export default function SettingsForm({
               <a href="/admin/payouts" className="more">/admin/payouts</a>.
             </div>
           </div>
+        </section>
+      )}
+
+      {isTranslator && (
+        <section className="settings-block">
+          <h2>Монеты за главы</h2>
+          <p style={{ color: 'var(--ink-mute)', fontSize: 13.5, marginTop: -8, marginBottom: 14 }}>
+            Если выключишь — читатели смогут открывать твои платные главы
+            только через внешнюю подписку (Boosty / Tribute / VK Donut), а
+            не за внутренние монеты chaptify. Чаевые монетами после главы
+            работают всегда.
+          </p>
+          <label className="rs-switch" style={{ height: 'auto', padding: 14 }}>
+            <input
+              type="checkbox"
+              checked={values.accepts_coins_for_chapters}
+              onChange={(e) =>
+                set('accepts_coins_for_chapters', e.target.checked)
+              }
+            />
+            <div>
+              <div className="rs-switch-title">Принимать оплату монетами за платные главы</div>
+              <div className="rs-switch-sub">
+                {values.accepts_coins_for_chapters
+                  ? 'Включено: читатели могут купить главу за монеты.'
+                  : 'Выключено: читатели увидят только внешние подписки.'}
+              </div>
+            </div>
+          </label>
         </section>
       )}
 

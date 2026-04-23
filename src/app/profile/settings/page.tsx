@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import SettingsForm from './SettingsForm';
 import LinkedAccounts from './LinkedAccounts';
 import RoadmapEditor from './RoadmapEditor';
+import PaymentMethodsEditor from './PaymentMethodsEditor';
 
 export const metadata = { title: 'Настройки — Chaptify' };
 
@@ -33,6 +34,7 @@ export default async function ProfileSettingsPage() {
     quiet_until?: string | null;
     quiet_note?: string | null;
     chaptify_bot_chat_id?: number | null;
+    accepts_coins_for_chapters?: boolean | null;
   };
 
   const isTranslator =
@@ -84,6 +86,8 @@ export default async function ProfileSettingsPage() {
             ? profile.quiet_until.slice(0, 10)  // yyyy-MM-dd для <input type="date">
             : '',
           quiet_note: profile.quiet_note ?? '',
+          accepts_coins_for_chapters:
+            profile.accepts_coins_for_chapters ?? true,
         }}
       />
 
@@ -91,6 +95,8 @@ export default async function ProfileSettingsPage() {
         telegramId={profile.telegram_id ?? null}
         hasChaptifyBot={profile.chaptify_bot_chat_id != null}
       />
+
+      {isTranslator && <PaymentMethodsEditor translatorId={user.id} />}
 
       {isTranslator && <RoadmapEditor translatorId={user.id} />}
     </main>
