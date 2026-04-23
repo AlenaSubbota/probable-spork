@@ -38,6 +38,7 @@ export default function ChapterThanks({
   const [tipOpen, setTipOpen] = useState(false);
   const [pickedTip, setPickedTip] = useState<number>(2);
   const [customTip, setCustomTip] = useState<string>('');
+  const [tipMessage, setTipMessage] = useState<string>('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +57,7 @@ export default function ChapterThanks({
     return () => { cancelled = true; };
   }, [novelId, chapterNumber]);
 
-  const sendThanks = async (tipCoins: number) => {
+  const sendThanks = async (tipCoins: number, message?: string) => {
     setError(null);
     setMessage(null);
     setBusy(true);
@@ -65,6 +66,7 @@ export default function ChapterThanks({
       p_novel: novelId,
       p_chapter: chapterNumber,
       p_tip_coins: tipCoins,
+      p_message: message ? message.trim() : null,
     });
     setBusy(false);
     if (err) {
@@ -101,8 +103,13 @@ export default function ChapterThanks({
         : s
     );
     if (res.tip_sent && res.tip_sent > 0) {
-      setMessage(`Отправлено +${res.tip_sent} монет переводчику. Спасибо!`);
+      setMessage(
+        message
+          ? `Отправлено +${res.tip_sent} монет и сообщение. Переводчик увидит.`
+          : `Отправлено +${res.tip_sent} монет переводчику. Спасибо!`
+      );
       setTipOpen(false);
+      setTipMessage('');
     } else if (!res.already_thanked) {
       setMessage('Переводчик увидит ваш лайк.');
     }
@@ -166,7 +173,7 @@ export default function ChapterThanks({
       setError('Сумма должна быть от 1 до 500 монет.');
       return;
     }
-    sendThanks(amount);
+    sendThanks(amount, tipMessage);
   };
 
   const totalCount = summary?.total_count ?? 0;
@@ -256,6 +263,22 @@ export default function ChapterThanks({
                 onChange={(e) => setCustomTip(e.target.value)}
               />
               <span>монет</span>
+            </div>
+          </div>
+          <div className="chapter-thanks-message-field">
+            <label className="chapter-thanks-message-label">
+              Сказать что-то переводчику (по желанию)
+            </label>
+            <textarea
+              className="form-textarea"
+              rows={2}
+              maxLength={500}
+              placeholder="Например: «спасибо за главу 42, ревела весь вечер»"
+              value={tipMessage}
+              onChange={(e) => setTipMessage(e.target.value)}
+            />
+            <div className="chapter-thanks-message-counter">
+              {tipMessage.length}/500
             </div>
           </div>
           <div className="admin-form-footer" style={{ marginTop: 10 }}>

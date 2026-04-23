@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import SettingsForm from './SettingsForm';
 import LinkedAccounts from './LinkedAccounts';
+import RoadmapEditor from './RoadmapEditor';
 
 export const metadata = { title: 'Настройки — Chaptify' };
 
@@ -29,6 +30,8 @@ export default async function ProfileSettingsPage() {
     translator_about?: string | null;
     payout_boosty_url?: string | null;
     settings?: Record<string, unknown> | null;
+    quiet_until?: string | null;
+    quiet_note?: string | null;
   };
 
   const isTranslator =
@@ -76,10 +79,16 @@ export default async function ProfileSettingsPage() {
           show_reading_publicly:
             (profile.settings as { show_reading_publicly?: boolean } | null)
               ?.show_reading_publicly ?? true,
+          quiet_until: profile.quiet_until
+            ? profile.quiet_until.slice(0, 10)  // yyyy-MM-dd для <input type="date">
+            : '',
+          quiet_note: profile.quiet_note ?? '',
         }}
       />
 
       <LinkedAccounts telegramId={profile.telegram_id ?? null} />
+
+      {isTranslator && <RoadmapEditor translatorId={user.id} />}
     </main>
   );
 }
