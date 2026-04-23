@@ -557,6 +557,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 12px;
   color: var(--ink-mute);
 }
+.translator-card-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.translator-card-link:hover .name {
+  color: var(--accent);
+}
+.translator-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
 
 .actions-row {
   display: flex; gap: 10px; flex-wrap: wrap;
@@ -9219,58 +9237,70 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 /* ---------- toast ---------- */
+/* Toast — мягкая центральная плашка (по центру экрана, всплывает
+   плавно). Менее навязчиво, чем углом-бэйджем. */
 .toast-stack {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 360px;
+  gap: 10px;
+  max-width: 420px;
+  width: calc(100vw - 32px);
   pointer-events: none;
 }
 .toast {
-  background: #fff;
-  border-left: 4px solid var(--accent, #a06a4d);
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  padding: 12px 14px;
+  background: rgba(40, 30, 20, 0.92);
+  color: #fdf9f0;
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  padding: 18px 22px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--ink, #2a2a2a);
+  gap: 14px;
+  font-size: 15px;
+  font-family: var(--font-serif);
   cursor: pointer;
   pointer-events: auto;
-  animation: toast-in 160ms ease-out;
+  animation: toast-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  text-align: center;
+  justify-content: center;
 }
 .toast--success {
-  border-left-color: #3a9a5c;
+  background: rgba(40, 80, 56, 0.94);
+  color: #f0fff4;
 }
 .toast--error {
-  border-left-color: #c8392f;
-  background: #fbeae8;
+  background: rgba(110, 40, 36, 0.94);
+  color: #ffeeec;
 }
 .toast--info {
-  border-left-color: #3a7fa0;
+  background: rgba(40, 60, 95, 0.94);
+  color: #eaf2ff;
 }
 .toast-icon {
   flex-shrink: 0;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 22px;
+  line-height: 1;
 }
-.toast--success .toast-icon { color: #3a9a5c; }
-.toast--error .toast-icon { color: #c8392f; }
-.toast--info .toast-icon { color: #3a7fa0; }
+.toast--success .toast-icon { color: #7ed69a; }
+.toast--error   .toast-icon { color: #ff9c92; }
+.toast--info    .toast-icon { color: #9abbe7; }
 .toast-text {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   word-break: break-word;
+  text-align: center;
+  line-height: 1.35;
 }
 @keyframes toast-in {
-  from { transform: translateY(-8px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  0%   { transform: translate(-50%, -42%) scale(0.94); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
 /* ---------- Novel credits — публичный блок на /novel/[id] ---------- */
