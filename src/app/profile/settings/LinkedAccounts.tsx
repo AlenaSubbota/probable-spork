@@ -58,18 +58,46 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
     setBusy(provider);
     setMsg(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.linkIdentity({
-      provider: provider as 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/profile/settings`,
-      },
-    });
-    // linkIdentity при успехе редиректит на провайдер — сюда не возвращаемся.
-    // Если ошибка (например manual_linking_disabled) — показываем её:
-    setBusy(null);
-    if (error) {
-      setMsg({ text: `Не получилось привязать: ${error.message}`, tone: 'err' });
+
+    // Явно запрашиваем URL + skipBrowserRedirect:true, чтобы:
+    //  1) Увидеть любую ошибку (manual_linking_disabled, session, etc.)
+    //     в data/error, а не в виде молчаливого редиректа.
+    //  2) Самим делать window.location.href = data.url —
+    //     без surprises от supabase-js версии.
+    let data: { url?: string } | null = null;
+    let error: { message?: string } | null = null;
+    try {
+      const res = await supabase.auth.linkIdentity({
+        provider: provider as 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/profile/settings`,
+          skipBrowserRedirect: true,
+        },
+      });
+      data = (res as { data?: { url?: string } }).data ?? null;
+      error = (res as { error?: { message?: string } }).error ?? null;
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : 'unknown error' };
     }
+
+    if (error || !data?.url) {
+      setBusy(null);
+      const reason = error?.message ?? 'сервер не вернул URL для OAuth';
+      setMsg({
+        text:
+          `Не получилось привязать Google: ${reason}. ` +
+          `Скорее всего на Supabase (GoTrue) не включён Manual Linking — ` +
+          `проверь переменную GOTRUE_SECURITY_MANUAL_LINKING_ENABLED=true ` +
+          `и перезапусти сервис auth.`,
+        tone: 'err',
+      });
+      // eslint-disable-next-line no-console
+      console.error('[link-identity] failed', { error, data });
+      return;
+    }
+    // Уходим на Google. При возврате /auth/callback обменяет код,
+    // identity добавится в профиль, редирект на /profile/settings.
+    window.location.href = data.url;
   };
 
   const handleUnlink = async (identity: Identity) => {
