@@ -233,6 +233,31 @@ function ClaimStatus({
           Как только переводчик одобрит — получишь уведомление. Обычно в
           течение дня.
         </div>
+        <div
+          className="claim-pending-bot-hint"
+          style={{
+            marginTop: 10,
+            padding: '10px 12px',
+            background: '#f0f4fb',
+            border: '1px solid #d1d9e6',
+            borderRadius: 6,
+            fontSize: 12.5,
+            color: '#354762',
+            lineHeight: 1.45,
+          }}
+        >
+          💡 Ускорь одним сообщением:{' '}
+          <a
+            href={`https://t.me/chaptifybot?text=${encodeURIComponent(`/claim ${claim.code}`)}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            style={{ color: '#3565b5', fontWeight: 600 }}
+          >
+            открыть @chaptifybot
+          </a>{' '}
+          и отправить <code>/claim {claim.code}</code>. Бот пингнёт
+          переводчика с кнопками «одобрить / отклонить».
+        </div>
       </div>
     );
   }
