@@ -10049,6 +10049,62 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   line-height: 1.5;
 }
 
+/* ---------- Reader: режим чтения «Страницы» (горизонтальный свайп) ---------- */
+
+/* В режиме 'pages' содержимое главы превращается в multi-column layout
+   с колонкой на ширину экрана. Горизонтальный скролл + scroll-snap
+   даёт эффект «листания страниц» как в читалках книг. Дефолт
+   'scroll' — обычный вертикальный свиток, CSS не трогаем. */
+.reader-wrapper[data-read-mode='pages'] .novel-content {
+  column-width: calc(100vw - 40px);
+  column-gap: 40px;
+  column-fill: auto;
+  /* 100dvh честнее 100vh на iOS (учитывает схлопывающуюся адресную
+     строку в Safari). Вычитаем примерно на шапку + toolbar читалки. */
+  height: calc(100dvh - 200px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  padding: 8px 0;
+}
+.reader-wrapper[data-read-mode='pages'] .novel-content > * {
+  /* Параграф / заголовок не должен ломаться между колонок — иначе
+     одно слово на одной странице, остальное на другой. */
+  break-inside: avoid;
+}
+/* Снап к началу каждой колонки */
+.reader-wrapper[data-read-mode='pages'] .novel-content {
+  scroll-padding-left: 0;
+}
+
+/* В режиме страниц прячем footer (он уводит внимание) */
+.reader-wrapper[data-read-mode='pages'] .reader-nav {
+  margin-top: 16px;
+}
+
+/* Hint для читателя что можно свайпать — полупрозрачная стрелка
+   справа снизу мигает первые пару секунд, затем исчезает. */
+.reader-wrapper[data-read-mode='pages'] .novel-content::after {
+  content: '»';
+  position: sticky;
+  bottom: 6px;
+  float: right;
+  padding: 2px 10px;
+  font-size: 20px;
+  color: var(--ink-mute);
+  opacity: 0.6;
+  animation: page-hint 2.2s ease-out 1 forwards;
+}
+@keyframes page-hint {
+  0%   { opacity: 0;    transform: translateX(0); }
+  15%  { opacity: 0.8;  transform: translateX(0); }
+  45%  { opacity: 0.8;  transform: translateX(8px); }
+  75%  { opacity: 0.8;  transform: translateX(0); }
+  100% { opacity: 0;    transform: translateX(0); }
+}
+
 /* ---------- Reader: theme overrides (light/sepia/dark) ---------- */
 
 /* sepia — тёплая состаренная бумага, меньше синего света */

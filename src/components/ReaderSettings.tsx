@@ -4,6 +4,8 @@ import {
   FONT_OPTIONS,
   LIMITS,
   READER_THEMES,
+  READ_MODES,
+  type ReadMode,
   SLEEP_TIMER_PRESETS,
   type FontFamilyKey,
   type ReaderSettings,
@@ -76,6 +78,26 @@ export default function ReaderSettings({
                   </span>
                   <span className="reader-theme-label">{t.label}</span>
                   <span className="reader-theme-desc">{t.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Режим чтения (свиток / страницы) */}
+          <div className="rs-group">
+            <label className="rs-label">Режим чтения</label>
+            <div className="rs-pair">
+              {READ_MODES.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  className={`chip${
+                    (settings.readMode ?? 'scroll') === m.key ? ' active' : ''
+                  }`}
+                  onClick={() => set('readMode', m.key as ReadMode)}
+                  title={m.desc}
+                >
+                  {m.label}
                 </button>
               ))}
             </div>

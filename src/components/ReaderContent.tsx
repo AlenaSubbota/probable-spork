@@ -392,6 +392,7 @@ export default function ReaderContent({
     <div
       className={`reader-wrapper${settings.focusMode ? ' focus-mode' : ''}`}
       data-theme={settings.theme ?? 'light'}
+      data-read-mode={settings.readMode ?? 'scroll'}
     >
       <div className="reader-toolbar">
         {novelFirebaseId && (

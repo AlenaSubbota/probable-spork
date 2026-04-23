@@ -36,6 +36,17 @@ export const READER_THEMES: Array<{ key: ReaderTheme; label: string; desc: strin
   { key: 'dark',  label: 'Тёмная',  desc: 'Для ночного чтения' },
 ];
 
+// Режим чтения:
+// - scroll: привычный вертикальный свиток (дефолт десктопа)
+// - pages:  text в multi-column + горизонтальный свайп (привычнее
+//           тем, кто читает в читалках книг)
+export type ReadMode = 'scroll' | 'pages';
+
+export const READ_MODES: Array<{ key: ReadMode; label: string; desc: string }> = [
+  { key: 'scroll', label: 'Свиток',  desc: 'Прокрутка вниз' },
+  { key: 'pages',  label: 'Страницы', desc: 'Свайп влево-вправо' },
+];
+
 export interface ReaderSettings {
   fontFamily:      FontFamilyKey;
   fontSize:        number;
@@ -45,6 +56,7 @@ export interface ReaderSettings {
   paragraphSpacing: number;  // em
   focusMode:       boolean;
   theme:           ReaderTheme;
+  readMode:        ReadMode;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -56,6 +68,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   paragraphSpacing: 0.8,
   focusMode: false,
   theme: 'light',
+  readMode: 'scroll',
 };
 
 // Пределы значений (чтобы случайно не сломать глазами)
