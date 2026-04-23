@@ -33,8 +33,6 @@ const PROVIDERS = [
 
 export default function LinkedAccounts({ telegramId }: { telegramId: number | null }) {
   const [identities, setIdentities] = useState<Identity[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
@@ -45,16 +43,11 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
 
     // Форсим обновление сессии: после возврата из Google supabase-js
     // мог не успеть засинхронизировать identities из свежего JWT.
-    // refreshSession подтянет актуальный user.identities[] от GoTrue.
     try {
       await supabase.auth.refreshSession();
     } catch {
       /* noop */
     }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    setUserId(user?.id ?? null);
-    setUserEmail(user?.email ?? null);
 
     const { data, error } = await supabase.auth.getUserIdentities();
     if (error) {
@@ -62,28 +55,15 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
       setLoading(false);
       return;
     }
-    const list = (data?.identities ?? []) as Identity[];
-    setIdentities(list);
-
-    // eslint-disable-next-line no-console
-    console.log('[linked-accounts] identities', {
-      userId: user?.id,
-      email: user?.email,
-      providers: list.map((i) => i.provider),
-      full: list,
-    });
-
+    setIdentities((data?.identities ?? []) as Identity[]);
     setLoading(false);
   };
 
   useEffect(() => {
     reload();
-    // Если пользователь только что вернулся с ?next=/profile/settings после
-    // callback, URL чистый, но identity могла ещё не закрепиться в сессии.
-    // Перезагрузимся через 600мс (cookie + session write race).
-    const t = setTimeout(() => {
-      reload();
-    }, 600);
+    // race-страховка: после возврата с callback session/identity может
+    // прицепиться чуть позже — повторим reload через 600мс.
+    const t = setTimeout(reload, 600);
     return () => clearTimeout(t);
   }, []);
 
@@ -169,7 +149,7 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
           className="btn btn-ghost"
           onClick={reload}
           style={{ marginLeft: 12, height: 24, fontSize: 12 }}
-          title="Перечитать список identity"
+          title="Перечитать список"
         >
           ⟳
         </button>
@@ -178,15 +158,6 @@ export default function LinkedAccounts({ telegramId }: { telegramId: number | nu
         К одному профилю можно привязать несколько способов входа, чтобы не
         потерять аккаунт, если один из них недоступен.
       </p>
-      {userId && (
-        <p
-          className="form-hint"
-          style={{ marginTop: 0, marginBottom: 12, fontSize: 11, opacity: 0.65 }}
-        >
-          user_id: <code>{userId.slice(0, 8)}…</code>
-          {userEmail ? ` · ${userEmail}` : ''} · identity: {identities.length}
-        </p>
-      )}
 
       {loading ? (
         <p style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Загружаем…</p>

@@ -66,21 +66,33 @@ export default async function CatalogPage({
     query = query.eq('age_rating', params.age);
   }
 
-  // Фильтр по жанру: для jsonb-массива .overlaps работает как пересечение
-  // массивов — совпадает, если искомый жанр есть среди genres новеллы.
-  // .contains() просило full superset-match и давало «пусто».
+  // Фильтр по жанру (одиночный). Для jsonb-массива genres@>'["X"]' работает
+  // надёжно — это .contains в supabase-js. .overlaps использует && op,
+  // который для jsonb-колонки PostgreSQL строго не определён и в нашей
+  // версии PostgREST может вернуть пусто без ошибки.
   if (params.genre) {
-    query = query.overlaps('genres', [params.genre]);
+    query = query.contains('genres', [params.genre]);
   }
 
-  // Настроение: любой из жанров moода + минимальный рейтинг.
-  // Раньше строили raw .or() со 'genres.cs.[\"<жанр>\"]', но кириллица
-  // там кодируется неправильно и фильтр молча возвращал пусто.
+  // Настроение: любой из жанров mood'а + минимальный рейтинг.
+  //
+  // jsonb-массив + OR по нескольким жанрам — собираем .or() из cs.["X"]
+  // условий, чтобы каждое было contains-проверкой. .overlaps() на jsonb
+  // ненадёжен.
+  //
+  // По рейтингу: в novels_view average_rating = COALESCE(..., 0) — у
+  // legacy-новелл из tene без оценок там ноль. Жёсткий gte(minRating)
+  // их вырезает → каталог пуст. Пропускаем 0 (ещё не оценили) ИЛИ >= minRating.
   if (mood) {
     if (mood.genres.length > 0) {
-      query = query.overlaps('genres', mood.genres);
+      const orExpr = mood.genres
+        .map((g) => `genres.cs.["${g.replace(/"/g, '\\"')}"]`)
+        .join(',');
+      query = query.or(orExpr);
     }
-    query = query.gte('average_rating', mood.minRating);
+    query = query.or(
+      `average_rating.eq.0,average_rating.gte.${mood.minRating}`
+    );
   }
 
   // Время чтения (bucket по chapter_count)

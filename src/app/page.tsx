@@ -299,6 +299,7 @@ export default async function HomePage() {
     const { data: comments } = await supabase
       .from('comments')
       .select('id, user_name, text, created_at, novel_id, chapter_number')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(10);
     if (comments && comments.length > 0) {
