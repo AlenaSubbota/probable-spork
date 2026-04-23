@@ -37,11 +37,19 @@ interface Props {
 // Группируем по роли, внутри группы — по sort_order (уже отсортировано на SQL).
 // Показываем аватарки + имена кликабельными.
 export default function NovelCredits({ credits }: Props) {
-  if (credits.length === 0) return null;
+  // Игнорируем строки, которые ссылаются на orphan-юзера (LEFT JOIN
+  // в view даёт пустые user_name + display_name). Иначе под «Перевод»
+  // выскакивает строчка-призрак «Переводчик» без ссылки и валит UX.
+  // Миграция 040 выгребает такие orphan-строки из novel_translators,
+  // но клиент тоже подстрахован.
+  const cleaned = credits.filter(
+    (c) => (c.display_name && c.display_name.trim()) || (c.user_name && c.user_name.trim())
+  );
+  if (cleaned.length === 0) return null;
 
   // Группировка
   const groups = new Map<string, CreditRow[]>();
-  for (const c of credits) {
+  for (const c of cleaned) {
     const arr = groups.get(c.role) ?? [];
     arr.push(c);
     groups.set(c.role, arr);
@@ -69,11 +77,15 @@ export default function NovelCredits({ credits }: Props) {
               </div>
               <div className="novel-credit-people">
                 {list.map((c) => {
+                  // После filter сверху имя всегда есть.
                   const name = c.display_name || c.user_name || 'Переводчик';
                   const initial = name.trim().charAt(0).toUpperCase() || '?';
-                  const href = c.translator_slug
-                    ? `/t/${c.translator_slug}`
-                    : `/u/${c.user_id}`;
+                  // Slug приоритетнее user_name; user_name тоже годится как
+                  // fallback для /t/[slug] (legacy tene). user_id как крайний
+                  // fallback на /u/[id], которое после мигр. 040 находит
+                  // профиль через public_profiles.
+                  const slug = c.translator_slug || c.user_name;
+                  const href = slug ? `/t/${slug}` : `/u/${c.user_id}`;
                   return (
                     <Link
                       key={c.id}

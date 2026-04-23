@@ -11,8 +11,11 @@ export async function fetchTranslatorSlugs(
   const uniq = Array.from(new Set(ids.filter((x): x is string => !!x)));
   if (uniq.length === 0) return new Map();
 
+  // Идём через public_profiles (мигр. 040): RLS на profiles разрешает
+  // SELECT только своего, поэтому прямой запрос вернёт пусто для чужих
+  // переводчиков и слаги в карточках не отрисуются.
   const { data } = await supabase
-    .from('profiles')
+    .from('public_profiles')
     .select('id, translator_slug, user_name')
     .in('id', uniq);
 

@@ -24,6 +24,22 @@ export default async function SubscribersPage() {
     p?.is_admin === true || p?.role === 'translator' || p?.role === 'admin';
   if (!isTranslator) redirect('/profile');
 
+  // Boosty считаем настроенным, если есть либо legacy-поле, либо новая
+  // запись в translator_payment_methods (мигр. 037). Раньше предупреждение
+  // показывалось всегда, если переводчик добавил Boosty только через новый
+  // редактор «Способы оплаты», а не через старое поле в settings.
+  let hasBoostyConfigured = !!p?.payout_boosty_url;
+  if (!hasBoostyConfigured) {
+    const { data: methods } = await supabase
+      .from('translator_payment_methods')
+      .select('id')
+      .eq('translator_id', user.id)
+      .eq('provider', 'boosty')
+      .eq('enabled', true)
+      .limit(1);
+    hasBoostyConfigured = (methods ?? []).length > 0;
+  }
+
   // Pending-заявки
   const { data: pending } = await supabase
     .from('subscription_claims_view')
@@ -53,10 +69,12 @@ export default async function SubscribersPage() {
   const activeUserIds = Array.from(
     new Set((active ?? []).map((s) => s.user_id as string)),
   );
+  // public_profiles (мигр. 040): RLS на profiles разрешает читать только
+  // свой ряд, поэтому имена / аватары подписчиков для рендера тянем из view.
   const { data: activeProfiles } =
     activeUserIds.length > 0
       ? await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('id, user_name, avatar_url, translator_slug')
           .in('id', activeUserIds)
       : { data: [] as Array<{ id: string; user_name: string | null; avatar_url: string | null; translator_slug: string | null }> };
@@ -78,8 +96,6 @@ export default async function SubscribersPage() {
       started_at: (s.started_at as string | null) ?? null,
     };
   });
-
-  const hasBoostyConfigured = !!p?.payout_boosty_url;
 
   return (
     <main className="container section" style={{ maxWidth: 1000 }}>

@@ -93,6 +93,31 @@ export default function SubscribersClient({ pending, reviewed, active }: Props) 
     router.refresh();
   };
 
+  const revoke = async (id: number) => {
+    const reason = prompt(
+      'Причина отзыва (по желанию — подписчик увидит её в уведомлении):',
+      ''
+    );
+    if (reason === null) return;
+    setBusyId(id);
+    const { data, error } = await supabase.rpc('revoke_subscription', {
+      p_subscription_id: id,
+      p_reason: reason.trim() || null,
+    });
+    setBusyId(null);
+    if (error) {
+      push('error', error.message);
+      return;
+    }
+    const res = (data ?? {}) as { ok?: boolean; error?: string };
+    if (!res.ok) {
+      push('error', res.error ?? 'unknown');
+      return;
+    }
+    push('success', 'Подписка отозвана.');
+    router.refresh();
+  };
+
   const decline = async (id: number) => {
     setBusyId(id);
     const { data, error } = await supabase.rpc('decline_subscription_claim', {
@@ -286,6 +311,23 @@ export default function SubscribersClient({ pending, reviewed, active }: Props) 
                       </div>
                     </Link>
                   </header>
+                  <div className="application-card-actions">
+                    <Link
+                      href={`/messages/${s.user_id}`}
+                      className="btn btn-ghost"
+                    >
+                      💬 Написать
+                    </Link>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => revoke(s.id)}
+                      disabled={busyId === s.id}
+                      title="Отозвать подписку: например, читатель отписался на Boosty"
+                    >
+                      ⊗ Отозвать
+                    </button>
+                  </div>
                 </article>
               );
             })}

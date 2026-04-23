@@ -29,6 +29,23 @@ interface GlossaryHit {
   category: string | null;
 }
 
+interface NewsHit {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  type: string;
+  created_at: string;
+  matched_field: string;
+}
+
+interface TranslatorHit {
+  id: string;
+  display_name: string;
+  slug: string | null;
+  about: string | null;
+  avatar_url: string | null;
+}
+
 const COMMON_GENRES = [
   'Романтика', 'Фэнтези', 'Ромфэнтези', 'Драма', 'Комедия', 'Экшен',
   'Приключения', 'Психология', 'Мистика', 'Триллер', 'Школа', 'Сянься',
@@ -62,6 +79,8 @@ export default function SearchClient() {
   const [query, setQuery] = useState(initialQuery);
   const [novels, setNovels] = useState<NovelHit[]>([]);
   const [glossary, setGlossary] = useState<GlossaryHit[]>([]);
+  const [news, setNews] = useState<NewsHit[]>([]);
+  const [translators, setTranslators] = useState<TranslatorHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<number | null>(null);
@@ -70,6 +89,8 @@ export default function SearchClient() {
     if (q.trim().length < 2) {
       setNovels([]);
       setGlossary([]);
+      setNews([]);
+      setTranslators([]);
       setSearched(false);
       return;
     }
@@ -189,6 +210,86 @@ export default function SearchClient() {
     }
     setGlossary(glossaryHits);
 
+    // ---- Поиск по новостям ----
+    // Тянем по title + subtitle + body. Только опубликованные.
+    const { data: newsRows } = await supabase
+      .from('news_posts')
+      .select('id, title, subtitle, body, type, created_at, is_published')
+      .eq('is_published', true)
+      .or(
+        [
+          `title.ilike.${pattern}`,
+          `subtitle.ilike.${pattern}`,
+          `body.ilike.${pattern}`,
+        ].join(',')
+      )
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    const newsHits: NewsHit[] = (newsRows ?? []).map((n) => {
+      const nq = norm(q);
+      const title = (n.title as string | null) ?? '';
+      const subtitle = (n.subtitle as string | null) ?? null;
+      const body = (n.body as string | null) ?? null;
+      let matched_field = 'Заголовок';
+      if (title && norm(title).includes(nq)) matched_field = 'Заголовок';
+      else if (subtitle && norm(subtitle).includes(nq)) matched_field = 'Подзаголовок';
+      else if (body && norm(body).includes(nq)) matched_field = 'Текст';
+      return {
+        id: n.id as number,
+        title,
+        subtitle,
+        type: (n.type as string) ?? 'announcement',
+        created_at: (n.created_at as string) ?? '',
+        matched_field,
+      };
+    });
+    setNews(newsHits);
+
+    // ---- Поиск по переводчикам ----
+    // Идём через public_profiles (мигр. 040), фильтруем по роли
+    // translator/admin. У не-переводчиков отдельной публичной страницы
+    // нет — их в общую выдачу не пускаем, чтобы не вышло «случайных
+    // профилей в результатах».
+    const { data: tRows } = await supabase
+      .from('public_profiles')
+      .select('id, user_name, translator_slug, translator_display_name, translator_avatar_url, avatar_url, translator_about, role, is_admin')
+      .or(
+        [
+          `user_name.ilike.${pattern}`,
+          `translator_display_name.ilike.${pattern}`,
+          `translator_slug.ilike.${pattern}`,
+          `translator_about.ilike.${pattern}`,
+        ].join(',')
+      )
+      .limit(20);
+
+    const translatorHits: TranslatorHit[] = (tRows ?? [])
+      .filter((r) => {
+        const rr = r as { role?: string; is_admin?: boolean };
+        return rr.is_admin === true || rr.role === 'translator' || rr.role === 'admin';
+      })
+      .slice(0, 8)
+      .map((r) => {
+        const rr = r as {
+          id: string;
+          user_name: string | null;
+          translator_slug: string | null;
+          translator_display_name: string | null;
+          translator_avatar_url: string | null;
+          avatar_url: string | null;
+          translator_about: string | null;
+        };
+        return {
+          id: rr.id,
+          display_name: rr.translator_display_name || rr.user_name || 'Переводчик',
+          slug: rr.translator_slug || rr.user_name || null,
+          about: rr.translator_about,
+          avatar_url: rr.translator_avatar_url || rr.avatar_url,
+        };
+      });
+    setTranslators(translatorHits);
+
     setSearching(false);
     setSearched(true);
 
@@ -217,7 +318,7 @@ export default function SearchClient() {
 
   // «Возможно, вы хотели» — ищем ближайший жанр по Левенштейну
   const didYouMean = useMemo(() => {
-    if (!query || novels.length > 0 || glossary.length > 0 || query.length < 3) return null;
+    if (!query || novels.length > 0 || glossary.length > 0 || news.length > 0 || translators.length > 0 || query.length < 3) return null;
     const nq = norm(query);
     const candidates = COMMON_GENRES.map((g) => ({
       genre: g,
@@ -229,7 +330,7 @@ export default function SearchClient() {
       return best.genre;
     }
     return null;
-  }, [query, novels, glossary]);
+  }, [query, novels, glossary, news, translators]);
 
   return (
     <>
@@ -247,7 +348,7 @@ export default function SearchClient() {
         </div>
       </div>
 
-      {searched && query.length >= 2 && novels.length === 0 && glossary.length === 0 && (
+      {searched && query.length >= 2 && novels.length === 0 && glossary.length === 0 && news.length === 0 && translators.length === 0 && (
         <div className="empty-state">
           <p>По запросу «{query}» ничего не найдено.</p>
           {didYouMean && (
@@ -263,10 +364,44 @@ export default function SearchClient() {
         </div>
       )}
 
+      {translators.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2>Переводчики <span className="search-source-badge">профили</span></h2>
+            <span className="more" style={{ cursor: 'default' }}>
+              {translators.length}
+            </span>
+          </div>
+          <div className="search-translators-grid">
+            {translators.map((t) => (
+              <Link
+                key={t.id}
+                href={t.slug ? `/t/${t.slug}` : `/u/${t.id}`}
+                className="search-translator-card"
+              >
+                <div className="search-translator-avatar">
+                  {t.avatar_url ? (
+                    <img src={t.avatar_url} alt="" />
+                  ) : (
+                    <span>{t.display_name.charAt(0).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="search-translator-body">
+                  <div className="search-translator-name">{t.display_name}</div>
+                  {t.about && (
+                    <div className="search-translator-about">{t.about}</div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {novels.length > 0 && (
         <section className="section">
           <div className="section-head">
-            <h2>Новеллы</h2>
+            <h2>Новеллы <span className="search-source-badge">каталог</span></h2>
             <span className="more" style={{ cursor: 'default' }}>
               {novels.length}
             </span>
@@ -311,10 +446,38 @@ export default function SearchClient() {
         </section>
       )}
 
+      {news.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2>Новости <span className="search-source-badge">журнал</span></h2>
+            <span className="more" style={{ cursor: 'default' }}>
+              {news.length}
+            </span>
+          </div>
+          <div className="search-news-list">
+            {news.map((n) => (
+              <Link key={n.id} href={`/news/${n.id}`} className="search-news-row">
+                <div className="search-news-body">
+                  <div className="search-news-title">{n.title}</div>
+                  {n.subtitle && (
+                    <div className="search-news-subtitle">{n.subtitle}</div>
+                  )}
+                  {n.matched_field !== 'Заголовок' && (
+                    <div className="search-result-matched">
+                      Совпало: {n.matched_field}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {glossary.length > 0 && (
         <section className="section">
           <div className="section-head">
-            <h2>Термины и персонажи</h2>
+            <h2>Термины и персонажи <span className="search-source-badge">глоссарии</span></h2>
             <span className="more" style={{ cursor: 'default' }}>
               {glossary.length}
             </span>

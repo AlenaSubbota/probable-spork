@@ -129,8 +129,10 @@ export default async function ProfilePage() {
     const [topId, topChapters] = Array.from(chaptersByTranslator.entries()).sort(
       (a, b) => b[1] - a[1]
     )[0];
+    // public_profiles (мигр. 040) — для чужих переводчиков RLS на profiles
+    // ничего не отдал бы, и любимый переводчик схлопнулся бы в null.
     const { data: topProfile } = await supabase
-      .from('profiles')
+      .from('public_profiles')
       .select('translator_display_name, translator_slug, user_name')
       .eq('id', topId)
       .maybeSingle();
@@ -232,6 +234,67 @@ export default async function ProfilePage() {
 
   const coinBalance = typeof profile.coin_balance === 'number' ? profile.coin_balance : null;
 
+  // ---- Активные подписки (счётчик + последние 3 переводчика) ----
+  // Раньше карточка «Подписки» всегда показывала «—», читатель не видел,
+  // на кого подписан. Тянем активные subscriptions + имя переводчика.
+  let activeSubsCount = 0;
+  let activeSubs: Array<{
+    id: number;
+    translator_id: string;
+    name: string;
+    slug: string | null;
+    avatar_url: string | null;
+    expires_at: string | null;
+  }> = [];
+  try {
+    const { data: subsRaw } = await supabase
+      .from('subscriptions')
+      .select('id, translator_id, expires_at, started_at')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('started_at', { ascending: false });
+    const all = (subsRaw ?? []) as Array<{
+      id: number;
+      translator_id: string;
+      expires_at: string | null;
+      started_at: string | null;
+    }>;
+    activeSubsCount = all.length;
+    if (all.length > 0) {
+      const ids = Array.from(new Set(all.map((s) => s.translator_id)));
+      const { data: subProfiles } = await supabase
+        .from('public_profiles')
+        .select('id, user_name, translator_slug, translator_display_name, translator_avatar_url, avatar_url')
+        .in('id', ids);
+      const tMap = new Map(
+        (subProfiles ?? []).map((t) => [
+          t.id as string,
+          t as {
+            id: string;
+            user_name: string | null;
+            translator_slug: string | null;
+            translator_display_name: string | null;
+            translator_avatar_url: string | null;
+            avatar_url: string | null;
+          },
+        ])
+      );
+      activeSubs = all.slice(0, 3).map((s) => {
+        const tr = tMap.get(s.translator_id);
+        return {
+          id: s.id,
+          translator_id: s.translator_id,
+          name: tr?.translator_display_name || tr?.user_name || 'Переводчик',
+          slug: tr?.translator_slug || tr?.user_name || null,
+          avatar_url: tr?.translator_avatar_url || tr?.avatar_url || null,
+          expires_at: s.expires_at,
+        };
+      });
+    }
+  } catch {
+    // мигр. 001 ещё не накачена — пропускаем
+  }
+
   const displayName =
     profile.translator_display_name ?? profile.user_name ?? profile.email ?? 'Читатель';
 
@@ -285,10 +348,51 @@ export default async function ProfilePage() {
         </Link>
         <Link href="/profile/subscriptions" className="stat-card stat-card--link">
           <div className="label">Подписки</div>
-          <div className="value">—</div>
+          <div className="value">{activeSubsCount}</div>
           <div className="stat-card-cta">Управлять →</div>
         </Link>
       </div>
+
+      {activeSubs.length > 0 && (
+        <section className="card" style={{ marginTop: 14 }}>
+          <h3 style={{ margin: '0 0 10px' }}>Я подписан_а на</h3>
+          <div className="profile-subs-strip">
+            {activeSubs.map((s) => {
+              const initial = s.name.trim().charAt(0).toUpperCase() || '?';
+              const href = s.slug ? `/t/${s.slug}` : `/u/${s.translator_id}`;
+              const days = s.expires_at
+                ? Math.ceil((new Date(s.expires_at).getTime() - Date.now()) / 86_400_000)
+                : null;
+              return (
+                <Link key={s.id} href={href} className="profile-subs-strip-item">
+                  <div className="profile-subs-strip-avatar">
+                    {s.avatar_url ? (
+                      <img src={s.avatar_url} alt="" />
+                    ) : (
+                      <span>{initial}</span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="profile-subs-strip-name">{s.name}</div>
+                    <div className="profile-subs-strip-meta">
+                      {days !== null
+                        ? days > 0
+                          ? `ещё ${days} дн.`
+                          : 'истекла'
+                        : 'бессрочно'}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+            {activeSubsCount > activeSubs.length && (
+              <Link href="/profile/subscriptions" className="profile-subs-strip-more">
+                + ещё {activeSubsCount - activeSubs.length}
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Агрегат: глав прочитано / часов / любимый переводчик */}
       <ReadingTotals

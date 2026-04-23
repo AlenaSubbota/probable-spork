@@ -45,17 +45,21 @@ export default async function TranslatorPage({ params }: PageProps) {
 
   let byField: Record<string, unknown> | null = null;
 
+  // Все cross-user lookups идут через public_profiles (мигр. 040), потому
+  // что на самой profiles стоит RLS «only own row». Без view возвращалось
+  // бы всегда пусто для анонима / стороннего юзера → 404.
+
   // 1) По translator_slug (точное совпадение с любым вариантом)
   for (const v of candidates) {
     const { data } = await supabase
-      .from('profiles').select('*').eq('translator_slug', v).maybeSingle();
+      .from('public_profiles').select('*').eq('translator_slug', v).maybeSingle();
     if (data) { byField = data; break; }
   }
   // 2) По user_name (точное совпадение с любым вариантом)
   if (!byField) {
     for (const v of candidates) {
       const { data } = await supabase
-        .from('profiles').select('*').eq('user_name', v).maybeSingle();
+        .from('public_profiles').select('*').eq('user_name', v).maybeSingle();
       if (data) { byField = data; break; }
     }
   }
@@ -63,7 +67,7 @@ export default async function TranslatorPage({ params }: PageProps) {
   if (!byField) {
     const escaped = decoded.replace(/([%_\\])/g, '\\$1');
     const { data } = await supabase
-      .from('profiles').select('*').ilike('user_name', escaped).maybeSingle();
+      .from('public_profiles').select('*').ilike('user_name', escaped).maybeSingle();
     if (data) byField = data;
   }
 

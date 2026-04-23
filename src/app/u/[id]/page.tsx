@@ -17,16 +17,19 @@ export default async function PublicUserProfile({ params }: PageProps) {
   const supabase = await createClient();
   const { data: { user: viewer } } = await supabase.auth.getUser();
 
-  // Ищем профиль: сперва по id, иначе по user_name
+  // Ищем профиль через public_profiles (мигр. 040): RLS на самой profiles
+  // разрешает SELECT только своего ряда, поэтому раньше /u/<id> постоянно
+  // 404. View отдаёт безопасный набор колонок и last_read/bookmarks
+  // только если юзер сам поставил show_reading_publicly=true.
   const { data: byId } = await supabase
-    .from('profiles')
+    .from('public_profiles')
     .select('*')
     .eq('id', id)
     .maybeSingle();
 
   const { data: byName } = byId
     ? { data: byId }
-    : await supabase.from('profiles').select('*').eq('user_name', id).maybeSingle();
+    : await supabase.from('public_profiles').select('*').eq('user_name', id).maybeSingle();
 
   const profile = byId ?? byName;
   if (!profile) notFound();
@@ -42,7 +45,7 @@ export default async function PublicUserProfile({ params }: PageProps) {
     translator_display_name?: string | null;
     translator_avatar_url?: string | null;
     avatar_url?: string | null;
-    settings?: { show_reading_publicly?: boolean } | null;
+    show_reading_publicly?: boolean | null;
   };
 
   const isSelf = viewer?.id === p.id;
@@ -50,10 +53,10 @@ export default async function PublicUserProfile({ params }: PageProps) {
   const isAdmin = p.is_admin === true || p.role === 'admin';
   const isTranslator = isAdmin || p.role === 'translator';
 
-  // Приватность: если выключено — скрываем last_read и статы от чужих.
-  // Владелец своего профиля и админ видят всегда.
+  // Приватность: view сама обнуляет last_read/bookmarks если флажок false,
+  // но булевый флаг тоже отдаёт — пригодится для UI.
   const showReading =
-    isSelf || isAdmin || p.settings?.show_reading_publicly !== false;
+    isSelf || isAdmin || p.show_reading_publicly !== false;
 
   // Friendship status
   let friendshipStatus: FriendshipStatus = 'none';

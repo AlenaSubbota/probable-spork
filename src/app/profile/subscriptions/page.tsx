@@ -52,8 +52,10 @@ export default async function SubscriptionsPage() {
     const raw = subsData ?? [];
     if (raw.length > 0) {
       const translatorIds = Array.from(new Set(raw.map((s) => s.translator_id)));
+      // public_profiles (мигр. 040) — RLS на profiles прямой запрос для
+      // чужих переводчиков не отдаёт.
       const { data: translators } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('id, user_name, translator_slug, translator_display_name, translator_avatar_url')
         .in('id', translatorIds);
       const tMap = new Map((translators ?? []).map((t) => [t.id, t]));
@@ -210,19 +212,23 @@ export default async function SubscriptionsPage() {
 
 function providerLabel(provider: string): string {
   switch (provider) {
-    case 'tribute': return 'Tribute';
-    case 'boosty':  return 'Boosty';
-    case 'card':    return 'Карта';
-    default:        return provider;
+    case 'tribute':  return 'Tribute';
+    case 'boosty':   return 'Boosty';
+    case 'vk_donut': return 'VK Donut';
+    case 'patreon':  return 'Patreon';
+    case 'card':     return 'Карта';
+    case 'other':    return 'Другое';
+    default:         return provider;
   }
 }
 
 function planLabel(plan: string): string {
   switch (plan) {
-    case 'monthly_basic': return 'Месячная';
-    case 'monthly_pro':   return 'Месячная Pro';
-    case 'yearly':        return 'Годовая';
-    default:              return plan;
+    case 'monthly_basic':  return 'Месячная';
+    case 'monthly_pro':    return 'Месячная Pro';
+    case 'yearly':         return 'Годовая';
+    case 'external_claim': return 'Внешняя подписка';
+    default:               return plan;
   }
 }
 
