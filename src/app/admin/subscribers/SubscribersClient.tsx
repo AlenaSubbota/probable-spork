@@ -18,6 +18,9 @@ interface Claim {
   status: 'pending' | 'approved' | 'declined';
   decline_reason: string | null;
   tier_months: number;
+  /** 'subscription' | 'coins' — добавлено в мигр. 045. Старые ряды = subscription. */
+  kind?: 'subscription' | 'coins' | null;
+  coins_amount?: number | null;
   created_at: string;
   reviewed_at: string | null;
   user_name: string | null;
@@ -183,6 +186,7 @@ export default function SubscribersClient({ pending, reviewed, active }: Props) 
           <div className="applications-list">
             {pending.map((c) => {
               const initial = (c.user_name ?? '?').trim().charAt(0).toUpperCase() || '?';
+              const isCoinsClaim = c.kind === 'coins';
               return (
                 <article key={c.id} className="application-card">
                   <header className="application-card-head">
@@ -200,10 +204,17 @@ export default function SubscribersClient({ pending, reviewed, active }: Props) 
                         </div>
                         <div className="application-card-time">
                           {timeAgo(c.created_at)} · {PROVIDER_LABEL[c.provider] ?? c.provider}
-                          {' · на '}{c.tier_months} мес.
+                          {isCoinsClaim
+                            ? ` · покупка ${c.coins_amount ?? 0} монет`
+                            : ` · подписка на ${c.tier_months} мес.`}
                         </div>
                       </div>
                     </Link>
+                    <span
+                      className={`claim-kind-badge claim-kind-badge--${isCoinsClaim ? 'coins' : 'subscription'}`}
+                    >
+                      {isCoinsClaim ? '💰 монеты' : '📅 подписка'}
+                    </span>
                   </header>
 
                   <div className="claim-details">
@@ -222,8 +233,9 @@ export default function SubscribersClient({ pending, reviewed, active }: Props) 
                       </div>
                     )}
                     <div className="claim-hint">
-                      Сверь ник со своим списком подписчиков на Boosty и код
-                      в своих сообщениях/комментах, прежде чем одобрить.
+                      {isCoinsClaim
+                        ? `Проверь: пришёл ли этот читатель в твой ${PROVIDER_LABEL[c.provider] ?? c.provider} с кодом и правильной суммой (${c.coins_amount ?? 0} монет). Одобрение зачислит монеты на его per-translator кошелёк — тратить их он сможет только на твои новеллы.`
+                        : 'Сверь ник со своим списком подписчиков на Boosty и код в своих сообщениях/комментах, прежде чем одобрить.'}
                     </div>
                   </div>
 

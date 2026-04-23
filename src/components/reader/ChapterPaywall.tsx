@@ -75,9 +75,11 @@ export default function ChapterPaywall({
     if (!res.ok) {
       const msg =
         res.error === 'insufficient_balance'
-          ? `Не хватает монет: нужно ${res.price}, на счету ${res.balance}.`
+          ? `Не хватает монет: нужно ${res.price}, на кошельке у этого переводчика ${res.balance}. Пополни на странице переводчика.`
           : res.error === 'chapter_is_free'
           ? 'Эта глава стала бесплатной — обнови страницу.'
+          : res.error === 'external_translator'
+          ? 'У этой новеллы внешний переводчик — монеты не работают, только прямая ссылка.'
           : res.error === 'not_authenticated'
           ? 'Сначала войди в аккаунт.'
           : res.error ?? 'Не удалось купить главу.';
@@ -128,7 +130,7 @@ export default function ChapterPaywall({
               <span className="paywall-coins-unit">монет</span>
             </div>
             <div className="paywall-balance">
-              На счету:{' '}
+              На кошельке у {translatorName ?? 'переводчика'}:{' '}
               <strong className={canAfford ? '' : 'paywall-balance--low'}>
                 {userBalance.toLocaleString('ru-RU')}
               </strong>{' '}
@@ -146,11 +148,11 @@ export default function ChapterPaywall({
               </button>
             ) : (
               <Link
-                href="/profile/topup"
+                href={translatorSlug ? `/t/${translatorSlug}` : '/profile/topup'}
                 className="btn btn-primary"
                 style={{ width: '100%' }}
               >
-                Пополнить баланс
+                Пополнить у {translatorName ?? 'переводчика'}
               </Link>
             )}
             {error && (

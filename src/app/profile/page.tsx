@@ -234,6 +234,42 @@ export default async function ProfilePage() {
 
   const coinBalance = typeof profile.coin_balance === 'number' ? profile.coin_balance : null;
 
+  // ---- Per-translator кошельки (мигр. 045) ----
+  // Каждый переводчик продаёт свои монеты читателю — у одного и того же
+  // юзера может быть несколько балансов (300 у Алёны, 150 у Маши, 0 у Ани).
+  // Старый «единый» coin_balance (profiles.coin_balance) оставляем как
+  // legacy-показатель только для совместимости с tene.
+  let wallets: Array<{
+    translator_id: string;
+    name: string;
+    slug: string | null;
+    avatar_url: string | null;
+    balance: number;
+  }> = [];
+  try {
+    const { data } = await supabase.rpc('my_translator_wallets');
+    if (Array.isArray(data)) {
+      wallets = (data as Array<{
+        translator_id: string;
+        user_name: string | null;
+        translator_slug: string | null;
+        translator_display_name: string | null;
+        translator_avatar_url: string | null;
+        avatar_url: string | null;
+        balance: number;
+      }>).map((w) => ({
+        translator_id: w.translator_id,
+        name: w.translator_display_name || w.user_name || 'Переводчик',
+        slug: w.translator_slug || w.user_name || null,
+        avatar_url: w.translator_avatar_url || w.avatar_url || null,
+        balance: w.balance,
+      }));
+    }
+  } catch {
+    // миграция 045 не накачена — блок просто не появится
+  }
+  const totalCoins = wallets.reduce((s, w) => s + w.balance, 0);
+
   // ---- Активные подписки (счётчик + последние 3 переводчика) ----
   // Раньше карточка «Подписки» всегда показывала «—», читатель не видел,
   // на кого подписан. Тянем активные subscriptions + имя переводчика.
@@ -335,11 +371,15 @@ export default async function ProfilePage() {
       {/* Статистика */}
       <div className="card-grid-3">
         <Link href="/profile/topup" className="stat-card stat-card--link">
-          <div className="label">Баланс</div>
+          <div className="label">Монеты</div>
           <div className="value">
-            {coinBalance ?? 0} <small>монет</small>
+            {totalCoins > 0 ? totalCoins : (coinBalance ?? 0)} <small>всего</small>
           </div>
-          <div className="stat-card-cta">Пополнить →</div>
+          <div className="stat-card-cta">
+            {wallets.length > 0
+              ? `у ${wallets.length} ${pluralTranslators(wallets.length)} →`
+              : 'Как это работает →'}
+          </div>
         </Link>
         <Link href="/bookmarks" className="stat-card stat-card--link">
           <div className="label">Закладок</div>
@@ -352,6 +392,40 @@ export default async function ProfilePage() {
           <div className="stat-card-cta">Управлять →</div>
         </Link>
       </div>
+
+      {wallets.length > 0 && (
+        <section className="card wallets-section" style={{ marginTop: 14 }}>
+          <h3 style={{ margin: '0 0 10px' }}>Мои монеты по переводчикам</h3>
+          <p style={{ margin: '0 0 12px', color: 'var(--ink-mute)', fontSize: 12.5 }}>
+            У каждого переводчика — свой кошелёк: монеты одного не работают
+            на новеллах другого. Chaptify деньги не проводит, переводчик
+            принимает их напрямую (Boosty / Tribute / карта).
+          </p>
+          <div className="wallets-grid">
+            {wallets.map((w) => {
+              const initial = w.name.trim().charAt(0).toUpperCase() || '?';
+              const href = w.slug ? `/t/${w.slug}` : `/u/${w.translator_id}`;
+              return (
+                <Link key={w.translator_id} href={href} className="wallet-card">
+                  <div className="wallet-card-avatar">
+                    {w.avatar_url ? (
+                      <img src={w.avatar_url} alt="" />
+                    ) : (
+                      <span>{initial}</span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="wallet-card-name">{w.name}</div>
+                    <div className="wallet-card-balance">
+                      {w.balance} <small>монет</small>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {activeSubs.length > 0 && (
         <section className="card" style={{ marginTop: 14 }}>
@@ -438,4 +512,13 @@ export default async function ProfilePage() {
       <QuoteCollection initial={quotes} />
     </main>
   );
+}
+
+function pluralTranslators(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'переводчиков';
+  if (mod10 === 1) return 'переводчика';
+  if (mod10 >= 2 && mod10 <= 4) return 'переводчиков';
+  return 'переводчиков';
 }

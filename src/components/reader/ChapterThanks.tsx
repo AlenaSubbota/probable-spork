@@ -8,37 +8,33 @@ import { createClient } from '@/utils/supabase/client';
 interface Props {
   novelId: number;
   chapterNumber: number;
-  hasTranslator: boolean;        // есть ли translator_id у новеллы
+  hasTranslator: boolean;
   translatorDisplayName: string | null;
   isLoggedIn: boolean;
 }
 
 interface Summary {
   total_count: number;
-  total_coins: number;
+  total_coins: number;  // оставили в ответе RPC, но новыми «♥» не наращивается
   my_thanked: boolean;
 }
 
-const TIP_PRESETS = [1, 2, 5, 10] as const;
-
-// Блок под главой «спасибо + чаевые переводчику».
-// Лайк — бесплатный, хранится один на пару (reader, chapter).
-// Чаевые — любая сумма из пресетов или своя; атомарно списывается с
-// баланса, добавляется переводчику. RPC — thank_chapter (миграция 025).
+// Бесплатное «♥ спасибо» под главой. Одна запись на пару (reader, chapter).
+// Денежных чаевых больше нет — по юр-модели chaptify не держит деньги
+// между читателем и переводчиком. Эмоциональный сигнал остаётся: у
+// переводчика на дашборде копится число «спасиб», а читатель видит их
+// под главой. Настоящая монетарная поддержка — подписка / покупка монет
+// напрямую у переводчика (см. /t/[slug]).
 export default function ChapterThanks({
   novelId,
   chapterNumber,
-  hasTranslator,
-  translatorDisplayName,
+  hasTranslator: _hasTranslator,
+  translatorDisplayName: _translatorDisplayName,
   isLoggedIn,
 }: Props) {
   const router = useRouter();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tipOpen, setTipOpen] = useState(false);
-  const [pickedTip, setPickedTip] = useState<number>(2);
-  const [customTip, setCustomTip] = useState<string>('');
-  const [tipMessage, setTipMessage] = useState<string>('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,10 +50,12 @@ export default function ChapterThanks({
         if (cancelled || !data) return;
         setSummary(data as Summary);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [novelId, chapterNumber]);
 
-  const sendThanks = async (tipCoins: number, message?: string) => {
+  const sendThanks = async () => {
     setError(null);
     setMessage(null);
     setBusy(true);
@@ -65,8 +63,7 @@ export default function ChapterThanks({
     const { data, error: err } = await supabase.rpc('thank_chapter', {
       p_novel: novelId,
       p_chapter: chapterNumber,
-      p_tip_coins: tipCoins,
-      p_message: message ? message.trim() : null,
+      p_tip_coins: 0,
     });
     setBusy(false);
     if (err) {
@@ -76,48 +73,28 @@ export default function ChapterThanks({
     const res = (data ?? {}) as {
       ok?: boolean;
       error?: string;
-      balance?: number;
-      needed?: number;
-      tip_sent?: number;
       already_thanked?: boolean;
     };
     if (!res.ok) {
-      if (res.error === 'insufficient_balance') {
-        setError(
-          `Не хватает монет: нужно ${res.needed}, на счету ${res.balance ?? 0}.`
-        );
-      } else if (res.error === 'not_authenticated') {
-        setError('Сначала войди в аккаунт.');
-      } else {
-        setError(res.error ?? 'Не удалось отправить.');
-      }
+      if (res.error === 'not_authenticated') setError('Сначала войди в аккаунт.');
+      else setError(res.error ?? 'Не удалось отправить.');
       return;
     }
     setSummary((s) =>
       s
         ? {
             total_count: s.my_thanked ? s.total_count : s.total_count + 1,
-            total_coins: s.total_coins + (res.tip_sent ?? 0),
+            total_coins: s.total_coins,
             my_thanked: true,
           }
-        : s
+        : { total_count: 1, total_coins: 0, my_thanked: true }
     );
-    if (res.tip_sent && res.tip_sent > 0) {
-      setMessage(
-        message
-          ? `Отправлено +${res.tip_sent} монет и сообщение. Переводчик увидит.`
-          : `Отправлено +${res.tip_sent} монет переводчику. Спасибо!`
-      );
-      setTipOpen(false);
-      setTipMessage('');
-    } else if (!res.already_thanked) {
+    if (!res.already_thanked) {
       setMessage('Переводчик увидит ваш лайк.');
     }
     router.refresh();
   };
 
-  // Отмена чистого лайка (миграция 028). Если были чаевые — деньги не
-  // отменить, RPC вернёт ok=false, оставляем состояние thanked.
   const unthank = async () => {
     setError(null);
     setMessage(null);
@@ -134,11 +111,7 @@ export default function ChapterThanks({
     }
     const res = (data ?? {}) as { ok?: boolean; error?: string; removed?: boolean };
     if (!res.ok) {
-      if (res.error === 'has_tip') {
-        setError('Чаевые уже отправлены переводчику — отменить нельзя.');
-      } else {
-        setError(res.error ?? 'Не удалось отменить.');
-      }
+      setError(res.error ?? 'Не удалось отменить.');
       return;
     }
     if (res.removed) {
@@ -156,29 +129,14 @@ export default function ChapterThanks({
     router.refresh();
   };
 
-  const handleLike = () => {
-    if (!isLoggedIn) return;
-    if (myThanked) {
-      unthank();
-    } else {
-      sendThanks(0);
-    }
-  };
-
-  const handleTip = () => {
-    if (!isLoggedIn) return;
-    const custom = parseInt(customTip, 10);
-    const amount = Number.isFinite(custom) && custom > 0 ? custom : pickedTip;
-    if (amount < 1 || amount > 500) {
-      setError('Сумма должна быть от 1 до 500 монет.');
-      return;
-    }
-    sendThanks(amount, tipMessage);
-  };
-
   const totalCount = summary?.total_count ?? 0;
-  const totalCoins = summary?.total_coins ?? 0;
   const myThanked = summary?.my_thanked ?? false;
+
+  const handleClick = () => {
+    if (!isLoggedIn || busy) return;
+    if (myThanked) unthank();
+    else sendThanks();
+  };
 
   return (
     <section className="chapter-thanks">
@@ -192,11 +150,6 @@ export default function ChapterThanks({
               ? `${totalCount} ${pluralRu(totalCount, 'спасибо', 'спасиба', 'спасибо')}`
               : 'Скажи переводчику спасибо'}
           </span>
-          {totalCoins > 0 && (
-            <span className="chapter-thanks-coins" title="Собрано чаевых">
-              +{totalCoins}
-            </span>
-          )}
         </div>
 
         {!isLoggedIn ? (
@@ -204,110 +157,17 @@ export default function ChapterThanks({
             Войти, чтобы поблагодарить
           </Link>
         ) : (
-          <div className="chapter-thanks-actions">
-            <button
-              type="button"
-              className={`btn ${myThanked ? 'btn-ghost' : 'btn-primary'}`}
-              onClick={handleLike}
-              disabled={busy}
-              title={myThanked ? 'Клик — снять лайк' : 'Бесплатно'}
-            >
-              {myThanked ? '✓ Поблагодарил(а). Нажми, чтобы снять' : '♥ Спасибо'}
-            </button>
-            {hasTranslator && (
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setTipOpen((v) => !v)}
-                disabled={busy}
-                title="Перевести монеты переводчику"
-              >
-                {tipOpen ? 'Свернуть' : '💝 Чаевые'}
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            className={`btn ${myThanked ? 'btn-ghost' : 'btn-primary'}`}
+            onClick={handleClick}
+            disabled={busy}
+            title={myThanked ? 'Клик — снять лайк' : 'Бесплатное «спасибо»'}
+          >
+            {myThanked ? '✓ Поблагодарил(а). Нажми, чтобы снять' : '♥ Спасибо'}
+          </button>
         )}
       </div>
-
-      {tipOpen && isLoggedIn && (
-        <div className="chapter-thanks-tip">
-          <div className="chapter-thanks-tip-head">
-            Поблагодарить
-            {translatorDisplayName ? ` ${translatorDisplayName}` : ' переводчика'}{' '}
-            монетами
-          </div>
-          <div className="chapter-thanks-presets">
-            {TIP_PRESETS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={`chapter-thanks-preset${
-                  pickedTip === n && !customTip ? ' is-active' : ''
-                }`}
-                onClick={() => {
-                  setPickedTip(n);
-                  setCustomTip('');
-                }}
-              >
-                +{n}
-              </button>
-            ))}
-            <div className="chapter-thanks-custom">
-              <input
-                type="number"
-                className="form-input"
-                placeholder="Своё"
-                min={1}
-                max={500}
-                value={customTip}
-                onChange={(e) => setCustomTip(e.target.value)}
-              />
-              <span>монет</span>
-            </div>
-          </div>
-          <div className="chapter-thanks-message-field">
-            <label className="chapter-thanks-message-label">
-              Сказать что-то переводчику (по желанию)
-            </label>
-            <textarea
-              className="form-textarea"
-              rows={2}
-              maxLength={500}
-              placeholder="Например: «спасибо за главу 42, ревела весь вечер»"
-              value={tipMessage}
-              onChange={(e) => setTipMessage(e.target.value)}
-            />
-            <div className="chapter-thanks-message-counter">
-              {tipMessage.length}/500
-            </div>
-          </div>
-          <div className="admin-form-footer" style={{ marginTop: 10 }}>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleTip}
-              disabled={busy}
-            >
-              {busy ? 'Отправляем…' : 'Отправить'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setTipOpen(false)}
-              disabled={busy}
-            >
-              Отмена
-            </button>
-          </div>
-          <p className="chapter-thanks-hint">
-            Монеты уходят переводчику напрямую. Пополнить баланс:{' '}
-            <Link href="/profile/topup" className="more">
-              /profile/topup
-            </Link>
-            .
-          </p>
-        </div>
-      )}
 
       {error && <div className="chapter-thanks-error">{error}</div>}
       {message && <div className="chapter-thanks-message">{message}</div>}

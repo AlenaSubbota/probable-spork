@@ -16,6 +16,7 @@ import ProfileReviewsList from '@/components/marketplace/ProfileReviewsList';
 import TranslatorFilmography, {
   type FilmographyEntry,
 } from '@/components/translator/TranslatorFilmography';
+import TranslatorWallet from '@/components/translator/TranslatorWallet';
 import { getCoverUrl } from '@/lib/format';
 
 interface PageProps {
@@ -265,6 +266,78 @@ export default async function TranslatorPage({ params }: PageProps) {
   const jsDow = new Date().getDay(); // 0=Sun…6=Sat
   const todayDow = (jsDow + 6) % 7;  // 0=Mon…6=Sun
 
+  // ---- Платёжные методы переводчика + accepts_coins_for_chapters ----
+  // Для блока «кошелёк у переводчика» и «Поддержать».
+  let paymentMethods: Array<{
+    id: number;
+    provider: 'boosty' | 'tribute' | 'vk_donut' | 'patreon' | 'other';
+    url: string;
+    instructions: string | null;
+  }> = [];
+  try {
+    const { data } = await supabase
+      .from('translator_payment_methods')
+      .select('id, provider, url, instructions')
+      .eq('translator_id', profile.id)
+      .eq('enabled', true)
+      .order('sort_order', { ascending: true });
+    paymentMethods = (data ?? []) as typeof paymentMethods;
+  } catch {
+    // миграция 037 не накачена
+  }
+
+  // accepts_coins_for_chapters хранится в profiles, доступен через public_profiles
+  // только если мы его туда добавили. Здесь — прямо читаем у себя, если viewer==profile;
+  // иначе берём из отдельного поля через отдельный select (он публичный вычисляемый
+  // в viewer-safe колонках мы не объявляли, поэтому отдельный вызов через RPC
+  // был бы аккуратнее; пока читаем честно — для этого поля нужен маленький RPC).
+  let acceptsCoins = true;
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('accepts_coins_for_chapters')
+      .eq('id', profile.id)
+      .maybeSingle();
+    const ac = (data as { accepts_coins_for_chapters?: boolean | null } | null)
+      ?.accepts_coins_for_chapters;
+    // Для чужих профилей RLS отдаст null — оставляем дефолт true.
+    if (typeof ac === 'boolean') acceptsCoins = ac;
+  } catch {
+    /* ok */
+  }
+
+  // Существующая pending-заявка на монеты у этого переводчика
+  let pendingCoinsClaim: {
+    id: number;
+    code: string;
+    coins_amount: number;
+    provider: string;
+  } | null = null;
+  if (viewer) {
+    try {
+      const { data } = await supabase
+        .from('subscription_claims')
+        .select('id, code, coins_amount, provider')
+        .eq('user_id', viewer.id)
+        .eq('translator_id', profile.id)
+        .eq('kind', 'coins')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        pendingCoinsClaim = {
+          id: data.id as number,
+          code: data.code as string,
+          coins_amount: (data.coins_amount as number | null) ?? 0,
+          provider: (data.provider as string) ?? 'boosty',
+        };
+      }
+    } catch {
+      // миграция 045 не накачена — блок просто без pending
+    }
+  }
+
   // ---- Handshake: сколько новелл переводчика viewer уже читал ----
   let sharedReadsCount = 0;
   let topSharedTitles: string[] = [];
@@ -440,6 +513,17 @@ export default async function TranslatorPage({ params }: PageProps) {
             translatorName={displayName}
           />
         )}
+
+      {/* Кошелёк читателя у этого переводчика + кнопка «Пополнить» */}
+      <TranslatorWallet
+        translatorId={profile.id}
+        translatorName={displayName}
+        acceptsCoins={acceptsCoins}
+        paymentMethods={paymentMethods}
+        pendingClaim={pendingCoinsClaim}
+        isLoggedIn={!!viewer}
+        isSelf={isSelf}
+      />
 
       {/* Роадмап: «что буду переводить» */}
       <RoadmapBoard items={roadmap} />

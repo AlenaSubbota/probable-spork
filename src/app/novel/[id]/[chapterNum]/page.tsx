@@ -161,8 +161,23 @@ export default async function ChapterPage({ params }: PageProps) {
             .order('sort_order', { ascending: true })
         : Promise.resolve({ data: [] }),
     ]);
-    const balance =
-      (profileRaw as { coin_balance?: number | null } | null)?.coin_balance ?? 0;
+    // Баланс монет читателя у ЭТОГО переводчика (per-translator wallet,
+    // мигр. 045). У каждого переводчика свой кошелёк, общий global-баланс
+    // (profiles.coin_balance) остался legacy-полем для tene. Если RPC
+    // ещё не накачена — падаем в 0.
+    let balance = 0;
+    if (novel.translator_id) {
+      try {
+        const { data: walletBalance } = await supabase.rpc('my_balance_with', {
+          p_translator: novel.translator_id,
+        });
+        if (typeof walletBalance === 'number') balance = walletBalance;
+      } catch {
+        // миграция 045 не накачена — fallback на legacy coin_balance
+        balance =
+          (profileRaw as { coin_balance?: number | null } | null)?.coin_balance ?? 0;
+      }
+    }
     const viewerHasTelegram =
       !!(profileRaw as { telegram_id?: number | null } | null)?.telegram_id;
     const tpAny = tp as {
