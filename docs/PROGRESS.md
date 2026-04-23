@@ -1983,3 +1983,87 @@ Reader dark-тема остаётся независимо — можно сай
 - **Кнопки ‹ / › по бокам для десктопа** — в CSS/JS есть, но
   решила не делать чтобы MVP был проще. Trackpad/mouse-wheel горизонтальный
   скролл работает натурально, клавиатурные стрелки тоже.
+
+## Итерация 55 — полный апгрейд читалки по tene ChapterReader.jsx (5 коммитов)
+
+Алёна: «возьми за основу chapterreader.jsx и переделай читалку, добавляй
+весь функционал». Изучила tene-читалку (1385 строк) через explore-агента,
+составила приоритизированный план и раскатала 5 фазами.
+
+### Фаза 1.1 (`5f1911a`) — полноценный pages-mode
+
+- State `pageWidth / currentPage / totalPages` в ReaderContent.
+- ResizeObserver на `.novel-content` + `document.fonts.ready` →
+  пересчёт totalPages = scrollWidth / clientWidth. Триггеры: все
+  типографические настройки + readMode.
+- Клавиатурная навигация (→/PgDn/Space = next, ←/PgUp = prev,
+  Home/End) — только в pages-режиме, не перехватывает input.
+- Smart tap-navigation (`onContentClick`): тап по левой трети =
+  prev, по правой = next, центр игнорируем (в Фазе 2 будет toggle UI).
+  Не срабатывает на button/a/input/glossary-term/quote-bubble.
+- Восстановление позиции — в pages-режиме скроллит container
+  горизонтально к колонке где находится нужный абзац (через
+  offsetLeft / pageWidth).
+- UI: кнопки `.reader-page-btn--prev/next` (48×80, видны при hover
+  на десктопе, скрыты ≤760 px); индикатор `.reader-page-indicator`
+  с текстом «N / Total» и интерактивным range-slider.
+- CSS: `column-width: 100%; column-gap: 0; column-fill: auto;
+  height: calc(100dvh - 220px); scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch; break-inside: avoid` на детях.
+  Скроллбар скрыт.
+
+### Фаза 1.2 (`2f19099`) — mode-aware трекинг абзаца + save
+
+- Раньше `window.scroll` слушался всегда → в pages-режиме (горизонт.
+  скролл контейнера) прогресс не трекался.
+- Теперь isPages-ветка: `findBestVertical()` по viewport middle или
+  `findBestPaged()` — первый абзац с `offsetLeft >= scrollLeft`.
+- Слушатель вешается на `container.scroll` в pages / `window.scroll`
+  в scroll. Пересоздаётся при смене readMode.
+- saveProgress по paragraphIndex — эта метрика стабильна при смене
+  шрифта / режима, восстановление работает корректно.
+
+### Фаза 1.3 (`4d1ac0d`) — счётчик комментариев в toolbar
+
+- Кнопка «💬 N» в reader-toolbar рядом с «≡ Оглавление» / «⚙ Настройки».
+- Count загружается через `supabase.from('comments').select('id',
+  { count: 'exact', head: true })` — без тяги данных.
+- Клик скроллит к `.comments-section` внизу страницы. В pages-режиме
+  двухэтапно: сначала contrainer.scrollTo(scrollWidth), потом
+  sec.scrollIntoView.
+- CommentsSection уже внизу страницы (древовидные ответы + BBCode
+  toolbar из итерации 53, дополнительной работы не потребовалось).
+
+### Фаза 2 (`e1d76a0`) — visibility-save + prev→last-page + immersive
+
+- **Visibility-save.** На `visibilitychange === hidden` и `pagehide`
+  синхронно ищем активный абзац (mode-aware) и сохраняем. iOS/Android
+  больше не теряют прогресс при переключении приложения.
+- **Prev → end page.** «← Предыдущая глава» в reader-nav передаёт
+  `?end=1`. ReaderContent при маунте ловит флаг: scroll → к низу
+  body, pages → к scrollWidth контейнера. Логично: пришёл назад
+  → начинаешь с конца прочитанного.
+- **Immersive UI toggle.** Тап по центральной трети контента в
+  pages-режиме скрывает reader-toolbar и индикатор через `ui-hidden`
+  класс. Второй тап возвращает. CSS transition 180 мс.
+
+### Фаза 3 (`35a3f6a`) — похожие новеллы в конце главы
+
+- `SimilarByReaders` рендерится после `CommentsSection` на chapter-page.
+- Данные через RPC `get_similar_novels_by_readers(novel_id, 6)` (мигр. 003).
+- translator_slugs для кликабельных имён — через
+  fetchTranslatorSlugs (public_profiles, мигр. 040).
+- Если RPC не накачена / список пуст — блок не отображается.
+
+### Что НЕ перенесено (в очередь на будущее)
+
+Из исходного аудита tene (20 пунктов) осталось 5 P2/P3:
+- Редактирование главы прямо из читалки (admin-feature) — это правильнее
+  делать из админ-панели.
+- Prefetch следующей главы (контента из Storage) — Next.js Link уже
+  префетчит SSR-страницу, этого достаточно.
+- Кастомный toast в читалке — сейчас хватает alert / console для
+  редких ошибок.
+- Auto-hide UI на последней странице — конфликтует с ручным toggle
+  из Фазы 2; делать позже если будет нужно.
+- Markdown в комментариях — BBCode уже покрывает нужные форматы.
