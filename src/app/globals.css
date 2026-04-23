@@ -180,6 +180,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   align-items: center;
   gap: 12px;
 }
+/* На мобиле ссылки «Войти» / «Регистрация» (у гостя) прячем — они
+   уже есть в drawer'е. У залогиненного юзера header-profile-btn с
+   аватаркой остаётся. Используем :not(.header-profile-btn), чтобы
+   не зацепить её. */
+.header-profile-chevron { font-size: 10px; opacity: 0.7; margin-left: 4px; }
+.header-profile-name { /* видимо на десктопе */ }
+@media (max-width: 540px) {
+  .header-actions > a.btn { display: none; }
+  /* Имя юзера в header-profile-btn скрываем — длинные ники пушат
+     кнопку за экран. Аватар + ▾ остаются; имя видно в dropdown'е. */
+  .header-profile-name { display: none; }
+  .header-profile-btn { padding: 0 10px; }
+}
 
 /* --- Гамбургер + мобильный drawer --- */
 .mobile-menu-btn {
@@ -387,6 +400,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: var(--accent-hover);
   font-size: 13px;
   font-weight: 700;
+}
+/* На мобиле в шапке тесно (гамбургер + лого + аватар уже почти всю
+   строку занимают). Coin-pill скрываем — баланс доступен из /profile
+   и из drawer. */
+@media (max-width: 540px) {
+  .coin-pill { display: none; }
 }
 .coin-pill::before {
   content: "";
@@ -3612,6 +3631,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-bottom: 1px solid var(--border);
   padding-bottom: 2px;
 }
+/* 5 табов (Читаю / На паузе / В планах / Прочитано / Брошено) на узком
+   экране переносятся на 2-3 ряда, выглядит громоздко. Скрываем wrap
+   и делаем горизонтальный свайп, как у фильтров каталога. Скроллбар
+   скрыт, padding чуть плотнее. */
+@media (max-width: 540px) {
+  .bookmark-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+  }
+  .bookmark-tabs::-webkit-scrollbar { display: none; }
+  .bookmark-tab {
+    padding: 10px 12px;
+    font-size: 12.5px;
+    flex-shrink: 0;
+  }
+}
 .bookmark-tab {
   display: inline-flex;
   align-items: center;
@@ -4579,6 +4617,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  min-width: 0;
+}
+.subs-row > * { min-width: 0; }
+@media (max-width: 540px) {
+  .subs-row { gap: 10px; padding: 12px 14px; }
+  .status-pill { font-size: 11px; padding: 3px 8px; }
 }
 .subs-row--active {
   border-left: 3px solid var(--leaf);
@@ -4638,6 +4682,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   flex-wrap: wrap;
   gap: 6px;
   margin: 6px 0 16px;
+}
+@media (max-width: 540px) {
+  .subscribers-provider-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .subscribers-provider-tabs::-webkit-scrollbar { display: none; }
+  .subs-provider-tab { flex-shrink: 0; white-space: nowrap; }
 }
 .subs-provider-tab {
   padding: 6px 14px;

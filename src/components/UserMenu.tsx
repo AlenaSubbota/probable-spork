@@ -74,8 +74,8 @@ export default function UserMenu({
         aria-haspopup="menu"
       >
         <UserAvatar avatarUrl={avatarUrl} name={userName} size={24} />
-        <span>{userName ?? 'Профиль'}</span>
-        <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>▾</span>
+        <span className="header-profile-name">{userName ?? 'Профиль'}</span>
+        <span className="header-profile-chevron" aria-hidden="true">▾</span>
       </button>
 
       {open && (
