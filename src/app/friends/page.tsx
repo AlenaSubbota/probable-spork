@@ -37,7 +37,9 @@ export default async function FriendsPage() {
     otherIds.add(r.requester_id === user.id ? r.addressee_id : r.requester_id);
   }
 
-  // Подтягиваем профили
+  // Подтягиваем профили через public_profiles (мигр. 040): прямой
+  // SELECT на profiles для чужих людей зарезан RLS, и /friends просто
+  // рендерил пустые заявки «кто-то прислал, кто — неясно».
   let profiles: Array<{
     id: string;
     user_name: string | null;
@@ -47,7 +49,7 @@ export default async function FriendsPage() {
   }> = [];
   if (otherIds.size > 0) {
     const { data } = await supabase
-      .from('profiles')
+      .from('public_profiles')
       .select('id, user_name, translator_display_name, translator_avatar_url, last_read')
       .in('id', Array.from(otherIds));
     profiles = (data ?? []) as typeof profiles;
@@ -69,16 +71,25 @@ export default async function FriendsPage() {
   ) => {
     const otherId = r.requester_id === user.id ? r.addressee_id : r.requester_id;
     const other = profileMap.get(otherId);
-    if (!other) return null;
-    const name =
-      other.translator_display_name || other.user_name || 'Читатель';
+    // Профиль может не найтись: удалённый аккаунт, или RLS не разрешила
+    // строку. Не скрываем ряд — иначе получится «Ожидают ответа 1, но
+    // ни одного имени в списке». Отрисуем плейсхолдер с возможностью
+    // отменить заявку.
+    const missing = !other;
+    const name = other
+      ? (other.translator_display_name || other.user_name || 'Читатель')
+      : 'Удалённый пользователь';
     const initial = name.trim().charAt(0).toUpperCase() || '?';
-    const reading = detectReadingNow(other.last_read ?? null);
+    const reading = other
+      ? detectReadingNow(other.last_read ?? null)
+      : { state: 'away' as const, timestamp: null, entry: null };
+
+    const href = !missing ? `/u/${otherId}` : '#';
 
     return (
       <div key={r.id} className="friend-row">
-        <Link href={`/u/${other.id}`} className="friend-avatar">
-          {other.translator_avatar_url ? (
+        <Link href={href} className="friend-avatar">
+          {!missing && other.translator_avatar_url ? (
             <img src={other.translator_avatar_url} alt="" />
           ) : (
             <span>{initial}</span>
@@ -88,7 +99,7 @@ export default async function FriendsPage() {
           )}
         </Link>
         <div className="friend-body">
-          <Link href={`/u/${other.id}`} className="friend-name">
+          <Link href={href} className="friend-name">
             {name}
           </Link>
           {reading.state === 'reading' && (
@@ -98,11 +109,16 @@ export default async function FriendsPage() {
           )}
           {reading.state === 'recent' && reading.timestamp && (
             <div className="friend-status">
-              был{other.user_name ? 'а' : ''} недавно
+              был{other?.user_name ? 'а' : ''} недавно
             </div>
           )}
-          {reading.state === 'away' && other.user_name && (
+          {reading.state === 'away' && other?.user_name && (
             <div className="friend-status friend-status--dim">@{other.user_name}</div>
+          )}
+          {missing && (
+            <div className="friend-status friend-status--dim">
+              аккаунт удалён или скрыт
+            </div>
           )}
         </div>
         <FriendActions

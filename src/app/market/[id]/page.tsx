@@ -41,6 +41,19 @@ export default async function ListingDetailPage({ params }: PageProps) {
   const compensation = listing.compensation as Compensation;
   const status = listing.status as ListingStatus;
   const isAuthor = user?.id === listing.author_id;
+
+  // Админ тоже может управлять чужим объявлением (удаление, статус) —
+  // модерационная роль, чтобы вычищать мусор и закрывать заброшенные.
+  let isAdmin = false;
+  if (user && !isAuthor) {
+    const { data: me } = await supabase
+      .from('profiles')
+      .select('role, is_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+    const mp = me as { role?: string; is_admin?: boolean } | null;
+    isAdmin = mp?.is_admin === true || mp?.role === 'admin';
+  }
   const authorName = (listing.author_name as string | null) ?? 'Переводчик';
   const authorInitial = authorName.trim().charAt(0).toUpperCase() || '?';
 
@@ -245,11 +258,14 @@ export default async function ListingDetailPage({ params }: PageProps) {
         )}
       </article>
 
-      {/* Отклики — только автору */}
-      {isAuthor && (
+      {/* Отклики и управление объявлением — автору, статус / удаление — и админу */}
+      {(isAuthor || isAdmin) && (
         <ApplicationsManager
           applications={applications}
           listingId={listingId}
+          listingStatus={status as 'open' | 'in_progress' | 'closed'}
+          listingTitle={listing.title as string}
+          canDelete={isAuthor || isAdmin}
         />
       )}
 

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import AvatarPicker from '@/components/AvatarPicker';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface SettingsValues {
   user_name: string;
@@ -36,15 +37,15 @@ export default function SettingsForm({
   const router = useRouter();
   const [values, setValues] = useState<SettingsValues>(initial);
   const [submitting, setSubmitting] = useState(false);
-  const [msg, setMsg] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
+  const { items: toasts, push, dismiss } = useToasts();
 
   const set = <K extends keyof SettingsValues>(k: K, v: SettingsValues[K]) =>
     setValues((p) => ({ ...p, [k]: v }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
-    setMsg(null);
 
     const supabase = createClient();
 
@@ -76,9 +77,9 @@ export default function SettingsForm({
 
     setSubmitting(false);
     if (error) {
-      setMsg({ text: 'Не сохранилось: ' + error.message, tone: 'err' });
+      push('error', `Не сохранилось: ${error.message}`);
     } else {
-      setMsg({ text: '✓ Сохранено', tone: 'ok' });
+      push('success', 'Сохранено — изменения применены');
       router.refresh();
     }
   };
@@ -293,25 +294,11 @@ export default function SettingsForm({
         </section>
       )}
 
-      {msg && (
-        <div
-          style={{
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: msg.tone === 'ok' ? '#E3EBD6' : '#F0DCD5',
-            color: msg.tone === 'ok' ? '#4C6A34' : '#8C4032',
-            fontSize: 13.5,
-            marginBottom: 12,
-          }}
-        >
-          {msg.text}
-        </div>
-      )}
-
       <div className="admin-form-footer">
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Сохраняем…' : 'Сохранить'}
         </button>
+        <ToastStack items={toasts} onDismiss={dismiss} />
       </div>
     </form>
   );

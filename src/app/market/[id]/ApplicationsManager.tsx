@@ -23,16 +23,33 @@ interface Application {
 interface Props {
   applications: Application[];
   listingId: number;
+  listingStatus: 'open' | 'in_progress' | 'closed';
+  listingTitle: string;
+  /** Для кнопки «Удалить» — разрешено автору и админу. */
+  canDelete: boolean;
 }
+
+const STATUS_LABEL: Record<'open' | 'in_progress' | 'closed', string> = {
+  open:        'открыто',
+  in_progress: 'в работе',
+  closed:      'закрыто',
+};
 
 // Панель управления откликами для автора объявления. Принимает/отклоняет,
 // показывает карточку каждого заявителя. После «Принять» автор листинга
 // получает контакт — UI даёт ссылку на профиль кандидата, дальше переписка
 // в личке (у нас уже есть /messages).
-export default function ApplicationsManager({ applications, listingId }: Props) {
+export default function ApplicationsManager({
+  applications,
+  listingId,
+  listingStatus,
+  listingTitle,
+  canDelete,
+}: Props) {
   const router = useRouter();
   const { items: toasts, push: pushToast, dismiss } = useToasts();
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
 
   const updateStatus = async (appId: number, status: ApplicationStatus) => {
     setBusyId(appId);
@@ -57,17 +74,51 @@ export default function ApplicationsManager({ applications, listingId }: Props) 
     router.refresh();
   };
 
-  const changeListingStatus = async (next: 'in_progress' | 'closed') => {
+  const changeListingStatus = async (next: 'open' | 'in_progress' | 'closed') => {
+    if (next === listingStatus) return;
+    setStatusBusy(true);
     const supabase = createClient();
     const { error } = await supabase
       .from('marketplace_listings')
       .update({ status: next })
       .eq('id', listingId);
+    setStatusBusy(false);
     if (error) {
-      pushToast('error', error.message);
+      pushToast('error', `Не получилось: ${error.message}`);
       return;
     }
+    pushToast(
+      'success',
+      next === 'open'
+        ? 'Объявление снова открыто.'
+        : next === 'in_progress'
+          ? 'Переведено в «В работе».'
+          : 'Объявление закрыто.'
+    );
     router.refresh();
+  };
+
+  const deleteListing = async () => {
+    const confirmed = confirm(
+      `Удалить объявление «${listingTitle}» навсегда?\n` +
+        'Это необратимо. Отклики и отзывы тоже пропадут.'
+    );
+    if (!confirmed) return;
+    setStatusBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('marketplace_listings')
+      .delete()
+      .eq('id', listingId);
+    setStatusBusy(false);
+    if (error) {
+      pushToast('error', `Не получилось удалить: ${error.message}`);
+      return;
+    }
+    pushToast('success', 'Объявление удалено.');
+    // После удаления ряд исчезает из marketplace_listings, возвращаем
+    // пользователя в каталог — текущая страница даст 404 при refresh.
+    setTimeout(() => router.push('/market'), 600);
   };
 
   const pending   = applications.filter((a) => a.status === 'pending');
@@ -88,20 +139,55 @@ export default function ApplicationsManager({ applications, listingId }: Props) 
       </div>
 
       <div className="applications-owner-tools">
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => changeListingStatus('in_progress')}
-        >
-          📍 Перевести в «В работе»
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => changeListingStatus('closed')}
-        >
-          🔒 Закрыть объявление
-        </button>
+        <div className="listing-status-current" aria-live="polite">
+          Текущий статус:{' '}
+          <strong className={`listing-status listing-status--${listingStatus}`}>
+            {STATUS_LABEL[listingStatus]}
+          </strong>
+        </div>
+        <div className="listing-status-actions">
+          {listingStatus !== 'open' && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => changeListingStatus('open')}
+              disabled={statusBusy}
+              title="Открыть объявление снова — будут приниматься новые отклики"
+            >
+              🔓 Открыть снова
+            </button>
+          )}
+          {listingStatus !== 'in_progress' && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => changeListingStatus('in_progress')}
+              disabled={statusBusy}
+            >
+              📍 В работе
+            </button>
+          )}
+          {listingStatus !== 'closed' && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => changeListingStatus('closed')}
+              disabled={statusBusy}
+            >
+              🔒 Закрыть
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              className="btn btn-ghost listing-btn-danger"
+              onClick={deleteListing}
+              disabled={statusBusy}
+            >
+              🗑 Удалить
+            </button>
+          )}
+        </div>
       </div>
 
       {applications.length === 0 ? (
