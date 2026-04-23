@@ -9778,3 +9778,31 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   flex-direction: column;
   gap: 4px;
 }
+
+/* Автосинк в payment-method-row */
+.payment-method-autosync {
+  margin-top: 8px;
+}
+.payment-method-autosync-active {
+  font-size: 12px;
+  color: #2a7a44;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.payment-method-autosync-active code {
+  background: #e0f0e3;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+/* Auto-check кнопка в claim-block */
+.claim-auto-btn {
+  background: linear-gradient(135deg, #d3a541, #c8923a) !important;
+  border: none;
+}
+.claim-auto-btn:hover {
+  filter: brightness(1.05);
+}
