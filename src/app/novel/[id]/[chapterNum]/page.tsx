@@ -405,8 +405,11 @@ export default async function ChapterPage({ params }: PageProps) {
 
         <nav className="reader-nav">
           {prevChapter ? (
+            /* ?end=1 — ReaderContent при загрузке прыгнет к последней
+               странице / концу главы. Логичнее для чтения: пришёл
+               с «← предыдущая» → начинаешь с конца. */
             <Link
-              href={`/novel/${id}/${prevChapter.chapter_number}`}
+              href={`/novel/${id}/${prevChapter.chapter_number}?end=1`}
               className="btn btn-ghost"
               style={{ flex: 1, textAlign: 'center' }}
             >

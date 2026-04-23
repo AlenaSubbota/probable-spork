@@ -10129,6 +10129,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   opacity: 0.25 !important;
   cursor: default;
 }
+
+/* Immersive mode: toolbar и индикатор уходят при тапе по центру
+   страницы в pages-режиме. Возвращаются вторым тапом. */
+.reader-wrapper.ui-hidden .reader-toolbar,
+.reader-wrapper.ui-hidden .reader-page-indicator {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+.reader-wrapper .reader-toolbar,
+.reader-wrapper .reader-page-indicator {
+  transition: opacity .18s ease;
+}
 /* На мобиле боковые кнопки не видны — tap-зоны смарт-навигации делают
    ту же работу без визуального шума. */
 @media (max-width: 760px) {

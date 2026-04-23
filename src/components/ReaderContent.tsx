@@ -76,6 +76,10 @@ export default function ReaderContent({
   // Дешёвый count-запрос без тяги данных; обновляется при mount.
   const [commentCount, setCommentCount] = useState<number | null>(null);
 
+  // Скрытие toolbar по тапу в центр (immersive mode). Активно только
+  // в pages-режиме — в scroll-режиме toolbar и так не мешает сверху.
+  const [uiHidden, setUiHidden] = useState(false);
+
   // ---- 1. Загрузка настроек ----
   useEffect(() => {
     setSettings(loadSettings());
@@ -374,15 +378,42 @@ export default function ReaderContent({
     };
   }, [ready, content, saveProgress, settings.focusMode, settings.readMode]);
 
-  // ---- 6. Восстановление позиции из localStorage при заходе ----
+  // ---- 6. Восстановление позиции при заходе в главу ----
+  //
+  // Приоритет:
+  //  1. `?end=1` в URL — читатель пришёл сюда с «← Предыдущая глава»,
+  //     хочет начать с конца (последняя страница в pages-режиме,
+  //     низ страницы в scroll-режиме).
+  //  2. localStorage progress_<novelId>.paragraphIndex (если chapterId
+  //     совпадает) — обычный сценарий, продолжение чтения.
+  //  3. Ничего — скролл в начало (дефолт).
+  //
   // paragraphIndex стабилен при смене шрифта / режима — в отличие от
-  // абсолютного scroll-pixel'а. В pages-режиме скроллим контейнер
-  // горизонтально к колонке, где абзац находится (ищем element →
-  // его offsetLeft относительно контейнера → делим на pageWidth).
+  // абсолютного scroll-pixel'а.
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
     if (!container) return;
+
+    const jumpToEnd = () => {
+      setTimeout(() => {
+        if (settings.readMode === 'pages') {
+          container.scrollTo({
+            left: container.scrollWidth,
+            behavior: 'instant' as ScrollBehavior,
+          });
+        } else {
+          window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' as ScrollBehavior });
+        }
+      }, 160);
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('end') === '1') {
+      jumpToEnd();
+      return;
+    }
+
     try {
       const raw = localStorage.getItem(`progress_${novelId}`);
       if (!raw) return;
@@ -393,12 +424,9 @@ export default function ReaderContent({
       if (!target) return;
       setTimeout(() => {
         if (settings.readMode === 'pages') {
-          // В multi-column layout offsetLeft даёт корректную позицию
-          // колонки относительно scrollLeft контейнера.
           const pageW = container.clientWidth;
           if (pageW > 0) {
             const targetLeft = target.offsetLeft;
-            // Снэпаем к началу ближайшей колонки
             const pageIdx = Math.floor(targetLeft / pageW);
             container.scrollTo({ left: pageIdx * pageW, behavior: 'instant' as ScrollBehavior });
           }
@@ -407,8 +435,6 @@ export default function ReaderContent({
         }
       }, 160);
     } catch { /* ignore */ }
-    // settings.readMode — чтобы при смене режима позиция корректно
-    // переперезжала в новый scrollContainer (window vs contentRef).
   }, [ready, content, novelId, chapterNumber, settings.readMode]);
 
   // ---- 6.5. Pages mode: расчёт totalPages + currentPage ----
@@ -531,8 +557,10 @@ export default function ReaderContent({
         container.scrollBy({ left: -w, behavior: 'smooth' });
       } else if (x > w * 0.67) {
         container.scrollBy({ left: w, behavior: 'smooth' });
+      } else {
+        // Центр: тоггл toolbar/индикатора — immersive чтение.
+        setUiHidden((v) => !v);
       }
-      // Средняя треть — для Фазы 2 (toggle UI); пока ничего.
     },
     [settings.readMode]
   );
@@ -547,6 +575,54 @@ export default function ReaderContent({
     },
     []
   );
+
+  // ---- 6.75. Visibility-save: на iOS/Android браузер может killнуть
+  // страницу в фоне; обычный debounce-save не сработает. Ловим
+  // visibilitychange + pagehide и сохраняем моментально. Плюс при
+  // возврате page может сбросить scroll — тогда восстанавливаем
+  // позицию в pages-режиме (в scroll браузер сам восстанавливает). ----
+  useEffect(() => {
+    if (!ready) return;
+    const container = contentRef.current;
+    if (!container) return;
+    const paragraphs = container.querySelectorAll<HTMLElement>('p, h1, h2, h3, blockquote');
+
+    const findCurrent = (): number => {
+      if (settings.readMode !== 'pages') {
+        const mid = window.innerHeight / 2;
+        let best = 0, bestDist = Infinity;
+        paragraphs.forEach((el, i) => {
+          const r = el.getBoundingClientRect();
+          const m = r.top + r.height / 2;
+          const d = Math.abs(m - mid);
+          if (d < bestDist) { bestDist = d; best = i; }
+        });
+        return best;
+      }
+      const sl = container.scrollLeft;
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (paragraphs[i].offsetLeft + paragraphs[i].offsetWidth >= sl + 1) return i;
+      }
+      return paragraphs.length - 1;
+    };
+
+    const flushSave = () => {
+      if (paragraphs.length === 0) return;
+      saveProgress(findCurrent());
+    };
+
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flushSave();
+    };
+    const onPageHide = () => flushSave();
+
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [ready, saveProgress, settings.readMode]);
 
   // ---- 6.8. Подгружаем количество комментариев для бейджа в toolbar ----
   // Быстрый count(*) без вытягивания данных. Не критично — если RLS
@@ -622,7 +698,7 @@ export default function ReaderContent({
 
   return (
     <div
-      className={`reader-wrapper${settings.focusMode ? ' focus-mode' : ''}`}
+      className={`reader-wrapper${settings.focusMode ? ' focus-mode' : ''}${uiHidden ? ' ui-hidden' : ''}`}
       data-theme={settings.theme ?? 'light'}
       data-read-mode={settings.readMode ?? 'scroll'}
     >
