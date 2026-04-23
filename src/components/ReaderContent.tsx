@@ -64,6 +64,14 @@ export default function ReaderContent({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const saveTimerRef = useRef<number | null>(null);
 
+  // Pages mode state — честный подсчёт страниц через scrollWidth /
+  // clientWidth контейнера с CSS-колонками. Пересчитывается при
+  // изменении шрифта / line-height / размера экрана / загрузки
+  // шрифтов. Активно только при settings.readMode === 'pages'.
+  const [pageWidth, setPageWidth] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   // ---- 1. Загрузка настроек ----
   useEffect(() => {
     setSettings(loadSettings());
@@ -334,6 +342,10 @@ export default function ReaderContent({
   }, [ready, content, saveProgress, settings.focusMode]);
 
   // ---- 6. Восстановление позиции из localStorage при заходе ----
+  // paragraphIndex стабилен при смене шрифта / режима — в отличие от
+  // абсолютного scroll-pixel'а. В pages-режиме скроллим контейнер
+  // горизонтально к колонке, где абзац находится (ищем element →
+  // его offsetLeft относительно контейнера → делим на pageWidth).
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -345,13 +357,163 @@ export default function ReaderContent({
       if (data.chapterId !== chapterNumber) return;
       const paragraphs = container.querySelectorAll<HTMLElement>('p, h1, h2, h3, blockquote');
       const target = paragraphs[data.paragraphIndex];
-      if (target) {
-        setTimeout(() => {
+      if (!target) return;
+      setTimeout(() => {
+        if (settings.readMode === 'pages') {
+          // В multi-column layout offsetLeft даёт корректную позицию
+          // колонки относительно scrollLeft контейнера.
+          const pageW = container.clientWidth;
+          if (pageW > 0) {
+            const targetLeft = target.offsetLeft;
+            // Снэпаем к началу ближайшей колонки
+            const pageIdx = Math.floor(targetLeft / pageW);
+            container.scrollTo({ left: pageIdx * pageW, behavior: 'instant' as ScrollBehavior });
+          }
+        } else {
           target.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
-        }, 120);
-      }
+        }
+      }, 160);
     } catch { /* ignore */ }
-  }, [ready, content, novelId, chapterNumber]);
+    // settings.readMode — чтобы при смене режима позиция корректно
+    // переперезжала в новый scrollContainer (window vs contentRef).
+  }, [ready, content, novelId, chapterNumber, settings.readMode]);
+
+  // ---- 6.5. Pages mode: расчёт totalPages + currentPage ----
+  // Запускаем ResizeObserver на контейнере; пересчитываем после
+  // загрузки шрифтов и при изменении шрифта / line-height. При
+  // scroll — currentPage следует за позицией.
+  useEffect(() => {
+    if (!ready) return;
+    if (settings.readMode !== 'pages') {
+      // В scroll-режиме сбрасываем, чтобы индикатор не показывал
+      // устаревшие данные при обратном переключении.
+      setPageWidth(0);
+      setCurrentPage(0);
+      setTotalPages(1);
+      return;
+    }
+    const container = contentRef.current;
+    if (!container) return;
+
+    const calc = () => {
+      const w = container.clientWidth;
+      if (!w) return;
+      // Учитываем column-gap: каждая колонка + gap = шаг snap.
+      // Но в нашем CSS gap 40 px, column-width = clientWidth,
+      // итого фактический шаг ≈ clientWidth + gap. Для scroll-snap
+      // это не важно (snap сам подгонит), но для currentPage точнее
+      // считать по clientWidth (каждая колонка занимает w, gap —
+      // перемычка).
+      setPageWidth(w);
+      const total = Math.max(1, Math.ceil(container.scrollWidth / w));
+      setTotalPages(total);
+    };
+
+    // После загрузки шрифтов layout может поменяться (Manrope/Lora
+    // грузятся async) — без ожидания scrollWidth даст неверное число.
+    const fontsReady = document.fonts?.ready;
+    if (fontsReady) fontsReady.then(calc).catch(calc);
+    else calc();
+
+    const ro = new ResizeObserver(() => calc());
+    ro.observe(container);
+
+    const onScroll = () => {
+      const w = container.clientWidth || 1;
+      setCurrentPage(Math.round(container.scrollLeft / w));
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+      ro.disconnect();
+      container.removeEventListener('scroll', onScroll);
+    };
+  }, [
+    ready,
+    content,
+    settings.readMode,
+    settings.fontSize,
+    settings.lineHeight,
+    settings.paragraphSpacing,
+    settings.textIndent,
+    settings.fontFamily,
+  ]);
+
+  // ---- 6.6. Keyboard nav в pages-режиме (← → / PgUp / PgDn / Space) ----
+  useEffect(() => {
+    if (!ready) return;
+    if (settings.readMode !== 'pages') return;
+    const container = contentRef.current;
+    if (!container) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable)
+      )
+        return;
+      const w = container.clientWidth;
+      if (!w) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault();
+        container.scrollBy({ left: w, behavior: 'smooth' });
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        container.scrollBy({ left: -w, behavior: 'smooth' });
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        container.scrollTo({ left: 0, behavior: 'smooth' });
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ready, settings.readMode]);
+
+  // ---- 6.7. Smart tap/click navigation в pages-режиме ----
+  // Тап по левой трети экрана = prev page, правой трети = next.
+  // Центр игнорируем — это зона для выделений и глоссария.
+  const onContentClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (settings.readMode !== 'pages') return;
+      const target = e.target as HTMLElement;
+      // Не перехватываем клики по интерактивным элементам, ссылкам,
+      // выделенным терминам глоссария, quote-bubble и т.п.
+      if (
+        target.closest(
+          'a, button, input, textarea, select, [contenteditable="true"], .glossary-term, .quote-bubble'
+        )
+      ) {
+        return;
+      }
+      const container = contentRef.current;
+      if (!container) return;
+      const w = container.clientWidth;
+      if (!w) return;
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x < w * 0.33) {
+        container.scrollBy({ left: -w, behavior: 'smooth' });
+      } else if (x > w * 0.67) {
+        container.scrollBy({ left: w, behavior: 'smooth' });
+      }
+      // Средняя треть — для Фазы 2 (toggle UI); пока ничего.
+    },
+    [settings.readMode]
+  );
+
+  const scrollPageBy = useCallback(
+    (direction: 1 | -1) => {
+      const container = contentRef.current;
+      if (!container) return;
+      const w = container.clientWidth;
+      if (!w) return;
+      container.scrollBy({ left: direction * w, behavior: 'smooth' });
+    },
+    []
+  );
 
   // ---- 7. Таймер сна (обратный отсчёт по selectedPreset) ----
   useEffect(() => {
@@ -434,12 +596,73 @@ export default function ReaderContent({
         />
       )}
 
-      <div
-        ref={contentRef}
-        className="novel-content"
-        style={bodyStyle}
-        dangerouslySetInnerHTML={{ __html: content }}
-      />
+      <div className="novel-content-host">
+        <div
+          ref={contentRef}
+          className="novel-content"
+          style={bodyStyle}
+          onClick={onContentClick}
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+
+        {settings.readMode === 'pages' && totalPages > 1 && (
+          <>
+            {/* Боковые кнопки-стрелки для десктопа. На мобиле
+                использовать свайп или тап по краю экрана (smart nav). */}
+            <button
+              type="button"
+              className="reader-page-btn reader-page-btn--prev"
+              onClick={() => scrollPageBy(-1)}
+              disabled={currentPage === 0}
+              aria-label="Предыдущая страница"
+              title="← или PgUp"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="reader-page-btn reader-page-btn--next"
+              onClick={() => scrollPageBy(1)}
+              disabled={currentPage >= totalPages - 1}
+              aria-label="Следующая страница"
+              title="→ или PgDn"
+            >
+              ›
+            </button>
+
+            {/* Индикатор «Стр. X из Y» с полоской-прогрессом. Снизу
+                страницы, кликабельный — скроллит к месту. */}
+            <div
+              className="reader-page-indicator"
+              role="progressbar"
+              aria-valuemin={1}
+              aria-valuemax={totalPages}
+              aria-valuenow={currentPage + 1}
+            >
+              <span className="reader-page-indicator-text">
+                {currentPage + 1} / {totalPages}
+              </span>
+              <input
+                type="range"
+                className="reader-page-indicator-bar"
+                min={0}
+                max={totalPages - 1}
+                value={Math.min(currentPage, totalPages - 1)}
+                onChange={(e) => {
+                  const container = contentRef.current;
+                  if (!container) return;
+                  const idx = parseInt(e.target.value, 10);
+                  container.scrollTo({
+                    left: idx * (pageWidth || container.clientWidth),
+                    behavior: 'smooth',
+                  });
+                }}
+                aria-label="Прогресс по главе"
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       {glossaryPopover && (
         <div

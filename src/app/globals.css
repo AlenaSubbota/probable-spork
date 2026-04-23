@@ -10051,58 +10051,134 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- Reader: режим чтения «Страницы» (горизонтальный свайп) ---------- */
 
+/* novel-content-host — контейнер вокруг самого контента, чтобы
+   позиционировать боковые кнопки ‹/› и индикатор внизу относительно
+   текста, а не всего viewport'а. */
+.novel-content-host { position: relative; }
+
 /* В режиме 'pages' содержимое главы превращается в multi-column layout
-   с колонкой на ширину экрана. Горизонтальный скролл + scroll-snap
-   даёт эффект «листания страниц» как в читалках книг. Дефолт
-   'scroll' — обычный вертикальный свиток, CSS не трогаем. */
+   с колонкой на ширину контейнера. Горизонтальный скролл + scroll-snap
+   даёт эффект «листания страниц» как в читалках книг. */
 .reader-wrapper[data-read-mode='pages'] .novel-content {
-  column-width: calc(100vw - 40px);
-  column-gap: 40px;
+  /* Фиксируем колонку в полный width контейнера (padding уже учтён
+     .reader-main), браузер создаст N колонок на N страниц. */
+  column-width: 100%;
+  column-gap: 0;
   column-fill: auto;
   /* 100dvh честнее 100vh на iOS (учитывает схлопывающуюся адресную
-     строку в Safari). Вычитаем примерно на шапку + toolbar читалки. */
-  height: calc(100dvh - 200px);
+     строку в Safari). Вычитаем на шапку + toolbar читалки + индикатор. */
+  height: calc(100dvh - 220px);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  padding: 8px 0;
+  padding: 8px 0 16px;
+  /* Курсор-палец на десктопе: smart-tap по краям листает страницы */
+  cursor: default;
+  /* Прячем скроллбар — навигация через snap/кнопки/свайп */
+  scrollbar-width: none;
+}
+.reader-wrapper[data-read-mode='pages'] .novel-content::-webkit-scrollbar {
+  display: none;
 }
 .reader-wrapper[data-read-mode='pages'] .novel-content > * {
-  /* Параграф / заголовок не должен ломаться между колонок — иначе
-     одно слово на одной странице, остальное на другой. */
+  /* Параграф / заголовок не должен ломаться между колонок —
+     иначе одно слово на одной странице, остальное на другой. */
   break-inside: avoid;
 }
-/* Снап к началу каждой колонки */
-.reader-wrapper[data-read-mode='pages'] .novel-content {
-  scroll-padding-left: 0;
-}
-
-/* В режиме страниц прячем footer (он уводит внимание) */
+/* В режиме страниц нижняя навигация (prev/next chapter) сдвигается
+   ниже: индикатор страницы занимает место */
 .reader-wrapper[data-read-mode='pages'] .reader-nav {
-  margin-top: 16px;
+  margin-top: 56px;
 }
 
-/* Hint для читателя что можно свайпать — полупрозрачная стрелка
-   справа снизу мигает первые пару секунд, затем исчезает. */
-.reader-wrapper[data-read-mode='pages'] .novel-content::after {
-  content: '»';
-  position: sticky;
-  bottom: 6px;
-  float: right;
-  padding: 2px 10px;
-  font-size: 20px;
-  color: var(--ink-mute);
-  opacity: 0.6;
-  animation: page-hint 2.2s ease-out 1 forwards;
+/* Боковые кнопки ‹ / › в pages-режиме.
+   На десктопе — видимые при hover, на мобиле — скрыты (используем
+   тап по краю через onContentClick). */
+.reader-page-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 80px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .18s, background .12s, color .12s;
+  z-index: 5;
+  user-select: none;
 }
-@keyframes page-hint {
-  0%   { opacity: 0;    transform: translateX(0); }
-  15%  { opacity: 0.8;  transform: translateX(0); }
-  45%  { opacity: 0.8;  transform: translateX(8px); }
-  75%  { opacity: 0.8;  transform: translateX(0); }
-  100% { opacity: 0;    transform: translateX(0); }
+.reader-page-btn--prev { left: 8px; }
+.reader-page-btn--next { right: 8px; }
+.novel-content-host:hover .reader-page-btn { opacity: 0.9; }
+.reader-page-btn:hover {
+  background: var(--accent);
+  color: var(--surface-2);
+  border-color: var(--accent);
+  opacity: 1;
+}
+.reader-page-btn:disabled {
+  opacity: 0.25 !important;
+  cursor: default;
+}
+/* На мобиле боковые кнопки не видны — tap-зоны смарт-навигации делают
+   ту же работу без визуального шума. */
+@media (max-width: 760px) {
+  .reader-page-btn { display: none; }
+}
+
+/* Индикатор «N / Total» + range-slider под текстом */
+.reader-page-indicator {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 0 20px;
+}
+.reader-page-indicator-text {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.reader-page-indicator-bar {
+  width: 100%;
+  max-width: 340px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.reader-page-indicator-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.reader-page-indicator-bar::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
 }
 
 /* ---------- Reader: theme overrides (light/sepia/dark) ---------- */
