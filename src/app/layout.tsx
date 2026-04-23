@@ -1,18 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Lora } from "next/font/google";
+import { Manrope, Lora } from "next/font/google";
 import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import HeaderRefreshOnVisibility from "@/components/HeaderRefreshOnVisibility";
 
-const inter = Inter({
+// UI-шрифт: Manrope — тёплый, современный grotesk с хорошей кириллицей
+// и мягким округлением. Лучше вписывается в «бумажную» палитру сайта,
+// чем строгий Inter. Variable font, один файл под все веса 200–800.
+const manrope = Manrope({
   subsets: ["latin", "cyrillic"],
   variable: "--font-sans",
+  display: "swap",
 });
 
+// Заголовки и читалка: Lora — классический книжный serif с отличной
+// кириллицей. Вариативный, поддерживает italic. Остаётся как был.
 const lora = Lora({
   subsets: ["latin", "cyrillic"],
   variable: "--font-serif",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -43,7 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${inter.variable} ${lora.variable} h-full antialiased`}
+      className={`${manrope.variable} ${lora.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <SiteHeader />

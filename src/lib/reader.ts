@@ -14,7 +14,8 @@ export interface FontOption {
 }
 
 export const FONT_OPTIONS: FontOption[] = [
-  { key: 'sans',         label: 'Inter',        css: 'var(--font-sans), system-ui, sans-serif' },
+  // key='sans' исторически — теперь это Manrope (var(--font-sans)).
+  { key: 'sans',         label: 'Manrope',      css: 'var(--font-sans), system-ui, sans-serif' },
   { key: 'serif',        label: 'Lora',         css: '"Lora", Georgia, serif' },
   { key: 'merriweather', label: 'Merriweather', css: '"Merriweather", Georgia, serif' },
   { key: 'roboto',       label: 'Roboto',       css: '"Roboto", system-ui, sans-serif' },

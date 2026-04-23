@@ -29,7 +29,11 @@
   --shadow-sm:     0 1px 2px rgba(88, 63, 40, 0.06);
   --shadow-md:     0 6px 20px rgba(88, 63, 40, 0.08);
 
-  --font-sans: "Inter", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* UI-шрифт (интерфейс). Manrope — vaariable font с хорошей
+     кириллицей и мягким современным характером. Фолбэк на Inter
+     и системные — на случай если Google Fonts не догрузится. */
+  --font-sans: "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Заголовки / читалка — книжный serif. Lora уже доказала себя в tene. */
   --font-serif: "Lora", "Merriweather", Georgia, serif;
 }
 
