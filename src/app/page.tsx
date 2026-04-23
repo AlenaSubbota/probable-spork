@@ -10,7 +10,6 @@ import type { NewsItem } from '@/components/news/NewsCard';
 import ReadingNow, { type ReadingNowItem } from '@/components/home/ReadingNow';
 import CommentsFeed, { type CommentFeedItem } from '@/components/home/CommentsFeed';
 import NovelPoll, { type PollOptionResult } from '@/components/home/NovelPoll';
-import StoriesStrip, { type StoryItem } from '@/components/home/StoriesStrip';
 import JournalStrip, { type JournalItem } from '@/components/home/JournalStrip';
 import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
@@ -302,7 +301,7 @@ export default async function HomePage() {
       .select('id, user_name, text, created_at, novel_id, chapter_number')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(5);
     if (comments && comments.length > 0) {
       const novelIds = Array.from(new Set(comments.map((c) => c.novel_id)));
       const { data: novelsForComments } = await supabase
@@ -333,21 +332,9 @@ export default async function HomePage() {
     // ok
   }
 
-  // ---- Stories (верхняя ленточка, как в Instagram) ----
-  let stories: StoryItem[] = [];
-  try {
-    const { data: storiesRaw } = await supabase
-      .from('stories')
-      .select(
-        'id, title, text, image_url, bg_gradient, action_link, button_text, type, items, sort_order, created_at'
-      )
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: false })
-      .limit(12);
-    stories = (storiesRaw ?? []) as StoryItem[];
-  } catch {
-    // таблицы нет — блок тихо не рендерится
-  }
+  // Раздел Stories выпилен по задаче от Алёны — освобождаем место под
+  // другую фичу наверху. Данные и компонент StoriesStrip пока
+  // оставлены на диске, но не импортятся и не рендерятся.
 
   // ---- Журнал: статьи / обзоры / интервью (типы 'article','review','interview') ----
   let journalItems: JournalItem[] = [];
@@ -532,9 +519,6 @@ export default async function HomePage() {
 
   return (
     <main>
-      {/* Instagram-style stories вверху */}
-      <StoriesStrip stories={stories} />
-
       {/* HERO: что реально читают прямо сейчас */}
       <ReadingNow items={readingNowItems} totalReadersNow={totalReadersNow} />
 

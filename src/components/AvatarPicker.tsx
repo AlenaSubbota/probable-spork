@@ -7,17 +7,31 @@ import { AVATAR_PRESETS, describeAvatar } from '@/lib/avatar';
 interface Props {
   userId: string;
   name: string | null;
-  telegramPhotoUrl?: string | null;
+  /** URL фото из user_metadata — Google / Telegram / Yandex / …
+     Показываем под лейблом нужного провайдера. */
+  externalPhotoUrl?: string | null;
+  externalProvider?: 'google' | 'telegram' | 'yandex' | 'other' | null;
   value: string | null;
   onChange: (next: string | null) => void;
 }
 
-type Tab = 'upload' | 'preset' | 'telegram';
+type Tab = 'upload' | 'preset' | 'external';
+
+const PROVIDER_META: Record<
+  NonNullable<Props['externalProvider']>,
+  { label: string; tab: string; hint: string }
+> = {
+  google:   { label: 'Google',   tab: '🔵 Google',   hint: 'Возьмём аватарку из Google-аккаунта.' },
+  telegram: { label: 'Telegram', tab: '💬 Telegram', hint: 'Возьмём аватарку из Telegram-аккаунта.' },
+  yandex:   { label: 'Яндекс',   tab: '🟡 Яндекс',   hint: 'Возьмём аватарку из Яндекс-аккаунта.' },
+  other:    { label: 'аккаунт',  tab: '👤 Из аккаунта', hint: 'Возьмём аватарку из подключённого аккаунта.' },
+};
 
 export default function AvatarPicker({
   userId,
   name,
-  telegramPhotoUrl,
+  externalPhotoUrl,
+  externalProvider,
   value,
   onChange,
 }: Props) {
@@ -96,13 +110,13 @@ export default function AvatarPicker({
         >
           🎨 Выбрать готовый
         </button>
-        {telegramPhotoUrl && (
+        {externalPhotoUrl && (
           <button
             type="button"
-            className={`chip${tab === 'telegram' ? ' active' : ''}`}
-            onClick={() => setTab('telegram')}
+            className={`chip${tab === 'external' ? ' active' : ''}`}
+            onClick={() => setTab('external')}
           >
-            💬 Из Telegram
+            {PROVIDER_META[externalProvider ?? 'other'].tab}
           </button>
         )}
       </div>
@@ -159,23 +173,23 @@ export default function AvatarPicker({
         </div>
       )}
 
-      {tab === 'telegram' && telegramPhotoUrl && (
+      {tab === 'external' && externalPhotoUrl && (
         <div className="avatar-picker-body">
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
             <img
-              src={telegramPhotoUrl}
+              src={externalPhotoUrl}
               alt=""
               style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }}
             />
             <div>
               <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-soft)' }}>
-                Возьмём аватарку из твоего Telegram-аккаунта.
+                {PROVIDER_META[externalProvider ?? 'other'].hint}
               </p>
               <button
                 type="button"
                 className="btn btn-primary"
                 style={{ marginTop: 8 }}
-                onClick={() => onChange(telegramPhotoUrl)}
+                onClick={() => onChange(externalPhotoUrl)}
               >
                 Использовать это фото
               </button>

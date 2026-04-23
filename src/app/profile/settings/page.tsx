@@ -42,12 +42,30 @@ export default async function ProfileSettingsPage() {
     profile.role === 'translator' ||
     profile.role === 'admin';
 
-  // Telegram photo_url лежит в user_metadata, если логин через TG
-  const telegramPhotoUrl =
-    (user.user_metadata as { photo_url?: string; avatar_url?: string } | null)
-      ?.photo_url ??
-    (user.user_metadata as { avatar_url?: string } | null)?.avatar_url ??
-    null;
+  // Фото из user_metadata. Провайдер определяем по app_metadata.provider
+  // или по identities (первый linked аккаунт). Raw поле photo_url — это
+  // Telegram-виджет (наш auth-service туда кладёт), avatar_url — Google
+  // / Yandex OAuth (Supabase стандарт).
+  const meta = (user.user_metadata ?? {}) as {
+    photo_url?: string;
+    avatar_url?: string;
+    picture?: string;
+  };
+  const externalPhotoUrl =
+    meta.photo_url ?? meta.avatar_url ?? meta.picture ?? null;
+
+  const appMeta = (user.app_metadata ?? {}) as { provider?: string };
+  const providerRaw = (appMeta.provider ?? '').toLowerCase();
+  const externalProvider: 'google' | 'telegram' | 'yandex' | 'other' | null =
+    externalPhotoUrl
+      ? providerRaw === 'google'
+        ? 'google'
+        : providerRaw === 'telegram' || meta.photo_url
+          ? 'telegram'
+          : providerRaw === 'yandex'
+            ? 'yandex'
+            : 'other'
+      : null;
 
   return (
     <main className="container section" style={{ maxWidth: 760 }}>
@@ -69,7 +87,8 @@ export default async function ProfileSettingsPage() {
       <SettingsForm
         userId={user.id}
         isTranslator={isTranslator}
-        telegramPhotoUrl={telegramPhotoUrl}
+        externalPhotoUrl={externalPhotoUrl}
+        externalProvider={externalProvider}
         initial={{
           user_name: profile.user_name ?? '',
           email: profile.email ?? null,

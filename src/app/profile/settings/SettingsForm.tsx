@@ -24,14 +24,16 @@ interface SettingsValues {
 interface Props {
   userId: string;
   isTranslator: boolean;
-  telegramPhotoUrl: string | null;
+  externalPhotoUrl: string | null;
+  externalProvider: 'google' | 'telegram' | 'yandex' | 'other' | null;
   initial: SettingsValues;
 }
 
 export default function SettingsForm({
   userId,
   isTranslator,
-  telegramPhotoUrl,
+  externalPhotoUrl,
+  externalProvider,
   initial,
 }: Props) {
   const router = useRouter();
@@ -92,7 +94,8 @@ export default function SettingsForm({
         <AvatarPicker
           userId={userId}
           name={values.user_name || 'U'}
-          telegramPhotoUrl={telegramPhotoUrl}
+          externalPhotoUrl={externalPhotoUrl}
+          externalProvider={externalProvider}
           value={values.avatar_url}
           onChange={(v) => set('avatar_url', v)}
         />
@@ -189,7 +192,8 @@ export default function SettingsForm({
             <AvatarPicker
               userId={userId}
               name={values.translator_display_name || values.user_name || 'T'}
-              telegramPhotoUrl={telegramPhotoUrl}
+              externalPhotoUrl={externalPhotoUrl}
+              externalProvider={externalProvider}
               value={values.translator_avatar_url}
               onChange={(v) => set('translator_avatar_url', v)}
             />

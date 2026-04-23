@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { timeAgo } from '@/lib/format';
-import { commentToHtml } from '@/lib/commentFormat';
 
 export interface CommentFeedItem {
   id: number;
@@ -16,11 +15,11 @@ interface Props {
   comments: CommentFeedItem[];
 }
 
-// Лента свежих комментариев на главной. Текст спрятан под шторкой
-// (<details>) с предупреждением о возможных спойлерах — комментарий
-// вырванный из контекста главы запросто может всё испортить.
-// По клику на «Показать» — текст раскрывается прямо здесь, ссылка
-// на главу ведёт в полный тред.
+// Лента свежих комментариев на главной.
+// Делаем КОМПАКТНО: одна строчка «автор → новелла · глава N · время»
+// + CTA «открыть тред». Содержимое комментария на главной не
+// показываем вообще — слишком высокий риск спойлера, да и длинные
+// тексты раздувают блок.
 export default function CommentsFeed({ comments }: Props) {
   if (comments.length === 0) return null;
 
@@ -28,57 +27,46 @@ export default function CommentsFeed({ comments }: Props) {
     <section className="container section">
       <div className="section-head">
         <h2>О чём сейчас говорят</h2>
-        <span className="more" style={{ cursor: 'default' }}>
-          Последние {comments.length}
-        </span>
+        <Link href="/feed" className="more">
+          Вся лента →
+        </Link>
       </div>
 
-      <div className="comments-feed">
+      <ul className="comments-feed-compact">
         {comments.map((c) => {
           const author = c.user_name ?? 'Читатель';
           const initial = author.trim().charAt(0).toUpperCase() || '?';
+          const href = `/novel/${c.novel_firebase_id}/${c.chapter_number}#c${c.id}`;
           return (
-            <div key={c.id} className="comments-feed-item">
-              <div className="comments-feed-avatar">{initial}</div>
-              <div className="comments-feed-body">
-                <div className="comments-feed-line">
-                  <span className="comments-feed-author">{author}</span>
-                  <span className="comments-feed-sep">→</span>
-                  <Link
-                    href={`/novel/${c.novel_firebase_id}`}
-                    className="comments-feed-novel"
-                  >
-                    «{c.novel_title}»
-                  </Link>
-                  <span className="comments-feed-sep">·</span>
-                  <Link
-                    href={`/novel/${c.novel_firebase_id}/${c.chapter_number}#c${c.id}`}
-                    className="comments-feed-ch"
-                  >
-                    гл. {c.chapter_number}
-                  </Link>
+            <li key={c.id} className="comments-feed-compact-item">
+              <Link href={href} className="comments-feed-compact-link">
+                <div className="comments-feed-compact-avatar" aria-hidden="true">
+                  {initial}
                 </div>
-
-                <details className="comments-feed-spoiler">
-                  <summary>
-                    <span className="comments-feed-spoiler-label">
-                      ⚠ Может содержать спойлеры. Показать
+                <div className="comments-feed-compact-body">
+                  <div className="comments-feed-compact-line">
+                    <span className="comments-feed-compact-author">{author}</span>
+                    <span className="comments-feed-compact-sep">·</span>
+                    <span className="comments-feed-compact-novel">
+                      «{c.novel_title}»
                     </span>
-                  </summary>
-                  <div
-                    className="comments-feed-text"
-                    dangerouslySetInnerHTML={{ __html: commentToHtml(c.text) }}
-                  />
-                </details>
-
-                <div className="comments-feed-time">
-                  {timeAgo(c.created_at)}
+                    <span className="comments-feed-compact-sep">·</span>
+                    <span className="comments-feed-compact-ch">
+                      гл. {c.chapter_number}
+                    </span>
+                  </div>
+                  <div className="comments-feed-compact-time">
+                    {timeAgo(c.created_at)}
+                  </div>
                 </div>
-              </div>
-            </div>
+                <span className="comments-feed-compact-arrow" aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 }
