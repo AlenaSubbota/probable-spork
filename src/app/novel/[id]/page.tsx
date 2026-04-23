@@ -495,31 +495,41 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
 
             {translatorProfile && (
               <div className="translator-card">
-                <div className="avatar">
-                  {translatorProfile.avatarUrl ? (
-                    <img src={translatorProfile.avatarUrl} alt="" />
-                  ) : (
-                    <span>{translatorInitial}</span>
+                <Link
+                  href={translatorSlug ? `/t/${translatorSlug}` : '#'}
+                  className="translator-card-link"
+                  aria-label={`Профиль ${translatorProfile.displayName ?? 'переводчика'}`}
+                >
+                  <div className="avatar">
+                    {translatorProfile.avatarUrl ? (
+                      <img src={translatorProfile.avatarUrl} alt="" />
+                    ) : (
+                      <span>{translatorInitial}</span>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="name">
+                      {translatorProfile.displayName ?? 'Переводчик'}
+                    </div>
+                    <div className="role">Переводчик</div>
+                  </div>
+                </Link>
+                <div className="translator-card-actions">
+                  {translatorSlug && (
+                    <Link href={`/t/${translatorSlug}`} className="btn btn-ghost">
+                      Профиль →
+                    </Link>
+                  )}
+                  {user && novel.translator_id && user.id !== novel.translator_id && (
+                    <Link
+                      href={`/messages/${novel.translator_id}`}
+                      className="btn btn-primary"
+                      title="Написать переводчику в личку"
+                    >
+                      💬 В ЛС
+                    </Link>
                   )}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div className="name">
-                    {translatorProfile.displayName ?? 'Переводчик'}
-                  </div>
-                  <div className="role">Переводчик</div>
-                </div>
-                {translatorSlug ? (
-                  <Link href={`/t/${translatorSlug}`} className="btn btn-ghost">
-                    Профиль →
-                  </Link>
-                ) : (
-                  <span
-                    className="btn btn-ghost"
-                    style={{ pointerEvents: 'none', opacity: 0.6 }}
-                  >
-                    Профиль
-                  </span>
-                )}
               </div>
             )}
 
