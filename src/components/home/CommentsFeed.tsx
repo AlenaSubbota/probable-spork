@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { timeAgo } from '@/lib/format';
+import { commentToHtml } from '@/lib/commentFormat';
 
 export interface CommentFeedItem {
   id: number;
@@ -15,9 +16,11 @@ interface Props {
   comments: CommentFeedItem[];
 }
 
-// На главной не показываем сам текст — обсуждение читается в контексте главы,
-// а одна вырванная фраза легко становится спойлером. Оставляем метаданные:
-// кто, где и когда. По клику — в тред под главой.
+// Лента свежих комментариев на главной. Текст спрятан под шторкой
+// (<details>) с предупреждением о возможных спойлерах — комментарий
+// вырванный из контекста главы запросто может всё испортить.
+// По клику на «Показать» — текст раскрывается прямо здесь, ссылка
+// на главу ведёт в полный тред.
 export default function CommentsFeed({ comments }: Props) {
   if (comments.length === 0) return null;
 
@@ -35,30 +38,44 @@ export default function CommentsFeed({ comments }: Props) {
           const author = c.user_name ?? 'Читатель';
           const initial = author.trim().charAt(0).toUpperCase() || '?';
           return (
-            <Link
-              key={c.id}
-              href={`/novel/${c.novel_firebase_id}/${c.chapter_number}#c${c.id}`}
-              className="comments-feed-item"
-            >
+            <div key={c.id} className="comments-feed-item">
               <div className="comments-feed-avatar">{initial}</div>
               <div className="comments-feed-body">
                 <div className="comments-feed-line">
                   <span className="comments-feed-author">{author}</span>
                   <span className="comments-feed-sep">→</span>
-                  <span className="comments-feed-novel">«{c.novel_title}»</span>
+                  <Link
+                    href={`/novel/${c.novel_firebase_id}`}
+                    className="comments-feed-novel"
+                  >
+                    «{c.novel_title}»
+                  </Link>
                   <span className="comments-feed-sep">·</span>
-                  <span className="comments-feed-ch">
+                  <Link
+                    href={`/novel/${c.novel_firebase_id}/${c.chapter_number}#c${c.id}`}
+                    className="comments-feed-ch"
+                  >
                     гл. {c.chapter_number}
-                  </span>
+                  </Link>
                 </div>
+
+                <details className="comments-feed-spoiler">
+                  <summary>
+                    <span className="comments-feed-spoiler-label">
+                      ⚠ Может содержать спойлеры. Показать
+                    </span>
+                  </summary>
+                  <div
+                    className="comments-feed-text"
+                    dangerouslySetInnerHTML={{ __html: commentToHtml(c.text) }}
+                  />
+                </details>
+
                 <div className="comments-feed-time">
                   {timeAgo(c.created_at)}
                 </div>
               </div>
-              <span className="comments-feed-arrow" aria-hidden="true">
-                →
-              </span>
-            </Link>
+            </div>
           );
         })}
       </div>
