@@ -72,6 +72,10 @@ export default function ReaderContent({
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Счётчик комментариев к этой главе (для кнопки в toolbar).
+  // Дешёвый count-запрос без тяги данных; обновляется при mount.
+  const [commentCount, setCommentCount] = useState<number | null>(null);
+
   // ---- 1. Загрузка настроек ----
   useEffect(() => {
     setSettings(loadSettings());
@@ -544,6 +548,43 @@ export default function ReaderContent({
     []
   );
 
+  // ---- 6.8. Подгружаем количество комментариев для бейджа в toolbar ----
+  // Быстрый count(*) без вытягивания данных. Не критично — если RLS
+  // на comments разрешает SELECT (в tene уже так), работает.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { count } = await supabase
+        .from('comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('novel_id', novelId)
+        .eq('chapter_number', chapterNumber)
+        .is('deleted_at', null);
+      if (!cancelled && typeof count === 'number') setCommentCount(count);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [novelId, chapterNumber]);
+
+  // Утилита: скроллим к секции комментариев. В pages-режиме сначала
+  // прыгаем к последней странице, потом к .comments-section ниже.
+  const scrollToComments = useCallback(() => {
+    const sec = document.querySelector('.comments-section');
+    if (!sec) return;
+    if (settings.readMode === 'pages') {
+      const container = contentRef.current;
+      if (container) {
+        container.scrollTo({ left: container.scrollWidth, behavior: 'instant' as ScrollBehavior });
+      }
+      // После листания контента в конец — скроллим окно к секции
+      setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    } else {
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [settings.readMode]);
+
   // ---- 7. Таймер сна (обратный отсчёт по selectedPreset) ----
   useEffect(() => {
     if (selectedPreset === null) {
@@ -603,6 +644,17 @@ export default function ReaderContent({
           title="F — включить/выключить"
         >
           ◉ Фокус
+        </button>
+        <button
+          type="button"
+          className="chip reader-toolbar-comments"
+          onClick={scrollToComments}
+          title="К обсуждению главы"
+        >
+          💬
+          {commentCount !== null && commentCount > 0 && (
+            <span className="chip-count">{commentCount}</span>
+          )}
         </button>
         <button
           type="button"
