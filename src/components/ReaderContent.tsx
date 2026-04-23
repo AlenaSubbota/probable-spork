@@ -279,10 +279,16 @@ export default function ReaderContent({
     };
   }, [ready, content, glossary]);
 
-  // ---- 5. Отслеживание активного абзаца (scroll -> focus mode + прогресс) ----
-  // Зависит от settings.focusMode явно: при переключении фокуса пересоздаём
-  // обработчик и сразу пересчитываем активный абзац (иначе без скролла
-  // ничего не подсвечивается, и пользователь видит серый текст).
+  // ---- 5. Отслеживание активного абзаца + сохранение прогресса ----
+  // Логика mode-aware:
+  //  - scroll-режим: слушаем window.scroll; best = абзац ближайший к
+  //    середине viewport (по vertical middle).
+  //  - pages-режим: слушаем container.scroll; best = первый абзац,
+  //    который попадает в текущую видимую колонку (offsetLeft в пределах
+  //    [scrollLeft, scrollLeft + clientWidth]).
+  //
+  // В обоих случаях после 1.5 секунд без скролла дебаунсом сохраняем
+  // paragraphIndex — эта метрика стабильна при смене шрифта / режима.
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -292,8 +298,9 @@ export default function ReaderContent({
     if (paragraphs.length === 0) return;
 
     let lastActiveId = -1;
+    const isPages = settings.readMode === 'pages';
 
-    const findBest = (): number => {
+    const findBestVertical = (): number => {
       const viewportMid = window.innerHeight / 2;
       let bestIdx = 0;
       let bestDist = Infinity;
@@ -309,6 +316,26 @@ export default function ReaderContent({
       return bestIdx;
     };
 
+    const findBestPaged = (): number => {
+      // В multi-column layout offsetLeft абзаца — его позиция в
+      // абсолютном flow, которое браузер режет на колонки. Ищем
+      // первый элемент, у которого offsetLeft >= scrollLeft (т.е.
+      // первая колонка в текущем viewport'е).
+      const scrollLeft = container.scrollLeft;
+      const pageW = container.clientWidth || 1;
+      let bestIdx = 0;
+      for (let i = 0; i < paragraphs.length; i++) {
+        const el = paragraphs[i];
+        if (el.offsetLeft + el.offsetWidth >= scrollLeft + 1) {
+          bestIdx = i;
+          if (el.offsetLeft >= scrollLeft) break; // первый полностью видимый
+        }
+        // Если абзац целиком позади — пропускаем.
+        if (el.offsetLeft > scrollLeft + pageW) break;
+      }
+      return bestIdx;
+    };
+
     const applyActive = (bestIdx: number) => {
       if (bestIdx === lastActiveId) return;
       if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
@@ -318,28 +345,30 @@ export default function ReaderContent({
       lastActiveId = bestIdx;
     };
 
-    const onScroll = () => {
-      const bestIdx = findBest();
-      applyActive(bestIdx);
+    const onAnyScroll = () => {
+      const best = isPages ? findBestPaged() : findBestVertical();
+      applyActive(best);
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = window.setTimeout(() => saveProgress(bestIdx), 1500);
+      saveTimerRef.current = window.setTimeout(() => saveProgress(best), 1500);
     };
 
-    // При mount / изменении focus-режима — сразу подсветить ближайший к
-    // центру абзац (чтобы при включении фокуса без скролла текст не был
-    // просто серым).
-    applyActive(findBest());
+    applyActive(isPages ? findBestPaged() : findBestVertical());
 
-    window.addEventListener('scroll', onScroll, { passive: true });
+    if (isPages) {
+      container.addEventListener('scroll', onAnyScroll, { passive: true });
+    } else {
+      window.addEventListener('scroll', onAnyScroll, { passive: true });
+    }
 
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      if (isPages) container.removeEventListener('scroll', onAnyScroll);
+      else window.removeEventListener('scroll', onAnyScroll);
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
         paragraphs[lastActiveId].classList.remove('focus-active');
       }
     };
-  }, [ready, content, saveProgress, settings.focusMode]);
+  }, [ready, content, saveProgress, settings.focusMode, settings.readMode]);
 
   // ---- 6. Восстановление позиции из localStorage при заходе ----
   // paragraphIndex стабилен при смене шрифта / режима — в отличие от
