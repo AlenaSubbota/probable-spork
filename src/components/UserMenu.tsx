@@ -95,6 +95,9 @@ export default function UserMenu({
           <Link href="/bookmarks" className="user-menu-item" onClick={() => setOpen(false)}>
             📚 Моя библиотека
           </Link>
+          <Link href="/market" className="user-menu-item" onClick={() => setOpen(false)}>
+            🤝 Маркетплейс команды
+          </Link>
           {isTranslator ? (
             <>
               <div className="user-menu-sep" />
