@@ -15,6 +15,8 @@ interface SettingsValues {
   translator_about: string;
   payout_boosty_url: string;
   show_reading_publicly: boolean;
+  quiet_until: string;  // yyyy-MM-dd для <input type="date">
+  quiet_note: string;
 }
 
 interface Props {
@@ -54,6 +56,12 @@ export default function SettingsForm({
       payload.translator_avatar_url = values.translator_avatar_url;
       payload.translator_about = values.translator_about.trim() || null;
       payload.payout_boosty_url = values.payout_boosty_url.trim() || null;
+
+      // Тихий режим: дата в input === yyyy-MM-dd. Переводим в timestamptz
+      // «конец указанного дня» — так баннер исчезнет наутро после даты.
+      const quietRaw = values.quiet_until.trim();
+      payload.quiet_until = quietRaw ? `${quietRaw}T23:59:59Z` : null;
+      payload.quiet_note = values.quiet_note.trim() || null;
     }
     // Приватность хранится в profiles.settings jsonb
     payload.settings = {
@@ -211,6 +219,45 @@ export default function SettingsForm({
               Настройки Tribute webhook — на странице{' '}
               <a href="/admin/payouts" className="more">/admin/payouts</a>.
             </div>
+          </div>
+        </section>
+      )}
+
+      {isTranslator && (
+        <section className="settings-block">
+          <h2>Тихий режим</h2>
+          <p style={{ color: 'var(--ink-mute)', fontSize: 13.5, marginTop: -8, marginBottom: 14 }}>
+            Иногда нужен отдых. Поставь дату — до неё на твоей публичной
+            странице появится уважительный баннер вместо «давно не было глав».
+            Можно добавить пару слов — что происходит и когда ждать.
+          </p>
+
+          <div className="form-field">
+            <label>Восстанавливаюсь до</label>
+            <input
+              type="date"
+              className="form-input"
+              value={values.quiet_until}
+              onChange={(e) => set('quiet_until', e.target.value)}
+              style={{ maxWidth: 220 }}
+            />
+            <div className="form-hint">
+              Оставь пустым, чтобы выключить режим. Дата — последний день паузы;
+              со следующего утра баннер пропадает.
+            </div>
+          </div>
+
+          <div className="form-field">
+            <label>Личная пометка (необязательно)</label>
+            <textarea
+              className="form-textarea"
+              rows={2}
+              maxLength={300}
+              value={values.quiet_note}
+              onChange={(e) => set('quiet_note', e.target.value)}
+              placeholder="Например: «болею, вернусь на следующей неделе»"
+            />
+            <div className="form-hint">{values.quiet_note.length}/300</div>
           </div>
         </section>
       )}

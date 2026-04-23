@@ -8,6 +8,9 @@ import TranslatorSpecialty from '@/components/translator/TranslatorSpecialty';
 import TranslatorSchedule, {
   type PublicScheduleSlot,
 } from '@/components/TranslatorSchedule';
+import TributesWall, { type Tribute } from '@/components/translator/TributesWall';
+import RoadmapBoard, { type RoadmapItem } from '@/components/translator/RoadmapBoard';
+import QuietBanner from '@/components/translator/QuietBanner';
 import { getCoverUrl } from '@/lib/format';
 
 interface PageProps {
@@ -81,6 +84,8 @@ export default async function TranslatorPage({ params }: PageProps) {
         translator_about: string | null;
         payout_boosty_url: string | null;
         payout_tribute_channel: string | null;
+        quiet_until: string | null;
+        quiet_note: string | null;
       }
     | undefined;
 
@@ -228,6 +233,34 @@ export default async function TranslatorPage({ params }: PageProps) {
 
   const isSelf = viewer?.id === profile.id;
 
+  // ---- Стена благодарностей: последние чаевые с message/tip ----
+  let tributes: Tribute[] = [];
+  try {
+    const { data: rawTributes } = await supabase
+      .from('translator_tributes_view')
+      .select('*')
+      .eq('translator_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(12);
+    tributes = (rawTributes ?? []) as Tribute[];
+  } catch {
+    // миграция 031 ещё не накачена — пропускаем
+  }
+
+  // ---- Публичный роадмап ----
+  let roadmap: RoadmapItem[] = [];
+  try {
+    const { data: rawRoadmap } = await supabase
+      .from('translator_roadmap')
+      .select('id, title, note, status, progress_current, progress_total, sort_order')
+      .eq('translator_id', profile.id)
+      .order('sort_order', { ascending: true })
+      .order('updated_at', { ascending: false });
+    roadmap = (rawRoadmap ?? []) as RoadmapItem[];
+  } catch {
+    // миграция 031 ещё не накачена
+  }
+
   const totalChapters = novelsNormalized.reduce(
     (s, n) => s + (n.chapter_count ?? 0),
     0
@@ -303,6 +336,22 @@ export default async function TranslatorPage({ params }: PageProps) {
           </p>
         </aside>
       </div>
+
+      {/* Тихий режим: если пауза активна — деликатный баннер */}
+      {profile.quiet_until &&
+        new Date(profile.quiet_until).getTime() > Date.now() && (
+          <QuietBanner
+            quietUntil={profile.quiet_until}
+            quietNote={profile.quiet_note}
+            translatorName={displayName}
+          />
+        )}
+
+      {/* Роадмап: «что буду переводить» */}
+      <RoadmapBoard items={roadmap} />
+
+      {/* Стена благодарностей */}
+      <TributesWall tributes={tributes} />
 
       {/* Киллер #1: рукопожатие */}
       <TranslatorHandshake
