@@ -162,6 +162,27 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     novelCredits = [];
   }
 
+  // Fallback: если в novel_translators по каким-то причинам нет записи
+  // (например миграция 039 не накатана, или бэкфилл не прошёл), но у
+  // новеллы есть главный переводчик — строим виртуальную строку, чтобы
+  // блок «Над новеллой работают» всегда показывал хотя бы одного
+  // читателям — не надо искать, на кого подписываться.
+  if (novelCredits.length === 0 && novel.translator_id && translatorProfile) {
+    novelCredits = [
+      {
+        id: -1,
+        user_id: novel.translator_id,
+        role: 'translator',
+        share_percent: 100,
+        note: null,
+        user_name: translatorProfile.displayName ?? null,
+        avatar_url: translatorProfile.avatarUrl ?? null,
+        translator_slug: translatorProfile.slug ?? null,
+        display_name: translatorProfile.displayName ?? null,
+      },
+    ];
+  }
+
   // Пагинация: от пагинации зависят и выборка, и счётчик.
   // Переводчик / админ видит все главы (в т.ч. черновики и запланированные).
   // Читатель видит только опубликованные (published_at <= now()).
