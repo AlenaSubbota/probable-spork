@@ -69,15 +69,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .container {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 0 24px;
+  /* LONGHAND (padding-left/right, не shorthand padding) — критично!
+     Если shorthand `padding: 0 24px`, то класс .section со своим
+     shorthand `padding: 28px 0` ПЕРЕЗАПИШЕТ горизонтальный отступ
+     в 0, и контент прилипает к краю. С longhand правила комбинируются:
+     .container даёт left/right, .section — top/bottom. */
+  padding-left: 24px;
+  padding-right: 24px;
 }
-/* Мобиле: 16 px по бокам — компромисс между «не прилипает к краю» и
-   «не сужает контент до неузнаваемости». Плюс учитываем iPhone
-   landscape safe-area-inset-left/right (notch сбоку). */
+/* Мобиле: 20 px по бокам — визуально «дышит». */
 @media (max-width: 540px) {
   .container {
-    padding-left: calc(16px + env(safe-area-inset-left, 0));
-    padding-right: calc(16px + env(safe-area-inset-right, 0));
+    padding-left: calc(20px + env(safe-area-inset-left, 0));
+    padding-right: calc(20px + env(safe-area-inset-right, 0));
   }
 }
 
@@ -484,7 +488,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ---------- section ---------- */
 
 .section {
-  padding: 28px 0;
+  /* Longhand — чтобы `<section className="container section">` получил
+     и горизонтальный padding от .container, и вертикальный от .section.
+     Shorthand (`padding: 28px 0`) стирал бы .container left/right. */
+  padding-top: 28px;
+  padding-bottom: 28px;
 }
 .section-head {
   display: flex;
@@ -5027,7 +5035,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   align-items: center;
 }
 @media (max-width: 760px) {
-  .star-week { grid-template-columns: 1fr; padding: 24px; margin: 16px 12px; }
+  .star-week { grid-template-columns: 1fr; padding: 24px; margin: 16px 20px; }
 }
 .star-week-glow {
   position: absolute;
