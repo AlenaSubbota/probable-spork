@@ -224,3 +224,54 @@ chaptify.ru                           tene.fun
 - `src/components/auth/AuthForm.tsx` — hard-reload после login
 - `src/components/SiteHeader.tsx` — две кнопки вместо одной
 - `Dockerfile` + `.github/workflows/deploy.yml` — build-args для `NEXT_PUBLIC_*`
+
+- Работа за 23.04.2026
+Миграции БД (028 → 038)
+#	Что
+028	untoggle_thank — отмена лайка главы
+029	Модерация комментариев: deleted_at, RLS, moderate_delete_comment, edit_comment
+030	toggle_comment_like RPC (после RLS на comments)
+031	Чаевые с сообщением + тихий режим + публичный роадмап
+032	Маркетплейс: listings + applications
+033	Маркетплейс: reviews + ratings + уведомления на отклики
+034	Multi-translator: novel_translators + novel_credits
+035	subscription_claims + RPC submit/approve/decline
+036	Tene-safe: can_read_chapter откачен, _chaptify версия
+037	translator_payment_methods (Boosty/Tribute/VK Donut/Patreon) + accepts_coins_for_chapters
+038	tg_chat_id для Boosty автосинка + grant_subscription_from_boosty_chat
+Фичи
+Маркетплейс команды (/market) — 11 ролей, отклики, рейтинги и отзывы
+Страница переводчика — стена благодарностей, тихий режим, роадмап «что буду переводить», рейтинг из маркетплейса
+Multi-translator — команда новеллы (переводчик + редактор + корректор + …), доли, публичный блок «Над новеллой работают»
+Telegram-линкинг — привязка TG к существующему аккаунту, баннер «подпишись на @chaptifybot»
+Платформы оплаты — переводчик подключает Boosty/Tribute/VK Donut/Patreon, отключает монеты за главы
+Claim-flow — подписка через внешнюю платформу без движения денег через chaptify:
+Ручной: форма + /admin/subscribers
+Полуавто через бота: /claim, /approve, /decline, inline-кнопки под push
+Полный автомат: getChatMember в закрытом Boosty-TG-чате → 1 клик «Я уже подписан(а)»
+UX-фиксы
+Like-toggle работает (было «уже поблагодарила» намертво)
+Удаление из «Моя библиотека»
+Гендер-нейтральные формулировки
+Breadcrumbs на /t/[slug], /u/[id]
+Toast после сохранения (NovelForm, ChapterForm, NewsForm, PollForm)
+Шапка с dropdown-меню + Выйти
+Комменты: BBCode + [spoiler] + админ-удаление + автор-редактирование
+/t/[slug] больше не 404 при юникод-нике
+Шапка сама обновляет баланс при возврате на вкладку
+/feed не падал + группировка «Глава 100 + ещё 6 глав»
+Каталог по жанрам и настроениям работает (JS-filter на jsonb)
+Переводчик свою главу читает без paywall, в списке — «✓ команда» вместо «Купить»
+Карточка главы кликается целиком
+Аноним читает бесплатные главы через /auth/free-chapter proxy
+Tene-safety: can_read_chapter не переписан, а *_chaptify отдельно
+Серверные PR (repo AlenaSubbota/server)
+#4 — /auth/link-telegram, /auth/unlink-telegram + nginx route
+#5 — @chaptifybot: /claim, /approve, /decline + inline-кнопки
+#6 — /auth/boosty-chat-check + nginx route
+Политика на будущее
+Любой RPC, существующий в tene, не переписываем — *_chaptify рядом
+RLS включаем только если tene уже включал
+Финпосредничество: ноль. Деньги → от читателя → переводчику напрямую (Boosty/Tribute/VK Donut). Chaptify только проверяет факт подписки.
+Монеты — своя цифровая услуга Alena, без выплат другим
+Если захочешь зафиксировать это в доку — скажи, копирую в docs/PROGRESS.md отдельным разделом.
