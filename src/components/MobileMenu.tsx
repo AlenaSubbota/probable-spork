@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -11,11 +12,15 @@ interface Props {
   unreadNews: number;
 }
 
-// Гамбургер-меню для мобильного (≤640px). На десктопе скрыт, там живёт
-// обычная main-nav + search-box. В drawer — те же ссылки + поиск.
+// Гамбургер-меню для мобильного (≤760px). На десктопе скрыт, там живёт
+// обычная main-nav + search-box.
 //
-// Drawer закрывается: клик по overlay, Esc, смена пути (авто-закрытие
-// после клика по ссылке — через useEffect на pathname).
+// iOS важно: drawer+overlay рендерим через createPortal в document.body,
+// иначе они попадают под `.site-header` со своим backdrop-filter —
+// это создаёт containing block для position:fixed-потомков, и drawer
+// начинает позиционироваться относительно шапки (64 px), а не
+// viewport'а. В итоге drawer схлопывается в верхние 64 px — визуально
+// ломается до неузнаваемости.
 export default function MobileMenu({
   isLoggedIn,
   unreadDm,
@@ -23,7 +28,13 @@ export default function MobileMenu({
   unreadNews,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+
+  // Mounted-флаг — чтобы портал не пытался ходить в document на SSR
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Закрываем drawer при смене страницы — иначе после клика по пункту
   // он остаётся открытым поверх следующей страницы.
@@ -41,35 +52,34 @@ export default function MobileMenu({
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // Блокируем скролл body когда drawer открыт
+  // Блокируем скролл body когда drawer открыт. На iOS одним overflow:hidden
+  // не обойтись — мы фиксируем положение + сохраняем текущий scrollY, чтобы
+  // восстановить его при закрытии. Иначе под drawer-ом страница «уплывает».
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (!open) return;
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prevPosition = body.style.position;
+    const prevTop = body.style.top;
+    const prevWidth = body.style.width;
+    const prevOverflow = body.style.overflow;
+
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+
     return () => {
-      document.body.style.overflow = '';
+      body.style.position = prevPosition;
+      body.style.top = prevTop;
+      body.style.width = prevWidth;
+      body.style.overflow = prevOverflow;
+      window.scrollTo(0, scrollY);
     };
   }, [open]);
 
-  return (
+  const drawer = (
     <>
-      <button
-        type="button"
-        className="mobile-menu-btn"
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? 'Закрыть меню' : 'Открыть меню'}
-        aria-expanded={open}
-        aria-controls="mobile-drawer"
-      >
-        <span className={`mobile-menu-icon${open ? ' is-open' : ''}`} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-      </button>
-
       <div
         className={`mobile-drawer-overlay${open ? ' is-open' : ''}`}
         onClick={() => setOpen(false)}
@@ -81,6 +91,18 @@ export default function MobileMenu({
         className={`mobile-drawer${open ? ' is-open' : ''}`}
         aria-hidden={!open}
       >
+        <div className="mobile-drawer-head">
+          <div className="mobile-drawer-logo">Chaptify</div>
+          <button
+            type="button"
+            className="mobile-drawer-close"
+            onClick={() => setOpen(false)}
+            aria-label="Закрыть меню"
+          >
+            ✕
+          </button>
+        </div>
+
         <form action="/search" method="get" className="mobile-drawer-search">
           <input
             type="search"
@@ -135,6 +157,27 @@ export default function MobileMenu({
           )}
         </nav>
       </aside>
+    </>
+  );
+
+  return (
+    <>
+      <button
+        type="button"
+        className="mobile-menu-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? 'Закрыть меню' : 'Открыть меню'}
+        aria-expanded={open}
+        aria-controls="mobile-drawer"
+      >
+        <span className={`mobile-menu-icon${open ? ' is-open' : ''}`} aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+      </button>
+
+      {mounted && createPortal(drawer, document.body)}
     </>
   );
 }

@@ -71,9 +71,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   margin: 0 auto;
   padding: 0 24px;
 }
-/* Мобиле — узкий padding, иначе на 360 px контента остаётся всего 312. */
+/* Мобиле: 16 px по бокам — компромисс между «не прилипает к краю» и
+   «не сужает контент до неузнаваемости». Плюс учитываем iPhone
+   landscape safe-area-inset-left/right (notch сбоку). */
 @media (max-width: 540px) {
-  .container { padding: 0 14px; }
+  .container {
+    padding-left: calc(16px + env(safe-area-inset-left, 0));
+    padding-right: calc(16px + env(safe-area-inset-right, 0));
+  }
 }
 
 /* ---------- header ---------- */
@@ -210,10 +215,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .mobile-menu-icon.is-open span:nth-child(2) { opacity: 0; }
 .mobile-menu-icon.is-open span:nth-child(3) { top: 6px; transform: rotate(-45deg); }
 
+/* Overlay и drawer рендерятся через portal в body, поэтому z-index'ы
+   можно смело задирать — никакого ancestor stacking context у них нет. */
 .mobile-drawer-overlay {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 9998;
   background: rgba(34, 22, 12, 0.42);
   opacity: 0;
   pointer-events: none;
@@ -229,23 +236,60 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   top: 0;
   left: 0;
   bottom: 0;
-  z-index: 41;
-  width: min(82vw, 340px);
+  z-index: 9999;
+  width: min(84vw, 340px);
+  max-width: 100vw;
   background: var(--surface);
   border-right: 1px solid var(--border);
   box-shadow: 0 20px 60px rgba(88, 63, 40, 0.24);
-  padding: 74px 18px 28px;
+  padding: 0 16px 24px;
   /* Safe-area для iPhone notch/bottom bar */
-  padding-top: calc(74px + env(safe-area-inset-top, 0));
-  padding-bottom: calc(28px + env(safe-area-inset-bottom, 0));
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0));
+  padding-left: calc(16px + env(safe-area-inset-left, 0));
   transform: translateX(-100%);
+  /* На iOS без will-change / translate3d ускоренный слой не создаётся,
+     drawer тормозит. */
+  will-change: transform;
   transition: transform .22s cubic-bezier(0.2, 0.8, 0.3, 1);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  visibility: hidden;
 }
-.mobile-drawer.is-open { transform: translateX(0); }
-.mobile-drawer[aria-hidden="true"] { visibility: hidden; }
-.mobile-drawer.is-open[aria-hidden="false"] { visibility: visible; }
+.mobile-drawer.is-open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.mobile-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  margin-bottom: 8px;
+}
+.mobile-drawer-logo {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.mobile-drawer-close {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--ink-soft);
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-drawer-close:hover {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
 
 .mobile-drawer-search {
   margin-bottom: 14px;
@@ -482,8 +526,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 @media (max-width: 1100px) { .novel-grid { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 760px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; } }
-/* 375 px iPhone: 3 колонки × 100 px обложка = тесно, жмём до 2. */
-@media (max-width: 540px)  { .novel-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+/* Мобиле: 3 колонки в ряд (как просила Алёна). 3 × (~100 px) + gap —
+   обложки становятся книжными «плитками», экран смотрится плотно. */
+@media (max-width: 540px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
 
 .novel-card {
   display: flex;
@@ -600,6 +645,23 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: var(--accent-hover);
   text-decoration: underline;
 }
+/* На узкой колонке (3 в ряд на 360 px = ~100 px на карточку) текст
+   поджимаем: клэмп 2 → 1 строки, мельче шрифт, meta обрезается с
+   ellipsis вместо переноса. */
+@media (max-width: 540px) {
+  .novel-title {
+    font-size: 12.5px;
+    -webkit-line-clamp: 2;
+  }
+  .novel-meta {
+    font-size: 10.5px;
+    gap: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .novel-card { gap: 6px; }
+}
 
 /* ---------- two-col (novel page) ---------- */
 
@@ -613,8 +675,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .novel-top { grid-template-columns: 1fr; gap: 20px; }
 }
 /* На мобиле обложка во всю ширину контейнера → слишком высокая (3/4
-   aspect-ratio). Делаем компактный «плакатный» вид: обложка меньше, по
-   центру + инфо под ней без двухколоночной шапки. */
+   aspect-ratio). Делаем компактный вид: обложка-плитка по центру, а
+   вся текстовая инфа под ней остаётся выравненной по левому краю —
+   жанры, автор, описание, кнопки читаются как колонка, а не центр,
+   иначе выглядит неряшливо (заголовок в центре, остальное влево). */
 @media (max-width: 540px) {
   .novel-top {
     padding: 20px 0 24px;
@@ -624,8 +688,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     max-width: 200px;
     margin: 0 auto;
   }
-  .novel-info h1 { font-size: 26px; line-height: 1.15; text-align: center; }
-  .novel-info .subtitle { text-align: center; }
+  .novel-info h1 { font-size: 26px; line-height: 1.15; }
 }
 
 .novel-top .cover-large {
