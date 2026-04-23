@@ -20,6 +20,8 @@ interface Props {
   paymentMethods: PaymentMethod[];
   /** Принимает ли переводчик оплату монетами за главу. */
   acceptsCoins: boolean;
+  /** У текущего читателя привязан Telegram — для автосинка. */
+  viewerHasTelegram: boolean;
   existingClaim: {
     id: number;
     code: string;
@@ -41,6 +43,7 @@ export default function ChapterPaywall({
   translatorName,
   paymentMethods,
   acceptsCoins,
+  viewerHasTelegram,
   existingClaim,
 }: Props) {
   const router = useRouter();
@@ -108,6 +111,7 @@ export default function ChapterPaywall({
               translatorId={translatorId}
               translatorName={translatorName ?? 'переводчик'}
               method={m}
+              viewerHasTelegram={viewerHasTelegram}
               existingClaim={existingClaim}
             />
           ))}

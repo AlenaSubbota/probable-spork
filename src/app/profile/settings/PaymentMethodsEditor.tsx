@@ -11,6 +11,7 @@ interface Method {
   instructions: string | null;
   enabled: boolean;
   sort_order: number;
+  tg_chat_id: number | null;
 }
 
 const PROVIDER_META: Record<Method['provider'], { label: string; icon: string; hint: string }> = {
@@ -27,6 +28,14 @@ interface Props {
 
 // Мини-CRUD платёжных методов переводчика. Отображается в /profile/settings.
 // Бэкфилл из старого profiles.payout_boosty_url уже выполнен в миграции 037.
+function parseTgChatId(raw: string): number | null {
+  const s = raw.trim().replace(/\s/g, '');
+  if (!/^-?\d+$/.test(s)) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
 export default function PaymentMethodsEditor({ translatorId }: Props) {
   const supabase = createClient();
   const { items: toasts, push, dismiss } = useToasts();
@@ -38,13 +47,18 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
   const [provider, setProvider] = useState<Method['provider']>('boosty');
   const [url, setUrl] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [tgChatId, setTgChatId] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Inline-редактор tg_chat_id для существующей записи
+  const [editChatFor, setEditChatFor] = useState<number | null>(null);
+  const [editChatValue, setEditChatValue] = useState('');
 
   const reload = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('translator_payment_methods')
-      .select('id, provider, url, instructions, enabled, sort_order')
+      .select('id, provider, url, instructions, enabled, sort_order, tg_chat_id')
       .eq('translator_id', translatorId)
       .order('sort_order', { ascending: true });
     setLoading(false);
@@ -72,11 +86,18 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
     }
     setBusy(true);
     const maxSort = methods.reduce((m, r) => Math.max(m, r.sort_order), 0);
+    const tgChat = tgChatId.trim() ? parseTgChatId(tgChatId) : null;
+    if (tgChatId.trim() && tgChat === null) {
+      setBusy(false);
+      push('error', 'TG chat_id должен быть числом (включая знак минус для групп).');
+      return;
+    }
     const { error } = await supabase.from('translator_payment_methods').insert({
       translator_id: translatorId,
       provider,
       url: cleanUrl,
       instructions: instructions.trim() || null,
+      tg_chat_id: tgChat,
       sort_order: maxSort + 1,
     });
     setBusy(false);
@@ -86,7 +107,29 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
     }
     setUrl('');
     setInstructions('');
+    setTgChatId('');
     push('success', 'Метод добавлен.');
+    reload();
+  };
+
+  const saveChatId = async (methodId: number) => {
+    const v = editChatValue.trim();
+    const parsed = v ? parseTgChatId(v) : null;
+    if (v && parsed === null) {
+      push('error', 'TG chat_id должен быть числом.');
+      return;
+    }
+    const { error } = await supabase
+      .from('translator_payment_methods')
+      .update({ tg_chat_id: parsed })
+      .eq('id', methodId);
+    if (error) {
+      push('error', error.message);
+      return;
+    }
+    setEditChatFor(null);
+    setEditChatValue('');
+    push('success', parsed ? 'Сохранено. Автосинк включён.' : 'Автосинк выключён.');
     reload();
   };
 
@@ -175,6 +218,70 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
                   {m.instructions && (
                     <div className="payment-method-instr">{m.instructions}</div>
                   )}
+
+                  {/* Автосинк через TG-чат — только для Boosty */}
+                  {m.provider === 'boosty' && (
+                    <div className="payment-method-autosync">
+                      {editChatFor === m.id ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            className="form-input"
+                            placeholder="-1001234567890"
+                            value={editChatValue}
+                            onChange={(e) => setEditChatValue(e.target.value)}
+                            style={{ maxWidth: 220, padding: '6px 10px', fontSize: 13 }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => saveChatId(m.id)}
+                            style={{ height: 30, fontSize: 12 }}
+                          >
+                            Сохранить
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => {
+                              setEditChatFor(null);
+                              setEditChatValue('');
+                            }}
+                            style={{ height: 30, fontSize: 12 }}
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      ) : m.tg_chat_id ? (
+                        <div className="payment-method-autosync-active">
+                          ⚡ Автосинк включён · chat_id{' '}
+                          <code>{m.tg_chat_id}</code>{' '}
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => {
+                              setEditChatFor(m.id);
+                              setEditChatValue(String(m.tg_chat_id ?? ''));
+                            }}
+                            style={{ height: 24, fontSize: 11, padding: '0 8px' }}
+                          >
+                            ✎
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            setEditChatFor(m.id);
+                            setEditChatValue('');
+                          }}
+                          style={{ height: 28, fontSize: 12 }}
+                        >
+                          ⚡ Включить автосинк через TG-чат
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="payment-method-actions">
                   <button
@@ -256,6 +363,29 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
             placeholder='Например: "оплати тир «Фанат» 299₽ и напиши мне в ЛС"'
           />
         </div>
+
+        {provider === 'boosty' && (
+          <div className="form-field">
+            <label>⚡ Автосинк: ID Telegram-чата подписчиков (необязательно)</label>
+            <input
+              className="form-input"
+              value={tgChatId}
+              onChange={(e) => setTgChatId(e.target.value)}
+              placeholder="-1001234567890"
+            />
+            <div className="form-hint" style={{ lineHeight: 1.5 }}>
+              Если у тебя на Boosty настроен закрытый Telegram-чат для
+              подписчиков — укажи его chat_id и добавь{' '}
+              <strong>@chaptifybot</strong> в этот чат участником.
+              Тогда читатели смогут открывать платные главы в один клик
+              (бот сам проверит, что они в чате — без claim-code).
+              <br />
+              Узнать chat_id: добавь в чат бота{' '}
+              <a href="https://t.me/getidsbot" target="_blank" rel="noreferrer">@getidsbot</a> —
+              он скажет.
+            </div>
+          </div>
+        )}
 
         <button
           type="button"

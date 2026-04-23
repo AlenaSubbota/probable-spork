@@ -12,6 +12,8 @@ export interface PaymentMethod {
   provider: Provider;
   url: string;
   instructions: string | null;
+  /** Если задан (только для Boosty) — доступен автосинк через закрытый TG-чат. */
+  tg_chat_id?: number | null;
 }
 
 const PROVIDER_META: Record<Provider, {
@@ -30,6 +32,8 @@ interface Props {
   translatorId: string;
   translatorName: string;
   method: PaymentMethod;
+  /** У читателя привязан Telegram — доступен автосинк (если method.tg_chat_id есть). */
+  viewerHasTelegram?: boolean;
   existingClaim?: {
     id: number;
     code: string;
@@ -38,6 +42,8 @@ interface Props {
     tier_months: number;
   } | null;
 }
+
+const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || '';
 
 // Карточка одного способа оплаты. Флоу:
 //   1. Клик «Оплатить на <платформе>» — уходит на внешнюю ссылку
@@ -49,6 +55,7 @@ export default function ClaimBlock({
   translatorId,
   translatorName,
   method,
+  viewerHasTelegram = false,
   existingClaim,
 }: Props) {
   const meta = PROVIDER_META[method.provider];
@@ -58,7 +65,52 @@ export default function ClaimBlock({
   const [note, setNote] = useState('');
   const [tierMonths, setTierMonths] = useState(1);
   const [claim, setClaim] = useState(existingClaim ?? null);
+  const [autoBusy, setAutoBusy] = useState(false);
   const { items: toasts, push, dismiss } = useToasts();
+
+  // Автосинк доступен только для Boosty + если настроен tg_chat_id
+  // переводчиком + если у читателя привязан TG.
+  const autoSyncAvailable =
+    method.provider === 'boosty' &&
+    !!method.tg_chat_id &&
+    viewerHasTelegram;
+
+  const handleAutoCheck = async () => {
+    setAutoBusy(true);
+    try {
+      const supabase = (await import('@/utils/supabase/client')).createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setAutoBusy(false);
+        push('error', 'Нет сессии. Перезайди.');
+        return;
+      }
+      const resp = await fetch(`${AUTH_API_URL}/auth/boosty-chat-check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ payment_method_id: method.id }),
+      });
+      const data = (await resp.json()) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+      };
+      setAutoBusy(false);
+
+      if (!resp.ok || !data.ok) {
+        push('error', data.message ?? `Не получилось: ${data.error ?? resp.statusText}`);
+        return;
+      }
+      push('success', '✓ Подписка активна. Обновляю страницу…');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      setAutoBusy(false);
+      push('error', `Ошибка: ${e instanceof Error ? e.message : 'сеть'}`);
+    }
+  };
 
   const handleSubmit = async () => {
     if (externalName.trim().length < 2) {
@@ -196,6 +248,17 @@ export default function ClaimBlock({
           >
             Оплатить на {meta.label} →
           </a>
+          {autoSyncAvailable && (
+            <button
+              type="button"
+              className="btn btn-primary claim-auto-btn"
+              onClick={handleAutoCheck}
+              disabled={autoBusy}
+              title="Мгновенная проверка через закрытый TG-чат подписчиков"
+            >
+              {autoBusy ? 'Проверяю…' : '⚡ Я уже подписан(а) — открыть'}
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-ghost"
