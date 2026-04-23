@@ -1445,6 +1445,33 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 500;
   transition: all .15s;
   flex-shrink: 0;
+  /* Минимум 36 px для тап-таргета на мобиле */
+  min-height: 32px;
+}
+/* На мобиле filter-группы занимают много вертикали — сворачиваем
+   в compact вид (жанров ≥20, все одной строкой неудобно). Скроллим
+   горизонтально → читатель видит важное без 10-рядного «ковра». */
+@media (max-width: 760px) {
+  .catalog-sidebar {
+    margin-bottom: 12px;
+    padding-bottom: 4px;
+  }
+  .filter-group {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+  }
+  .filter-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 6px;
+    margin: 0 -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .filter-pills::-webkit-scrollbar { display: none; }
+  .filter-pill { min-height: 36px; }
 }
 .filter-pill:hover {
   background: var(--accent-wash);
@@ -1784,6 +1811,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: flex;
   flex-direction: column;
   animation: slideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  /* iOS: учитываем safe-area-right (landscape с notch справа) */
+  padding-right: env(safe-area-inset-right, 0);
+}
+/* На мобиле drawer во весь экран справа + safe-area-bottom, чтобы
+   нижние пункты настроек (тема / таймер / сохранение) не прятались
+   за home indicator. */
+@media (max-width: 540px) {
+  .reader-settings-panel { width: 100%; }
+  .reader-settings-body {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0));
+  }
+  .reader-settings-head { padding: 16px 18px; }
+  .reader-settings-head h3 { font-size: 16px; }
 }
 @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
@@ -1811,6 +1851,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .icon-btn:hover {
   background: var(--accent-wash);
   color: var(--ink);
+}
+/* На мобиле 32 px слишком мало для пальца (Apple HIG минимум 44). */
+@media (max-width: 540px) {
+  .icon-btn { width: 44px; height: 44px; font-size: 16px; }
 }
 
 .reader-settings-body {
@@ -5663,6 +5707,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   align-self: flex-start;
   color: var(--ink);
 }
+/* На узком экране 70% = слишком мало для длинного слова, получается
+   каскад узких полосок по 2 слова. Расширяем до 85%. */
+@media (max-width: 540px) {
+  .message-bubble { max-width: 85%; padding: 10px 12px; }
+}
 .message-bubble--me {
   align-self: flex-end;
   background: var(--accent-wash);
@@ -5816,6 +5865,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: grid;
   grid-template-columns: 40px 1fr;
   gap: 12px;
+  /* min-width: 0 — иначе длинный URL / спойлерный текст внутри
+     комментария распирает правую колонку и весь layout кривится. */
+  min-width: 0;
+}
+.comment-item > * { min-width: 0; }
+/* На очень узких (320 px — старый iPhone SE) жмём avatar до 32 px
+   и gap. На обычном мобиле 40 px остаётся. */
+@media (max-width: 360px) {
+  .comment-item { grid-template-columns: 32px 1fr; gap: 8px; }
+  .comment-avatar { width: 32px; height: 32px; font-size: 13px; }
 }
 .comment-item--reply {
   margin-top: 12px;
@@ -10286,6 +10345,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
+}
+/* На мобиле 80 px обложка + 1fr тело + auto для кнопок (140 px min)
+   не помещаются. Переставляем в 2 строки: [cover | body] сверху,
+   actions растягивается во всю ширину снизу. */
+@media (max-width: 540px) {
+  .moderation-card {
+    grid-template-columns: 72px 1fr;
+    gap: 10px;
+    padding: 12px;
+  }
+  .moderation-card-actions {
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+    flex-wrap: wrap;
+  }
 }
 .moderation-card-cover {
   aspect-ratio: 3/4;
