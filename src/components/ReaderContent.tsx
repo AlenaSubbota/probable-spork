@@ -449,6 +449,10 @@ export default function ReaderContent({
       setPageWidth(0);
       setCurrentPage(0);
       setTotalPages(1);
+      // И снимаем inline column-width — иначе multi-column остаётся
+      // и в scroll-режиме текст ломается.
+      const c = contentRef.current;
+      if (c) c.style.columnWidth = '';
       return;
     }
     const container = contentRef.current;
@@ -457,15 +461,20 @@ export default function ReaderContent({
     const calc = () => {
       const w = container.clientWidth;
       if (!w) return;
-      // Учитываем column-gap: каждая колонка + gap = шаг snap.
-      // Но в нашем CSS gap 40 px, column-width = clientWidth,
-      // итого фактический шаг ≈ clientWidth + gap. Для scroll-snap
-      // это не важно (snap сам подгонит), но для currentPage точнее
-      // считать по clientWidth (каждая колонка занимает w, gap —
-      // перемычка).
+      // КРИТИЧНО: задаём column-width в пикселях через inline style.
+      // CSS-значение 100% не работает в multi-column layout — браузер
+      // не создаёт несколько колонок, просто одну во всю ширину.
+      // pixel-value гарантирует, что каждая «страница» ровно clientWidth,
+      // scroll-snap попадает точно, scrollWidth даёт корректное
+      // кол-во страниц.
+      container.style.columnWidth = `${w}px`;
       setPageWidth(w);
-      const total = Math.max(1, Math.ceil(container.scrollWidth / w));
-      setTotalPages(total);
+      // Даём браузеру один тик чтобы пересчитать scrollWidth после
+      // изменения column-width.
+      requestAnimationFrame(() => {
+        const total = Math.max(1, Math.round(container.scrollWidth / w));
+        setTotalPages(total);
+      });
     };
 
     // После загрузки шрифтов layout может поменяться (Manrope/Lora

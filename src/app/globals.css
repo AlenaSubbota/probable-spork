@@ -10058,11 +10058,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* В режиме 'pages' содержимое главы превращается в multi-column layout
    с колонкой на ширину контейнера. Горизонтальный скролл + scroll-snap
-   даёт эффект «листания страниц» как в читалках книг. */
+   даёт эффект «листания страниц» как в читалках книг.
+
+   КРИТИЧНО: column-width здесь НЕ задаём в CSS (процент не гарантирует
+   multi-column flow в браузерах). Pixel-value проставляется из JS в
+   inline style после измерения clientWidth контейнера. В CSS даём
+   только базовые свойства flow. */
 .reader-wrapper[data-read-mode='pages'] .novel-content {
-  /* Фиксируем колонку в полный width контейнера (padding уже учтён
-     .reader-main), браузер создаст N колонок на N страниц. */
-  column-width: 100%;
   column-gap: 0;
   column-fill: auto;
   /* 100dvh честнее 100vh на iOS (учитывает схлопывающуюся адресную
@@ -10074,7 +10076,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   padding: 8px 0 16px;
-  /* Курсор-палец на десктопе: smart-tap по краям листает страницы */
   cursor: default;
   /* Прячем скроллбар — навигация через snap/кнопки/свайп */
   scrollbar-width: none;
@@ -10083,9 +10084,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: none;
 }
 .reader-wrapper[data-read-mode='pages'] .novel-content > * {
-  /* Параграф / заголовок не должен ломаться между колонок —
-     иначе одно слово на одной странице, остальное на другой. */
+  /* Параграф / заголовок не должен ломаться между колонок */
   break-inside: avoid;
+  /* Снап работает надёжнее с scroll-snap-align на колонках — но в
+     multi-column их не получить. Вместо этого mandatory-снап на
+     контейнере + точный column-width = clientWidth гарантируют, что
+     scrollLeft всегда кратен pageWidth. */
 }
 /* В режиме страниц нижняя навигация (prev/next chapter) сдвигается
    ниже: индикатор страницы занимает место */
