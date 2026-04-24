@@ -290,7 +290,15 @@ export default async function ChapterPage({ params }: PageProps) {
       .from('chapter_content')
       .download(chapter.content_path);
     if (storageError || !fileData) {
-      return `<p style="color:var(--rose)">Не удалось загрузить текст: ${storageError?.message ?? 'неизвестная ошибка'}.</p>`;
+      // Object not found = в БД глава есть, но файла в bucket нет (не загружен
+      // или удалён). Сырое сообщение «Object not found» бесполезно для читателя,
+      // подменяем на человеческое.
+      const raw = storageError?.message ?? '';
+      const isMissing = /not\s*found|404|object/i.test(raw);
+      const human = isMissing
+        ? 'Переводчик ещё не загрузил текст этой главы — попробуй позже или напиши ему/ей в личку через профиль.'
+        : `Не удалось загрузить текст: ${raw || 'неизвестная ошибка'}.`;
+      return `<p style="color:var(--rose)">${human}</p>`;
     }
     return await fileData.text();
   };
