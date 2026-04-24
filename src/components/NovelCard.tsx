@@ -96,16 +96,24 @@ export default function NovelCard({
           <span className="rating-chip">
             <span className="star">★</span>{rating}
           </span>
-          {flagText && (
-            <span className={`flag ${flagClass || ''}`}>{flagText}</span>
-          )}
           {ageRating && ageRating === '18+' && (
             <span className="age-badge-card" title="Контент 18+">18+</span>
           )}
-          {chapterCount != null && chapterCount > 0 && (
-            <span className="reading-time-badge" title={`${chapterCount} глав`}>
-              {formatReadingTime(chapterCount)}
-            </span>
+
+          {/* Нижняя полоска с двумя значками: FIN/free слева,
+             время чтения справа. Обёрнуто в flex, чтобы на узких
+             карточках бейджи не наезжали друг на друга. */}
+          {(flagText || (chapterCount != null && chapterCount > 0)) && (
+            <div className="novel-cover-footer">
+              {flagText ? (
+                <span className={`flag ${flagClass || ''}`}>{flagText}</span>
+              ) : <span aria-hidden="true" />}
+              {chapterCount != null && chapterCount > 0 && (
+                <span className="reading-time-badge" title={`${chapterCount} глав`}>
+                  {formatReadingTime(chapterCount)}
+                </span>
+              )}
+            </div>
           )}
 
           {/* Hover-тултип с описанием, жанрами */}

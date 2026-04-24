@@ -326,6 +326,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Нужно для мобилы: когда .search-box с margin-left:auto скрыт
+     (≤760px), без этого auto-margin'а header-actions прилипают к
+     логотипу слева. На десктопе search-box впитывает auto-margin
+     раньше и этот margin тут по факту не срабатывает. */
+  margin-left: auto;
 }
 /* На мобиле ссылки «Войти» / «Регистрация» (у гостя) прячем — они
    уже есть в drawer'е. У залогиненного юзера header-profile-btn с
@@ -1016,9 +1021,23 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   place-items: center;
   backdrop-filter: blur(4px);
 }
-.novel-cover .flag {
+/* Нижняя полоска на обложке: flex-контейнер, чтобы flag (слева)
+   и reading-time-badge (справа) не накладывались на узких
+   карточках. Оба значка теперь дети .novel-cover-footer. */
+.novel-cover .novel-cover-footer {
   position: absolute;
-  bottom: 8px; left: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  pointer-events: none;
+}
+.novel-cover .novel-cover-footer > * { pointer-events: auto; }
+
+.novel-cover .flag {
   background: var(--accent);
   color: var(--surface-2);
   padding: 3px 7px;
@@ -1027,6 +1046,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .05em;
+  white-space: nowrap;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .novel-cover .flag.free { background: var(--leaf); }
 .novel-cover .flag.done { background: var(--ink-soft); }
@@ -1740,9 +1763,6 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* ---------- reading-time badge (on novel card) ---------- */
 
 .reading-time-badge {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
   background: rgba(20, 14, 8, .55);
   backdrop-filter: blur(4px);
   color: #fff;
@@ -1751,6 +1771,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: .02em;
+  white-space: nowrap;
+}
+/* Бэкап для мест, где бейдж ещё рендерится без footer-обёртки
+   (если вдруг где-то остался старый разметочный порядок). */
+.novel-cover > .reading-time-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
 }
 
 /* ---------- forgotten novels ---------- */
@@ -2270,10 +2298,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .reader-main {
   max-width: 760px;
   margin: 0 auto;
-  padding: 36px 22px 120px;
+  /* Меньше воздуха по вертикали, чуть больше по горизонтали —
+     текст на мобиле не должен липнуть к краям экрана. */
+  padding: 8px 28px 40px;
 }
 @media (max-width: 540px) {
-  .reader-main { padding: 20px 14px 80px; }
+  .reader-main { padding: 6px 20px 28px; }
   .reader-title { font-size: 22px; margin-bottom: 24px; }
   .reader-nav { margin-top: 32px; }
 }
@@ -2307,6 +2337,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   justify-content: flex-end;
   margin-bottom: 20px;
   opacity: 0.8;
+  transition: opacity 160ms, transform 160ms;
 }
 .reader-toolbar .chip {
   font-size: 12px;
@@ -2316,6 +2347,27 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--accent);
   color: var(--surface-2);
   border-color: var(--accent);
+}
+
+/* Immersive чтение: центр-тап скрывает toolbar и sticky-header,
+   текст остаётся наедине с читателем. Панель настроек всё равно
+   вылезает поверх поверх (fixed+backdrop), а шапка возвращается
+   следующим центр-тапом. :has() работает во всех evergreen
+   движках (2023+). */
+.reader-wrapper.ui-hidden .reader-toolbar {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.reader-page:has(.reader-wrapper.ui-hidden) .reader-header {
+  transform: translateY(-100%);
+  transition: transform 180ms;
+}
+.reader-header {
+  transition: transform 180ms;
 }
 
 .novel-content {
@@ -2845,6 +2897,31 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  min-width: 0; /* чтобы длинные названия не выталкивали actions */
+}
+.admin-novel-body { min-width: 0; }
+.admin-novel-body > .admin-novel-title { display: block; min-width: 0; word-break: break-word; }
+
+/* На узких экранах 3-колонный grid разваливается — actions лезут
+   под обложку. Перекладываем на 2 строки: [cover | body] сверху,
+   actions — полная ширина снизу. */
+@media (max-width: 640px) {
+  .admin-novel-row {
+    grid-template-columns: 56px 1fr;
+    grid-template-areas:
+      "cover body"
+      "actions actions";
+    gap: 12px 14px;
+    padding: 12px 14px;
+  }
+  .admin-novel-cover { grid-area: cover; width: 56px; height: 76px; }
+  .admin-novel-body { grid-area: body; }
+  .admin-novel-actions {
+    grid-area: actions;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .admin-novel-actions .btn { flex: 1 1 auto; min-width: 0; }
 }
 .admin-novel-cover {
   width: 64px;
@@ -2873,6 +2950,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 12.5px;
   color: var(--ink-mute);
   margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
 }
 .admin-novel-actions {
   display: flex;
@@ -6650,29 +6731,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .comments-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
+
+/* Контейнер одного комментария: слева — «колодец» с аватаркой
+   и thread-line, справа — «карточка» с текстом. Вертикальная
+   линия в колодце соединяет цепочку ответов визуально, как в
+   современных мессенджерах (Linear/Discord). */
 .comment-item {
   display: grid;
-  grid-template-columns: 40px 1fr;
+  grid-template-columns: var(--c-avatar, 40px) 1fr;
   gap: 12px;
-  /* min-width: 0 — иначе длинный URL / спойлерный текст внутри
-     комментария распирает правую колонку и весь layout кривится. */
   min-width: 0;
+  position: relative;
 }
 .comment-item > * { min-width: 0; }
-/* На очень узких (320 px — старый iPhone SE) жмём avatar до 32 px
-   и gap. На обычном мобиле 40 px остаётся. */
-@media (max-width: 360px) {
-  .comment-item { grid-template-columns: 32px 1fr; gap: 8px; }
-  .comment-avatar { width: 32px; height: 32px; font-size: 13px; }
-}
-.comment-item--reply {
-  margin-top: 12px;
-}
+
 .comment-avatar {
-  width: 40px;
-  height: 40px;
+  width: var(--c-avatar, 40px);
+  height: var(--c-avatar, 40px);
   border-radius: 50%;
   overflow: hidden;
   background: linear-gradient(135deg, var(--accent), var(--rose));
@@ -6682,18 +6759,47 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-family: var(--font-serif);
   font-weight: 700;
   font-size: 15px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 .comment-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.comment-body { min-width: 0; }
+
+/* Карточка комментария — мягкий фон + тонкая граница. Отличает
+   комментарий от окружения без тяжёлых блоков. */
+.comment-body {
+  min-width: 0;
+  padding: 10px 14px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  /* Хвостик-указатель к аватару — классический комикс-бабл,
+     но очень субтильный. */
+  position: relative;
+}
+.comment-body::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(45deg);
+  border-radius: 0 0 0 2px;
+}
+
 .comment-head {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
 }
 .comment-author {
   font-weight: 600;
@@ -6720,36 +6826,45 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .comment-actions {
   display: flex;
-  gap: 14px;
+  gap: 4px;
   align-items: center;
-  margin-top: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
-.comment-like {
-  background: transparent;
-  color: var(--ink-mute);
-  font-size: 12.5px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: all .12s;
-  cursor: pointer;
-}
-.comment-like:hover { color: var(--rose); background: var(--accent-wash); }
-.comment-like.liked { color: var(--rose); font-weight: 600; }
-.comment-like:disabled { opacity: 0.5; cursor: default; }
+.comment-like,
 .comment-reply-btn {
   background: transparent;
-  color: var(--accent);
   font-size: 12.5px;
-  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  transition: background 120ms, color 120ms;
   cursor: pointer;
+  line-height: 1;
 }
-.comment-reply-btn:hover { text-decoration: underline; }
+.comment-like {
+  color: var(--ink-mute);
+}
+.comment-like:hover { color: var(--rose); background: var(--bg-soft); }
+.comment-like.liked { color: var(--rose); font-weight: 600; }
+.comment-like:disabled { opacity: 0.5; cursor: default; background: transparent; }
+.comment-reply-btn {
+  color: var(--accent);
+  font-weight: 500;
+}
+.comment-reply-btn:hover { background: var(--bg-soft); text-decoration: none; }
+.comment-reply-btn.comment-action-danger { color: var(--rose); }
+.comment-reply-btn.comment-action-danger:hover {
+  background: color-mix(in srgb, var(--rose) 14%, transparent);
+}
 
 .comment-reply-form {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border-radius: 10px;
 }
 .comment-reply-form textarea {
   min-height: 60px;
@@ -6761,10 +6876,70 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 13px;
 }
 
+/* --- Тред: ответы с отступом и thread-line --- */
 .comment-replies {
-  margin-top: 12px;
-  padding-left: 14px;
-  border-left: 2px solid var(--border);
+  margin-top: 14px;
+  /* Padding-left держит thread-line на месте (20px) и оставляет
+     место для карточки ответа без упирания в границу. */
+  padding-left: 20px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Вертикальная линия ветки — идёт от верхнего края первого
+   ответа до низа контейнера. Цвет — акцент очень мягкий. */
+.comment-replies::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--border);
+}
+
+/* Ответы мельче: чуть меньший аватар, чуть менее насыщенный
+   фон карточки, чтобы реплики визуально отставали от original. */
+.comment-item[data-depth='1'] { --c-avatar: 34px; }
+.comment-item[data-depth='2'] { --c-avatar: 30px; }
+.comment-item[data-depth='3'] { --c-avatar: 28px; }
+.comment-item[data-depth='1'] .comment-avatar,
+.comment-item[data-depth='2'] .comment-avatar,
+.comment-item[data-depth='3'] .comment-avatar {
+  font-size: 13px;
+}
+.comment-item[data-depth='1'] .comment-body,
+.comment-item[data-depth='2'] .comment-body,
+.comment-item[data-depth='3'] .comment-body {
+  padding: 8px 12px 10px;
+}
+.comment-item[data-depth='2'] .comment-body,
+.comment-item[data-depth='3'] .comment-body {
+  background: var(--bg-soft);
+}
+
+/* Удалённый комментарий — прозрачнее, без хвостика */
+.comment-item--deleted .comment-body {
+  opacity: 0.6;
+  font-style: italic;
+}
+.comment-text--deleted { color: var(--ink-mute); }
+
+@media (max-width: 500px) {
+  .comment-item { gap: 10px; }
+  .comment-replies { padding-left: 14px; }
+  .comment-replies::before { left: 6px; }
+  .comment-body { padding: 9px 12px 10px; }
+  .comment-body::before { top: 12px; left: -5px; width: 8px; height: 8px; }
+}
+@media (max-width: 360px) {
+  .comment-item { --c-avatar: 32px; }
+  .comment-item[data-depth='1'],
+  .comment-item[data-depth='2'],
+  .comment-item[data-depth='3'] { --c-avatar: 26px; }
+  .comment-avatar { font-size: 13px; }
 }
 
 .comment-spoiler {
@@ -7876,10 +8051,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   top: calc(100% + 8px);
   right: 0;
   min-width: 240px;
-  background: var(--paper, #fff);
-  border: 1px solid var(--border, #e6e0d4);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   padding: 6px;
   z-index: 40;
   display: flex;
@@ -7892,7 +8067,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   gap: 10px;
   padding: 9px 12px;
   border-radius: 7px;
-  color: var(--ink, #2a2a2a);
+  color: var(--ink);
   font-size: 14px;
   text-decoration: none;
   background: transparent;
@@ -7918,14 +8093,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .user-menu-item:hover,
 .user-menu-item:focus-visible {
-  background: var(--paper-warm, #f5f0e6);
+  background: var(--bg-soft, var(--bg));
   outline: none;
 }
 .user-menu-item--danger {
-  color: #b33a3a;
+  color: var(--danger, #b33a3a);
 }
 .user-menu-item--danger:hover {
-  background: #fbeaea;
+  background: color-mix(in srgb, var(--danger, #b33a3a) 14%, transparent);
 }
 .user-menu-sep {
   height: 1px;

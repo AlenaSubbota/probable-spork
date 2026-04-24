@@ -486,15 +486,25 @@ export default function ReaderContent({
     const ro = new ResizeObserver(() => calc());
     ro.observe(container);
 
+    // Smooth-scroll фризит палец на 300–500мс потому что onScroll
+    // стрельнёт 30+ раз и каждый раз setCurrentPage дёргает ре-рендер
+    // всего reader-wrapper. Заворачиваем в rAF — одно обновление на кадр.
+    let rafId: number | null = null;
     const onScroll = () => {
-      const w = container.clientWidth || 1;
-      setCurrentPage(Math.round(container.scrollLeft / w));
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const w = container.clientWidth || 1;
+        const next = Math.round(container.scrollLeft / w);
+        setCurrentPage((prev) => (prev === next ? prev : next));
+      });
     };
     container.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
       ro.disconnect();
       container.removeEventListener('scroll', onScroll);
+      if (rafId != null) cancelAnimationFrame(rafId);
     };
   }, [
     ready,
@@ -543,6 +553,7 @@ export default function ReaderContent({
   // ---- 6.7. Smart tap/click navigation в pages-режиме ----
   // Тап по левой трети экрана = prev page, правой трети = next.
   // Центр игнорируем — это зона для выделений и глоссария.
+  const flipBusyRef = useRef(false);
   const onContentClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (settings.readMode !== 'pages') return;
@@ -562,10 +573,17 @@ export default function ReaderContent({
       if (!w) return;
       const rect = container.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      if (x < w * 0.33) {
-        container.scrollBy({ left: -w, behavior: 'smooth' });
-      } else if (x > w * 0.67) {
-        container.scrollBy({ left: w, behavior: 'smooth' });
+      const isEdgeTap = x < w * 0.33 || x > w * 0.67;
+      if (isEdgeTap) {
+        // Гасим повторные тапы пока идёт smooth-scroll — без этого
+        // двойной тап ставит два scrollBy в очередь и читателю
+        // кажется что страница «перескочила» на две. Flag снимает
+        // rAF после scrollend-кадра.
+        if (flipBusyRef.current) return;
+        flipBusyRef.current = true;
+        const delta = x < w * 0.33 ? -w : w;
+        container.scrollBy({ left: delta, behavior: 'smooth' });
+        setTimeout(() => { flipBusyRef.current = false; }, 320);
       } else {
         // Центр: тоггл toolbar/индикатора — immersive чтение.
         setUiHidden((v) => !v);

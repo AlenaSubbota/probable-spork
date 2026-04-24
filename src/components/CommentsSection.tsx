@@ -249,12 +249,16 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
     const canDelete = isAdmin && !deleted;
     const isEditingThis = editingId === c.id;
 
+    // Визуальную глубину кэпим на 3 уровнях — дальше ветка плоская,
+    // чтобы на мобиле treading не съедал ширину текста.
+    const visualDepth = Math.min(depth, 3);
     return (
       <div
         key={c.id}
+        data-depth={visualDepth}
         className={`comment-item${depth > 0 ? ' comment-item--reply' : ''}${deleted ? ' comment-item--deleted' : ''}`}
       >
-        <div className="comment-avatar">
+        <div className="comment-avatar" aria-hidden="true">
           {avatar ? <img src={avatar} alt="" /> : <span>{initial}</span>}
         </div>
         <div className="comment-body">
