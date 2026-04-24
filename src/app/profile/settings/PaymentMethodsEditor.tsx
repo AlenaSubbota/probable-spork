@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
 import BoostyAutoConnect from './BoostyAutoConnect';
+import TributeAutoConnect from './TributeAutoConnect';
 
 const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || '';
 
@@ -383,6 +384,20 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
           }}
         >
           <BoostyAutoConnect />
+        </div>
+      )}
+
+      {methods.some((m) => m.provider === 'tribute') && (
+        <div
+          style={{
+            marginTop: 18,
+            padding: 14,
+            borderRadius: 8,
+            background: 'var(--surface-alt, #faf7f0)',
+            border: '1px solid var(--border, rgba(0,0,0,0.08))',
+          }}
+        >
+          <TributeAutoConnect />
         </div>
       )}
 
