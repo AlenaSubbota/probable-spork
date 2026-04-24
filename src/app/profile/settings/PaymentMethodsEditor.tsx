@@ -289,27 +289,32 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
                     className="btn btn-ghost"
                     onClick={() => handleMove(m.id, -1)}
                     disabled={idx === 0}
-                    aria-label="Выше"
+                    aria-label="Переместить выше"
+                    title="Выше"
                   >↑</button>
                   <button
                     type="button"
                     className="btn btn-ghost"
                     onClick={() => handleMove(m.id, 1)}
                     disabled={idx === methods.length - 1}
-                    aria-label="Ниже"
+                    aria-label="Переместить ниже"
+                    title="Ниже"
                   >↓</button>
+                  <span className="payment-method-actions-sep" aria-hidden="true" />
                   <button
                     type="button"
                     className="btn btn-ghost"
                     onClick={() => handleToggle(m)}
+                    aria-label={m.enabled ? 'Выключить метод' : 'Включить метод'}
                     title={m.enabled ? 'Выключить' : 'Включить'}
                   >
-                    {m.enabled ? '⊘' : '✓'}
+                    {m.enabled ? '◐' : '●'}
                   </button>
                   <button
                     type="button"
                     className="btn btn-ghost"
                     onClick={() => handleRemove(m.id)}
+                    aria-label="Удалить метод"
                     title="Удалить"
                   >🗑</button>
                 </div>

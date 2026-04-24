@@ -11453,71 +11453,141 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .payment-methods-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 18px;
 }
+/* Карточка платёжного метода: крупная иконка-кружок слева, контент
+   по центру, действия в столбец справа. На мобиле — стек (иконка+
+   заголовок в ряд, действия прижаты под телом) */
 .payment-method-row {
   display: grid;
-  grid-template-columns: 40px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 14px;
-  background: var(--paper-warm, #faf6ee);
+  grid-template-columns: 44px 1fr auto;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: var(--surface, #fff);
   border: 1px solid var(--border, #e6e0d4);
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(88,63,40,0.06));
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.payment-method-row:hover {
+  border-color: var(--border-strong, #cbbba1);
 }
 .payment-method-row.is-disabled {
-  opacity: 0.5;
+  opacity: 0.55;
+  background: var(--bg-soft, #efe7da);
 }
 .payment-method-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 22px;
-  text-align: center;
+  line-height: 1;
+  background: var(--bg-soft, #efe7da);
+  border-radius: 10px;
+  flex-shrink: 0;
 }
-.payment-method-body { min-width: 0; }
+.payment-method-body { min-width: 0; padding-top: 2px; }
 .payment-method-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   display: flex;
   gap: 8px;
   align-items: center;
+  color: var(--ink, #2b2017);
 }
 .payment-method-badge {
   font-size: 10px;
   color: var(--ink-mute);
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
-  background: var(--paper-warm, #f5f0e6);
+  background: var(--bg-soft, #efe7da);
   border: 1px solid var(--border, #e6e0d4);
   text-transform: lowercase;
+  letter-spacing: 0.02em;
 }
 .payment-method-url {
-  font-size: 12px;
-  margin-top: 2px;
-  word-break: break-all;
-}
-.payment-method-url a { color: var(--accent); }
-.payment-method-instr {
-  font-size: 12px;
-  color: var(--ink-mute);
+  font-size: 13px;
   margin-top: 4px;
+  word-break: break-all;
+  color: var(--ink-soft, #5a4a3b);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.payment-method-url::before {
+  content: '🔗';
+  font-size: 11px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.payment-method-url a { color: var(--accent); text-decoration: none; }
+.payment-method-url a:hover { text-decoration: underline; }
+.payment-method-instr {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin-top: 6px;
   font-style: italic;
+  padding: 6px 10px;
+  background: var(--bg-soft, #efe7da);
+  border-radius: 6px;
 }
 .payment-method-actions {
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  gap: 6px;
   flex-shrink: 0;
+  align-items: stretch;
+  min-width: 36px;
 }
 .payment-method-actions .btn {
-  min-width: 32px;
-  height: 30px;
+  min-width: 36px;
+  height: 32px;
   padding: 0 8px;
+  font-size: 13px;
+}
+/* Группируем move-up/down и отделяем от toggle/delete тонкой линией */
+.payment-method-actions .payment-method-actions-sep {
+  height: 1px;
+  background: var(--border, #e6e0d4);
+  margin: 2px 4px;
 }
 .payment-methods-add {
-  padding: 14px 16px;
-  background: var(--paper, #fff);
-  border: 1px dashed var(--border, #e6e0d4);
-  border-radius: 10px;
-  margin-top: 14px;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, var(--bg-soft, #efe7da), var(--surface, #fff));
+  border: 1px dashed var(--border-strong, #cbbba1);
+  border-radius: 12px;
+  margin-top: 16px;
+}
+.payment-methods-add h3 { margin-top: 0; }
+
+/* Мобильный breakpoint — иконка + тело в ряд, действия в ряд снизу */
+@media (max-width: 540px) {
+  .payment-method-row {
+    grid-template-columns: 44px 1fr;
+    grid-template-areas:
+      'icon body'
+      'actions actions';
+    gap: 10px;
+  }
+  .payment-method-icon    { grid-area: icon; }
+  .payment-method-body    { grid-area: body; }
+  .payment-method-actions {
+    grid-area: actions;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border, #e6e0d4);
+  }
+  .payment-method-actions .payment-method-actions-sep {
+    width: 1px;
+    height: auto;
+    margin: 2px 6px;
+  }
 }
 
 /* ---------- Claim blocks (многопровайдерные) ---------- */
