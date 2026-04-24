@@ -56,8 +56,6 @@ export default function ReaderContent({
   const [tocOpen, setTocOpen] = useState(false);
 
   // Таймер сна.
-  // selectedPreset — изначально выбранный пресет (для подсветки в UI), не тикает.
-  // sleepMinLeft — оставшиеся минуты (тикают от пресета до 0). 0 = истёк.
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [sleepMinLeft, setSleepMinLeft] = useState<number | null>(null);
   const [sleepExpired, setSleepExpired] = useState(false);
@@ -66,27 +64,14 @@ export default function ReaderContent({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const saveTimerRef = useRef<number | null>(null);
 
-  // Pages mode state — честный подсчёт страниц через scrollWidth /
-  // clientWidth контейнера с CSS-колонками. Пересчитывается при
-  // изменении шрифта / line-height / размера экрана / загрузки
-  // шрифтов. Активно только при settings.readMode === 'pages'.
   const [pageWidth, setPageWidth] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Счётчик комментариев к этой главе (для кнопки в toolbar).
-  // Дешёвый count-запрос без тяги данных; обновляется при mount.
   const [commentCount, setCommentCount] = useState<number | null>(null);
-
-  // Скрытие toolbar по тапу в центр (immersive mode). Активно только
-  // в pages-режиме — в scroll-режиме toolbar и так не мешает сверху.
   const [uiHidden, setUiHidden] = useState(false);
 
   // ---- 1. Загрузка настроек ----
-  // Сначала локально (мгновенно, без сетевого ожидания), затем
-  // подтягиваем серверные — если они есть, накатываем поверх. Это даёт
-  // кросс-девайс синк: меняешь шрифт на телефоне → открываешь на ноуте
-  // → видишь свои настройки.
   useEffect(() => {
     setSettings(loadSettings());
     setReady(true);
@@ -105,8 +90,6 @@ export default function ReaderContent({
   }, []);
 
   // ---- 2. Автосохранение настроек ----
-  // Локально — синхронно, на сервер — debounce 600мс (чтобы крутилка
-  // шрифта не дёргала RPC на каждый клик).
   const settingsPushTimer = useRef<number | null>(null);
   const updateSettings = useCallback((next: ReaderSettings) => {
     setSettings(next);
@@ -121,6 +104,8 @@ export default function ReaderContent({
   }, []);
 
   // ---- 3. Горячие клавиши (A+/A-/F = focus) ----
+  // F работает только в scroll-режиме — фокус-режим отключён в pages
+  // (см. toolbar ниже).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -135,14 +120,16 @@ export default function ReaderContent({
           fontSize: Math.max(13, settings.fontSize - 1),
         });
       } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
-        updateSettings({ ...settings, focusMode: !settings.focusMode });
+        if (settings.readMode !== 'pages') {
+          updateSettings({ ...settings, focusMode: !settings.focusMode });
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [settings, updateSettings]);
 
-  // ---- 4. Сохранение прогресса чтения (через RPC update_my_profile) ----
+  // ---- 4. Сохранение прогресса чтения ----
   const saveProgress = useCallback(
     async (paragraphIndex: number) => {
       try {
@@ -160,7 +147,6 @@ export default function ReaderContent({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Читаем текущий last_read, мержим, обновляем через RPC (RLS на profiles запрещает UPDATE напрямую)
       const { data: profile } = await supabase
         .from('profiles')
         .select('last_read')
@@ -184,19 +170,16 @@ export default function ReaderContent({
         },
       };
 
-      // SECURITY DEFINER RPC из tene-схемы
       await supabase.rpc('update_my_profile', {
         data_to_update: { last_read: updated },
       });
 
-      // Логируем день активности (для стрика). Не блокируем.
       supabase.rpc('log_reading_day').then(() => {}, () => {});
     },
     [novelId, chapterNumber]
   );
 
-  // ---- 4.5. Inline-глоссарий: оборачиваем совпадения в спаны, по клику
-  //           показываем поповер с переводом + категорией ----
+  // ---- 4.5. Inline-глоссарий ----
   const [glossaryPopover, setGlossaryPopover] = useState<null | {
     x: number;
     y: number;
@@ -208,19 +191,15 @@ export default function ReaderContent({
     const container = contentRef.current;
     if (!container || glossary.length === 0) return;
 
-    // Сортируем по убыванию длины — чтобы более длинные термины
-    // (вроде «Великий Клан Цао») ловились раньше подстрок («Цао»).
     const sortedTerms = [...glossary].sort(
       (a, b) => b.term_original.length - a.term_original.length
     );
     const lookup = new Map<string, GlossaryItem>();
     for (const g of sortedTerms) lookup.set(g.term_original.toLowerCase(), g);
 
-    // Строим регулярку: экранируем спец-символы, группируем через | с границами слов.
     const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const pattern = sortedTerms.map((g) => escape(g.term_original)).join('|');
     if (!pattern) return;
-    // \b не работает для кириллицы → используем lookahead/lookbehind по не-буквам.
     const re = new RegExp(
       `(?<![\\p{L}\\p{N}])(${pattern})(?![\\p{L}\\p{N}])`,
       'giu'
@@ -231,7 +210,6 @@ export default function ReaderContent({
       acceptNode(node) {
         const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
-        // Не трогаем код, скрипты, уже обёрнутые термины и заголовки
         if (parent.closest('code, pre, script, style, .glossary-term'))
           return NodeFilter.FILTER_REJECT;
         if (!node.nodeValue || !node.nodeValue.trim())
@@ -300,7 +278,6 @@ export default function ReaderContent({
       span.addEventListener('click', onSpanClick);
     }
 
-    // Клик вне термина закрывает поповер
     const onDocClick = () => setGlossaryPopover(null);
     document.addEventListener('click', onDocClick);
     const onEsc = (e: KeyboardEvent) => {
@@ -316,15 +293,6 @@ export default function ReaderContent({
   }, [ready, content, glossary]);
 
   // ---- 5. Отслеживание активного абзаца + сохранение прогресса ----
-  // Логика mode-aware:
-  //  - scroll-режим: слушаем window.scroll; best = абзац ближайший к
-  //    середине viewport (по vertical middle).
-  //  - pages-режим: слушаем container.scroll; best = первый абзац,
-  //    который попадает в текущую видимую колонку (offsetLeft в пределах
-  //    [scrollLeft, scrollLeft + clientWidth]).
-  //
-  // В обоих случаях после 1.5 секунд без скролла дебаунсом сохраняем
-  // paragraphIndex — эта метрика стабильна при смене шрифта / режима.
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -353,10 +321,6 @@ export default function ReaderContent({
     };
 
     const findBestPaged = (): number => {
-      // В multi-column layout offsetLeft абзаца — его позиция в
-      // абсолютном flow, которое браузер режет на колонки. Ищем
-      // первый элемент, у которого offsetLeft >= scrollLeft (т.е.
-      // первая колонка в текущем viewport'е).
       const scrollLeft = container.scrollLeft;
       const pageW = container.clientWidth || 1;
       let bestIdx = 0;
@@ -364,9 +328,8 @@ export default function ReaderContent({
         const el = paragraphs[i];
         if (el.offsetLeft + el.offsetWidth >= scrollLeft + 1) {
           bestIdx = i;
-          if (el.offsetLeft >= scrollLeft) break; // первый полностью видимый
+          if (el.offsetLeft >= scrollLeft) break;
         }
-        // Если абзац целиком позади — пропускаем.
         if (el.offsetLeft > scrollLeft + pageW) break;
       }
       return bestIdx;
@@ -407,17 +370,6 @@ export default function ReaderContent({
   }, [ready, content, saveProgress, settings.focusMode, settings.readMode]);
 
   // ---- 6. Восстановление позиции при заходе в главу ----
-  //
-  // Приоритет:
-  //  1. `?end=1` в URL — читатель пришёл сюда с «← Предыдущая глава»,
-  //     хочет начать с конца (последняя страница в pages-режиме,
-  //     низ страницы в scroll-режиме).
-  //  2. localStorage progress_<novelId>.paragraphIndex (если chapterId
-  //     совпадает) — обычный сценарий, продолжение чтения.
-  //  3. Ничего — скролл в начало (дефолт).
-  //
-  // paragraphIndex стабилен при смене шрифта / режима — в отличие от
-  // абсолютного scroll-pixel'а.
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -442,9 +394,6 @@ export default function ReaderContent({
       return;
     }
 
-    // Восстанавливаем позицию: сначала пробуем серверный last_read
-    // (актуальный с любого устройства), при отсутствии — локальный.
-    // Если серверный новее (timestamp), он перебивает.
     let cancelled = false;
     type ProgressEntry = {
       chapterId: number;
@@ -479,12 +428,10 @@ export default function ReaderContent({
       if (raw) localData = JSON.parse(raw) as ProgressEntry;
     } catch { /* ignore */ }
 
-    // Сразу применяем локальное (бесплатно, не ждёт сеть)
     if (localData) {
       setTimeout(() => { if (!cancelled) restoreTo(localData!); }, 160);
     }
 
-    // И параллельно тянем серверный — если новее, перебиваем позицию
     (async () => {
       try {
         const supabase = createClient();
@@ -501,39 +448,28 @@ export default function ReaderContent({
         if (!serverData) return;
         const localTs = localData?.timestamp ? Date.parse(localData.timestamp) : 0;
         const serverTs = serverData.timestamp ? Date.parse(serverData.timestamp) : 0;
-        // Сервер свежее или ничего локального — применяем серверный
         if (serverTs >= localTs) {
-          // Кладём в localStorage чтобы при следующем mount без сети
-          // позиция была актуальной
           try {
             localStorage.setItem(
               `progress_${novelId}`,
               JSON.stringify(serverData)
             );
           } catch { /* ignore */ }
-          // Дать html время измерить layout (font-loading, columns)
           setTimeout(() => { if (!cancelled) restoreTo(serverData); }, 220);
         }
-      } catch { /* offline / RLS — ничего не делаем */ }
+      } catch { /* offline / RLS */ }
     })();
 
     return () => { cancelled = true; };
   }, [ready, content, novelId, chapterNumber, settings.readMode]);
 
   // ---- 6.5. Pages mode: расчёт totalPages + currentPage ----
-  // Запускаем ResizeObserver на контейнере; пересчитываем после
-  // загрузки шрифтов и при изменении шрифта / line-height. При
-  // scroll — currentPage следует за позицией.
   useEffect(() => {
     if (!ready) return;
     if (settings.readMode !== 'pages') {
-      // В scroll-режиме сбрасываем, чтобы индикатор не показывал
-      // устаревшие данные при обратном переключении.
       setPageWidth(0);
       setCurrentPage(0);
       setTotalPages(1);
-      // И снимаем inline column-width — иначе multi-column остаётся
-      // и в scroll-режиме текст ломается.
       const c = contentRef.current;
       if (c) c.style.columnWidth = '';
       return;
@@ -544,32 +480,18 @@ export default function ReaderContent({
     const calc = () => {
       const w = container.clientWidth;
       if (!w) return;
-      // КРИТИЧНО: задаём column-width в пикселях через inline style.
-      // CSS-значение 100% не работает в multi-column layout — браузер
-      // не создаёт несколько колонок, просто одну во всю ширину.
-      // pixel-value гарантирует, что каждая «страница» ровно clientWidth,
-      // scroll-snap попадает точно, scrollWidth даёт корректное
-      // кол-во страниц.
       container.style.columnWidth = `${w}px`;
       setPageWidth(w);
-      // Даём браузеру один тик чтобы пересчитать scrollWidth после
-      // изменения column-width.
       requestAnimationFrame(() => {
         const total = Math.max(1, Math.round(container.scrollWidth / w));
         setTotalPages(total);
       });
     };
 
-    // После загрузки шрифтов layout может поменяться (Manrope/Lora
-    // грузятся async) — без ожидания scrollWidth даст неверное число.
     const fontsReady = document.fonts?.ready;
     if (fontsReady) fontsReady.then(calc).catch(calc);
     else calc();
 
-    // Только width-changes триггерят пересчёт. Высота с 100svh
-    // должна быть стабильна, но iOS-у мы доверяем не до конца —
-    // лучше явно отфильтровать height-only события, чтобы totalPages
-    // не дёргалось когда Safari убирает/возвращает адресную строку.
     let lastWidth = container.clientWidth;
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
@@ -582,9 +504,6 @@ export default function ReaderContent({
     });
     ro.observe(container);
 
-    // Smooth-scroll фризит палец на 300–500мс потому что onScroll
-    // стрельнёт 30+ раз и каждый раз setCurrentPage дёргает ре-рендер
-    // всего reader-wrapper. Заворачиваем в rAF — одно обновление на кадр.
     let rafId: number | null = null;
     const onScroll = () => {
       if (rafId != null) return;
@@ -613,7 +532,7 @@ export default function ReaderContent({
     settings.fontFamily,
   ]);
 
-  // ---- 6.6. Keyboard nav в pages-режиме (← → / PgUp / PgDn / Space) ----
+  // ---- 6.6. Keyboard nav в pages-режиме ----
   useEffect(() => {
     if (!ready) return;
     if (settings.readMode !== 'pages') return;
@@ -650,16 +569,12 @@ export default function ReaderContent({
     return () => window.removeEventListener('keydown', onKey);
   }, [ready, settings.readMode]);
 
-  // ---- 6.7. Smart tap/click navigation в pages-режиме ----
-  // Тап по левой трети экрана = prev page, правой трети = next.
-  // Центр игнорируем — это зона для выделений и глоссария.
+  // ---- 6.7. Smart tap/click navigation ----
   const flipBusyRef = useRef(false);
   const onContentClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (settings.readMode !== 'pages') return;
       const target = e.target as HTMLElement;
-      // Не перехватываем клики по интерактивным элементам, ссылкам,
-      // выделенным терминам глоссария, quote-bubble и т.п.
       if (
         target.closest(
           'a, button, input, textarea, select, [contenteditable="true"], .glossary-term, .quote-bubble'
@@ -675,16 +590,8 @@ export default function ReaderContent({
       const x = e.clientX - rect.left;
       const isEdgeTap = x < w * 0.33 || x > w * 0.67;
       if (isEdgeTap) {
-        // Гасим повторные тапы пока идёт smooth-scroll — без этого
-        // двойной тап ставит два scrollBy в очередь и читателю
-        // кажется что страница «перескочила» на две.
         if (flipBusyRef.current) return;
         flipBusyRef.current = true;
-        // Считаем целевую страницу из текущего scrollLeft, не от
-        // currentPage state (который может отстать). scrollTo с
-        // явным целевым `idx * w` гарантирует, что снап придёт
-        // ровно к границе колонки — раньше scrollBy +/- w плюс
-        // дробные пиксели приводили к остановкам между страниц.
         const idx = Math.round(container.scrollLeft / w);
         const dir = x < w * 0.33 ? -1 : 1;
         const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
@@ -692,7 +599,6 @@ export default function ReaderContent({
         container.scrollTo({ left: targetIdx * w, behavior: 'smooth' });
         setTimeout(() => { flipBusyRef.current = false; }, 320);
       } else {
-        // Центр: тоггл toolbar/индикатора — immersive чтение.
         setUiHidden((v) => !v);
       }
     },
@@ -713,11 +619,7 @@ export default function ReaderContent({
     []
   );
 
-  // ---- 6.75. Visibility-save: на iOS/Android браузер может killнуть
-  // страницу в фоне; обычный debounce-save не сработает. Ловим
-  // visibilitychange + pagehide и сохраняем моментально. Плюс при
-  // возврате page может сбросить scroll — тогда восстанавливаем
-  // позицию в pages-режиме (в scroll браузер сам восстанавливает). ----
+  // ---- 6.75. Visibility-save ----
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -757,10 +659,6 @@ export default function ReaderContent({
     };
     const onPageHide = () => flushSave();
 
-    // Периодический бэкап раз в 30 сек: visibilitychange RPC на iOS
-    // может не докачаться до сервера (страница уходит в фон до
-    // завершения await). Лучший способ дать кросс-девайс синк —
-    // регулярно сбрасывать позицию пока пользователь читает.
     const periodicId = window.setInterval(flushSave, 30_000);
 
     document.addEventListener('visibilitychange', onHide);
@@ -772,9 +670,7 @@ export default function ReaderContent({
     };
   }, [ready, saveProgress, settings.readMode]);
 
-  // ---- 6.8. Подгружаем количество комментариев для бейджа в toolbar ----
-  // Быстрый count(*) без вытягивания данных. Не критично — если RLS
-  // на comments разрешает SELECT (в tene уже так), работает.
+  // ---- 6.8. Comments count для бейджа ----
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -792,8 +688,6 @@ export default function ReaderContent({
     };
   }, [novelId, chapterNumber]);
 
-  // Утилита: скроллим к секции комментариев. В pages-режиме сначала
-  // прыгаем к последней странице, потом к .comments-section ниже.
   const scrollToComments = useCallback(() => {
     const sec = document.querySelector('.comments-section');
     if (!sec) return;
@@ -802,14 +696,13 @@ export default function ReaderContent({
       if (container) {
         container.scrollTo({ left: container.scrollWidth, behavior: 'instant' as ScrollBehavior });
       }
-      // После листания контента в конец — скроллим окно к секции
       setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     } else {
       sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [settings.readMode]);
 
-  // ---- 7. Таймер сна (обратный отсчёт по selectedPreset) ----
+  // ---- 7. Таймер сна ----
   useEffect(() => {
     if (selectedPreset === null) {
       setSleepMinLeft(null);
@@ -861,14 +754,19 @@ export default function ReaderContent({
             ≡ Оглавление
           </button>
         )}
-        <button
-          type="button"
-          className={`chip${settings.focusMode ? ' active' : ''}`}
-          onClick={() => updateSettings({ ...settings, focusMode: !settings.focusMode })}
-          title="F — включить/выключить"
-        >
-          ◉ Фокус
-        </button>
+        {/* Фокус-режим (затемнение соседних абзацев) имеет смысл только
+            в свитке. В pages-mode все видимые абзацы уже в одной колонке,
+            «фокус» только мешает. Кнопку не рендерим. */}
+        {settings.readMode !== 'pages' && (
+          <button
+            type="button"
+            className={`chip${settings.focusMode ? ' active' : ''}`}
+            onClick={() => updateSettings({ ...settings, focusMode: !settings.focusMode })}
+            title="F — включить/выключить"
+          >
+            ◉ Фокус
+          </button>
+        )}
         <button
           type="button"
           className="chip reader-toolbar-comments"
@@ -912,8 +810,6 @@ export default function ReaderContent({
 
         {settings.readMode === 'pages' && totalPages > 1 && (
           <>
-            {/* Боковые кнопки-стрелки для десктопа. На мобиле
-                использовать свайп или тап по краю экрана (smart nav). */}
             <button
               type="button"
               className="reader-page-btn reader-page-btn--prev"
@@ -935,8 +831,6 @@ export default function ReaderContent({
               ›
             </button>
 
-            {/* Индикатор «Стр. X из Y» с полоской-прогрессом. Снизу
-                страницы, кликабельный — скроллит к месту. */}
             <div
               className="reader-page-indicator"
               role="progressbar"
