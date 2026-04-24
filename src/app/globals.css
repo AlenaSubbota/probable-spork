@@ -2607,8 +2607,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* ---------- admin / forms ---------- */
 
+/* LONGHAND: не используем shorthand `padding`, иначе он затирает
+   `.container { padding-left/right }` и админ-блоки прилипают к
+   краям экрана — .container с .admin-page комбинируются, выигрывает
+   `.admin-page` (объявлен ниже), а shorthand обнуляет горизонталь. */
 .admin-page {
-  padding: 28px 0 60px;
+  padding-top: 28px;
+  padding-bottom: 60px;
 }
 .admin-page--wide {
   max-width: 1400px;
