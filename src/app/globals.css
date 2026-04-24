@@ -7717,7 +7717,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .user-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 9px 12px;
   border-radius: 7px;
   color: var(--ink, #2a2a2a);
@@ -7730,6 +7730,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-family: inherit;
   width: 100%;
   transition: background 120ms;
+}
+/* Колонка для иконки / эмодзи — узкие символы вроде ⚙ / ↩ / ＋ без
+   min-width слипались с текстом (пробел в JSX ломается или съедается).
+   Выравниваем все иконки по общей ширине, чтобы текст начинался с
+   одной позиции — меню читается как единый список. */
+.user-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 .user-menu-item:hover,
 .user-menu-item:focus-visible {

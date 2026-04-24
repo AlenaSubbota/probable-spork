@@ -84,35 +84,43 @@ export default function UserMenu({
           className="user-menu-dropdown"
         >
           <Link href="/profile" className="user-menu-item" onClick={() => setOpen(false)}>
-            👤 Мой профиль
+            <span className="user-menu-icon" aria-hidden="true">👤</span>
+            <span>Мой профиль</span>
           </Link>
           <Link href="/profile/settings" className="user-menu-item" onClick={() => setOpen(false)}>
-            ⚙ Настройки
+            <span className="user-menu-icon" aria-hidden="true">⚙</span>
+            <span>Настройки</span>
           </Link>
           <Link href="/profile/topup" className="user-menu-item" onClick={() => setOpen(false)}>
-            💰 Пополнить баланс
+            <span className="user-menu-icon" aria-hidden="true">💰</span>
+            <span>Пополнить баланс</span>
           </Link>
           <Link href="/bookmarks" className="user-menu-item" onClick={() => setOpen(false)}>
-            📚 Моя библиотека
+            <span className="user-menu-icon" aria-hidden="true">📚</span>
+            <span>Моя библиотека</span>
           </Link>
           <Link href="/market" className="user-menu-item" onClick={() => setOpen(false)}>
-            🤝 Маркетплейс команды
+            <span className="user-menu-icon" aria-hidden="true">🤝</span>
+            <span>Маркетплейс команды</span>
           </Link>
           {isTranslator ? (
             <>
               <div className="user-menu-sep" />
               <Link href="/admin" className="user-menu-item" onClick={() => setOpen(false)}>
-                🎛 Админка
+                <span className="user-menu-icon" aria-hidden="true">🎛</span>
+                <span>Админка</span>
               </Link>
               <Link href="/admin/novels/new" className="user-menu-item" onClick={() => setOpen(false)}>
-                ＋ Новая новелла
+                <span className="user-menu-icon" aria-hidden="true">＋</span>
+                <span>Новая новелла</span>
               </Link>
             </>
           ) : (
             <>
               <div className="user-menu-sep" />
               <Link href="/translator/apply" className="user-menu-item" onClick={() => setOpen(false)}>
-                📝 Стать переводчиком
+                <span className="user-menu-icon" aria-hidden="true">📝</span>
+                <span>Стать переводчиком</span>
               </Link>
             </>
           )}
@@ -123,7 +131,14 @@ export default function UserMenu({
             onClick={handleLogout}
             disabled={busy}
           >
-            {busy ? '…' : '↩ Выйти из аккаунта'}
+            {busy ? (
+              <span>…</span>
+            ) : (
+              <>
+                <span className="user-menu-icon" aria-hidden="true">↩</span>
+                <span>Выйти из аккаунта</span>
+              </>
+            )}
           </button>
         </div>
       )}
