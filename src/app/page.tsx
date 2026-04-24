@@ -1,5 +1,4 @@
 import { createClient } from '@/utils/supabase/server';
-import GenreChips from '@/components/GenreChips';
 import NovelCard from '@/components/NovelCard';
 import MoodPicker from '@/components/MoodPicker';
 import ContinueReadingShelf, { type ContinueItem } from '@/components/ContinueReadingShelf';
@@ -27,14 +26,9 @@ export default async function HomePage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const [
-    { data: allNovelsRaw },
     { data: popularNovels },
     { data: recentNovels },
   ] = await Promise.all([
-    supabase
-      .from('novels_view')
-      .select('id, firebase_id, title, cover_url, genres')
-      .eq('moderation_status', 'published'),
     supabase
       .from('novels_view')
       .select('*')
@@ -48,21 +42,6 @@ export default async function HomePage() {
       .order('latest_chapter_published_at', { ascending: false })
       .limit(6),
   ]);
-
-  // Жанры
-  const genreMap: Record<string, number> = {};
-  allNovelsRaw?.forEach((n) => {
-    const gs = n.genres;
-    if (Array.isArray(gs)) {
-      gs.forEach((g: string) => {
-        genreMap[g] = (genreMap[g] || 0) + 1;
-      });
-    }
-  });
-  const topGenres = Object.entries(genreMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([name, count]) => ({ name, count }));
 
   // Данные залогиненного пользователя
   let continueItems: ContinueItem[] = [];
@@ -561,8 +540,6 @@ export default async function HomePage() {
 
       {/* Лента свежих комментариев */}
       <CommentsFeed comments={commentsFeed} />
-
-      <GenreChips genres={topGenres} total={allNovelsRaw?.length ?? 0} />
 
       {/* Популярное */}
       <section className="container section">
