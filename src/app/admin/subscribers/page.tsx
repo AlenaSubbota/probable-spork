@@ -110,9 +110,14 @@ export default async function SubscribersPage() {
           Подписчики и заявки
         </h1>
         <p style={{ color: 'var(--ink-mute)', margin: 0 }}>
-          Читатели оплачивают Boosty тебе напрямую, потом присылают заявку
-          сюда с кодом. Сверяй с подписчиками у себя на Boosty и открывай
-          доступ.
+          Читатели оплачивают Boosty / Tribute / карту тебе напрямую, потом
+          присылают заявку сюда с кодом. <strong>Подписочные</strong> заявки
+          могут быть одобрены автоматически — если ты подключил{' '}
+          <Link href="/profile/settings" className="more">Boosty-автосинк</Link>
+          {' '}и email читателя есть у тебя в подписчиках. <strong>Монетные</strong>
+          {' '}заявки всегда ждут твоего одобрения: там нужно сверить сумму
+          доната. Подробнее — в{' '}
+          <Link href="/help#boosty-autoconnect" className="more">справке</Link>.
         </p>
         {!hasBoostyConfigured && (
           <div

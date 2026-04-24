@@ -180,9 +180,13 @@ export default function BoostyAutoConnect() {
         </div>
       ) : (
         <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-          Один клик — и заявки читателей с твоим Boosty-email подтверждаются
-          автоматически (без кнопок «одобрить»).
-          <br />
+          Один клик — и заявки на <strong>подписку</strong> от читателей с
+          твоим Boosty-email подтверждаются автоматически (без кнопок
+          «одобрить» в админке).
+          <div style={{ color: 'var(--ink-mute)', fontSize: 12, marginTop: 4 }}>
+            Монетные заявки всё равно одобряешь вручную — там важно сверить
+            сумму доната, а Boosty API её не отдаёт.
+          </div>
           <button
             type="button"
             className="btn btn-primary"
