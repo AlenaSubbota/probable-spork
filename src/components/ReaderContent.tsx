@@ -219,7 +219,8 @@ export default function ReaderContent({
 
   // --- 6. SMART TAP (Зоны экрана: 30% - 40% - 30%) ---
   const onContentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (window.getSelection()?.toString().length > 0) return;
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
     const target = e.target as HTMLElement;
     if (target.closest('a, button, input, textarea, select, [contenteditable="true"], .glossary-term, .quote-bubble')) return;
 
