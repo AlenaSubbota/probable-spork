@@ -179,7 +179,6 @@ export default function ReaderContent({
       setCurrentPage((prev) => (prev === next ? prev : next));
     }
 
-    // Дебаунс для вычисления активного абзаца (как в старой версии)
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
       const paragraphs = container.querySelectorAll<HTMLElement>('p, h1, h2, h3, blockquote');
@@ -221,8 +220,9 @@ export default function ReaderContent({
   const onContentClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const selection = window.getSelection();
     if (selection && selection.toString().length > 0) return;
-    const target = e.target as HTMLElement;
-    if (target.closest('a, button, input, textarea, select, [contenteditable="true"], .glossary-term, .quote-bubble')) return;
+
+    const target = e.target as Element;
+    if (target && typeof target.closest === 'function' && target.closest('a, button, input, textarea, select, [contenteditable="true"], .glossary-term, .quote-bubble')) return;
 
     const container = contentRef.current;
     if (!container) return;
@@ -336,8 +336,16 @@ export default function ReaderContent({
       });
     };
 
-    if (document.fonts?.ready) document.fonts.ready.then(calc);
-    else calc();
+    if ('fonts' in document) {
+      const docFonts = (document as any).fonts;
+      if (docFonts && docFonts.ready) {
+        docFonts.ready.then(calc).catch(calc);
+      } else {
+        calc();
+      }
+    } else {
+      calc();
+    }
 
     let lastWidth = container.clientWidth;
     const ro = new ResizeObserver((entries) => {
@@ -371,7 +379,8 @@ export default function ReaderContent({
       acceptNode(node) {
         const parent = node.parentElement;
         if (!parent || parent.closest('code, pre, script, style, .glossary-term')) return NodeFilter.FILTER_REJECT;
-        if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
+        const nodeValue = node.nodeValue || '';
+        if (!nodeValue.trim()) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       },
     });
@@ -447,7 +456,7 @@ export default function ReaderContent({
     fontSize: `${settings.fontSize}px`,
     lineHeight: settings.lineHeight,
     fontFamily: getFontCss(settings.fontFamily),
-    textAlign: settings.textAlign as any,
+    textAlign: (settings.textAlign || 'left') as React.CSSProperties['textAlign'],
     color: 'var(--ink)',
     ...(settings.readMode === 'pages' ? {
       width: `${pageWidth}px`,
@@ -466,10 +475,12 @@ export default function ReaderContent({
   };
 
   const scrollPageBy = (dir: 1 | -1) => {
-    const w = contentRef.current?.clientWidth;
+    const container = contentRef.current;
+    if (!container) return;
+    const w = container.clientWidth;
     if (!w) return;
     const t = Math.max(0, Math.min(totalPages - 1, currentPage + dir));
-    contentRef.current.scrollTo({ left: t * w, behavior: 'smooth' });
+    container.scrollTo({ left: t * w, behavior: 'smooth' });
   };
 
   if (!ready) return <div className="min-h-screen bg-background" />;
@@ -529,7 +540,6 @@ export default function ReaderContent({
              <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Логика перехода к обсуждению (перекинуть на страницу комментов или открыть модалку)
                   alert("Тут можно открыть компонент комментариев!");
                 }}
                 className="bg-[var(--accent)] text-white font-bold text-lg py-4 px-10 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
@@ -584,10 +594,12 @@ export default function ReaderContent({
              
              <div className="flex gap-3">
                <button onClick={() => {
-                  if (settings.readMode === 'pages' && contentRef.current) {
-                    contentRef.current.scrollTo({ left: contentRef.current.scrollWidth, behavior: 'smooth' });
-                  } else if (contentRef.current) {
-                    contentRef.current.scrollTo({ top: contentRef.current.scrollHeight, behavior: 'smooth' });
+                  const container = contentRef.current;
+                  if (!container) return;
+                  if (settings.readMode === 'pages') {
+                    container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+                  } else {
+                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
                   }
                }} className="px-5 py-2.5 rounded-xl border border-[var(--border)] text-sm font-medium hover:bg-[var(--bg-soft)] transition-colors flex items-center gap-2">
                  💬 <span className="opacity-70">{commentCount ?? 0}</span>
