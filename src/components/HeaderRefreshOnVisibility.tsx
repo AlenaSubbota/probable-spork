@@ -1,27 +1,42 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Триггерит router.refresh() при возврате фокуса на вкладку.
-// Зачем: SiteHeader — server-component в layout.tsx. Next.js App Router
-// кэширует layout при client-side навигации. Значит после внешнего действия
-// (оплата в Tribute-вкладке, начисление монет админом и т.п.) шапка остаётся
-// со старым балансом, пока пользователь не нажмёт F5.
+// Триггерит router.refresh() при возврате фокуса на вкладку — чтобы шапка
+// (server-component) подхватила свежий баланс после, например, Tribute-оплаты.
 //
-// router.refresh() перезапрашивает только RSC-дерево текущего url без
-// потери client-state. Визуально — обновление без мигания: React diff'ит
-// виртуальный DOM и заменяет только изменившиеся узлы (число монет).
-//
-// Слушаем visibilitychange: пользователь ушёл → вернулся → тихий refresh.
+// Safari desktop: router.refresh() на каждый visible может приводить к
+// бесконечно висящему loading-индикатору, потому что Safari «показывает»
+// вкладку в процессе скролла/свёртывания (visibilityState быстро
+// флипается visible→hidden→visible). Поэтому:
+//  • refresh только если вкладка была скрыта ≥ 20 секунд (это НЕ прокрутка,
+//    а реально ушёл и вернулся);
+//  • минимальный интервал 60 сек между refresh-ами;
+//  • пропускаем самый первый visible (сам момент инициализации).
 export default function HeaderRefreshOnVisibility() {
   const router = useRouter();
+  const hiddenAt = useRef<number | null>(null);
+  const lastRefresh = useRef<number>(Date.now());
+
   useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') router.refresh();
+    const onChange = () => {
+      const now = Date.now();
+      if (document.visibilityState === 'hidden') {
+        hiddenAt.current = now;
+        return;
+      }
+      // visible
+      const hiddenFor = hiddenAt.current ? now - hiddenAt.current : 0;
+      hiddenAt.current = null;
+      if (hiddenFor < 20_000) return;
+      if (now - lastRefresh.current < 60_000) return;
+      lastRefresh.current = now;
+      router.refresh();
     };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
   }, [router]);
+
   return null;
 }
