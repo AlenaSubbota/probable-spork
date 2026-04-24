@@ -60,10 +60,13 @@ export default async function CatalogPage({
   const wantGenre = params.genre ?? null;
   const wantMoodGenres = mood && mood.genres.length > 0 ? mood.genres : null;
 
+  // Колонка `covers` появилась в миграции 046. Если она не накатана —
+  // запрос валится с ошибкой схемы и каталог показывает пусто. Строим
+  // SELECT без covers; главная обложка в cover_url всё равно отдаётся.
   let query = supabase
     .from('novels_view')
     .select(
-      'id, firebase_id, title, author, cover_url, covers, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description, translator_id, moderation_status',
+      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description, translator_id, moderation_status',
       { count: 'exact' }
     )
     .eq('moderation_status', 'published');
@@ -208,11 +211,6 @@ export default async function CatalogPage({
                       : '—'
                   }
                   coverUrl={getCoverUrl(novel.cover_url)}
-                  extraCovers={
-                    Array.isArray(novel.covers)
-                      ? (novel.covers as string[]).filter((v) => typeof v === 'string')
-                      : null
-                  }
                   placeholderClass={`p${(index % 8) + 1}`}
                   placeholderText={novel.title.substring(0, 10) + '...'}
                   chapterCount={novel.chapter_count}
