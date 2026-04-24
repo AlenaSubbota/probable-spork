@@ -210,32 +210,22 @@ export default function BoostyAutoConnect() {
           <ol style={{ margin: 0, paddingLeft: 18 }}>
             <li>
               Перетащи эту кнопку в панель закладок (или ПКМ → «Добавить в
-              закладки»):
-              <div style={{ marginTop: 6, marginBottom: 6 }}>
-                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-                <a
-                  href={bookmarklet.href}
-                  onClick={(e) => {
-                    // Если кликнули на chaptify.ru — ничего не сделает, только
-                    // покажет alert. Предотвращаем навигацию.
-                    e.preventDefault();
-                    push('info', 'Это закладка. Перетащи её на панель закладок, потом открой boosty.to и нажми.');
-                  }}
-                  draggable
-                  style={{
-                    display: 'inline-block',
-                    padding: '6px 12px',
-                    background: '#ffc839',
-                    color: '#3a2a0f',
-                    borderRadius: 6,
-                    textDecoration: 'none',
-                    fontWeight: 600,
-                    cursor: 'grab',
-                  }}
-                >
-                  💛 Chaptify ← Boosty
-                </a>
-              </div>
+              закладки»). Кликать её на chaptify бесполезно — это работает
+              только после перетаскивания и только на boosty.to.
+              {/*
+                React 19 блокирует href="javascript:..." как XSS-защиту:
+                подменяет URL на throw Error, и в закладки попадает битый
+                код. Единственный способ обойти — отрендерить <a> через
+                dangerouslySetInnerHTML (reactовский sanitizer туда не лезет).
+                connect_token — 64 hex-символа, encodeURIComponent экранирует
+                всё остальное, так что атрибутной инъекции нет.
+              */}
+              <div
+                style={{ marginTop: 6, marginBottom: 6 }}
+                dangerouslySetInnerHTML={{
+                  __html: `<a href="${bookmarklet.href}" draggable="true" style="display:inline-block;padding:6px 12px;background:#ffc839;color:#3a2a0f;border-radius:6px;text-decoration:none;font-weight:600;cursor:grab;">💛 Chaptify ← Boosty</a>`,
+                }}
+              />
             </li>
             <li>Открой <a href="https://boosty.to" target="_blank" rel="noreferrer">boosty.to</a> (залогинься, если ещё нет).</li>
             <li>Кликни на закладку. Увидишь всплывашку «✓ Подключено» — значит, всё.</li>
