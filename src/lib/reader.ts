@@ -24,17 +24,11 @@ export const FONT_OPTIONS: FontOption[] = [
 
 export type TextAlign = 'left' | 'justify';
 
-// Тема читалки — три пресета:
-// - light:  кремовая бумага (как сейчас по умолчанию, без изменений)
-// - sepia:  тёплая состаренная бумага (меньше синего света)
-// - dark:   тёмно-серый фон + мягкий тёплый текст (для ночного чтения)
-export type ReaderTheme = 'light' | 'sepia' | 'dark';
-
-export const READER_THEMES: Array<{ key: ReaderTheme; label: string; desc: string }> = [
-  { key: 'light', label: 'Светлая', desc: 'Кремовая бумага' },
-  { key: 'sepia', label: 'Сепия',   desc: 'Старая бумага, меньше синего света' },
-  { key: 'dark',  label: 'Тёмная',  desc: 'Для ночного чтения' },
-];
+// Тема читалки: на данный момент только светлая кремовая бумага.
+// Сепия и тёмная были убраны — в общем dark-mode сайт уже темнеет через
+// html[data-theme], а внутри читалки лишний пресет тёмного только
+// путает и спорит с глобальным переключателем.
+export type ReaderTheme = 'light';
 
 // Режим чтения:
 // - scroll: привычный вертикальный свиток (дефолт десктопа)
@@ -86,8 +80,14 @@ export function loadSettings(): ReaderSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<ReaderSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const parsed = JSON.parse(raw) as Partial<ReaderSettings> & {
+      theme?: string;
+    };
+    // Старые пресеты 'sepia' и 'dark' больше не поддерживаем —
+    // мигрируем на light, чтобы читалка не осталась тёмной у тех,
+    // кто сохранил настройку до убирания пресета.
+    const theme: ReaderTheme = 'light';
+    return { ...DEFAULT_SETTINGS, ...parsed, theme };
   } catch {
     return DEFAULT_SETTINGS;
   }

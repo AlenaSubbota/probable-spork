@@ -3,13 +3,11 @@
 import {
   FONT_OPTIONS,
   LIMITS,
-  READER_THEMES,
   READ_MODES,
   type ReadMode,
   SLEEP_TIMER_PRESETS,
   type FontFamilyKey,
   type ReaderSettings,
-  type ReaderTheme,
   type TextAlign,
 } from '@/lib/reader';
 
@@ -60,29 +58,6 @@ export default function ReaderSettings({
         </div>
 
         <div className="reader-settings-body">
-          {/* Тема */}
-          <div className="rs-group">
-            <label className="rs-label">Тема</label>
-            <div className="reader-theme-row">
-              {READER_THEMES.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  className={`reader-theme-btn${
-                    (settings.theme ?? 'light') === t.key ? ' is-active' : ''
-                  }`}
-                  onClick={() => set('theme', t.key as ReaderTheme)}
-                >
-                  <span className={`reader-theme-swatch reader-theme-swatch--${t.key}`}>
-                    Aa
-                  </span>
-                  <span className="reader-theme-label">{t.label}</span>
-                  <span className="reader-theme-desc">{t.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Режим чтения (свиток / страницы) */}
           <div className="rs-group">
             <label className="rs-label">Режим чтения</label>
