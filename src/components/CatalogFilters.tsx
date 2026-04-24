@@ -6,6 +6,7 @@ import {
   buildCatalogUrl,
   type SortKey,
 } from '@/lib/catalog';
+import CatalogTranslators from './CatalogTranslators';
 
 interface Props {
   current: {
@@ -148,6 +149,10 @@ export default function CatalogFilters({ current, genres, totalCount }: Props) {
           </div>
         </div>
       )}
+
+      {/* Переводчики — поиск по имени/никнейму. Отдельный блок, потому
+          что это не фильтр новелл, а вход в профиль. */}
+      <CatalogTranslators />
 
       {/* Сортировка */}
       <div className="filter-group">

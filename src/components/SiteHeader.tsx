@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import UserMenu from './UserMenu';
 import MobileMenu from './MobileMenu';
 import ThemeToggle from './ThemeToggle';
+import HeaderSearch from './search/HeaderSearch';
 
 export default async function SiteHeader() {
   const supabase = await createClient();
@@ -104,9 +105,7 @@ export default async function SiteHeader() {
           )}
         </nav>
 
-        <form action="/search" method="get" className="search-box">
-          <input type="search" name="q" placeholder="Поиск: название, автор, персонаж…" />
-        </form>
+        <HeaderSearch />
 
         <div className="header-actions">
           <div className="header-theme-toggle">
