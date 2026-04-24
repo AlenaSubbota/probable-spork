@@ -140,8 +140,21 @@ export default function ChapterThanks({
 
   return (
     <section className="chapter-thanks">
-      <div className="chapter-thanks-head">
-        <div className="chapter-thanks-counter">
+      {/* Inline-стили для центрирования поверх существующих классов в
+          globals.css. Раньше кнопка «♥ Спасибо» прижималась к правому
+          краю через justify-content: space-between — на широких экранах
+          между счётчиком и кнопкой зияло пустое место, на узких они
+          жались. Теперь: счётчик сверху, кнопка под ним по центру. */}
+      <div
+        className="chapter-thanks-head"
+        style={{
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+        }}
+      >
+        <div className="chapter-thanks-counter" style={{ justifyContent: 'center' }}>
           <span className="chapter-thanks-heart" aria-hidden="true">
             {myThanked ? '❤' : '♡'}
           </span>
