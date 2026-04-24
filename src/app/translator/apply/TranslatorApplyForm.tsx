@@ -112,6 +112,44 @@ export default function TranslatorApplyForm() {
         <div className="form-hint">Только латиница, цифры и тире.</div>
       </div>
 
+      <div
+        style={{
+          marginTop: 4,
+          marginBottom: 16,
+          padding: 12,
+          background: 'var(--surface-alt, #faf7f0)',
+          border: '1px solid var(--border, rgba(0,0,0,0.08))',
+          borderRadius: 8,
+          fontSize: 13,
+          lineHeight: 1.55,
+        }}
+      >
+        <strong>💛 Boosty / Tribute / VK Donut — без ручных одобрений</strong>
+        <div style={{ color: 'var(--ink-mute)', marginTop: 6 }}>
+          После одобрения заявки на странице{' '}
+          <code>/profile/settings → Способы оплаты</code> можно будет:
+          <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+            <li>
+              Подключить <b>Boosty за 1 клик</b> — букмарклет: открыл boosty.to,
+              кликнул кнопку — мы сами тянем твой список подписчиков и
+              автоматически активируем доступ читателям, которые ввели свой
+              Boosty-email на сайте. Никаких ручных «одобрить» в админке.
+            </li>
+            <li>
+              Включить автосинк <b>через закрытый Telegram-чат подписчиков</b>{' '}
+              (если ты так раздаёшь доступ на Boosty) — добавляешь{' '}
+              <b>@chaptifybot</b> в чат, указываешь chat_id, и читатели открывают
+              главы в один клик.
+            </li>
+            <li>
+              Tribute / VK Donut / Patreon — пока ручное подтверждение в{' '}
+              <code>/admin/subscribers</code>, автосинк по этим платформам в
+              работе.
+            </li>
+          </ul>
+        </div>
+      </div>
+
       {error && (
         <div style={{ color: 'var(--rose)', fontSize: 13, marginBottom: 12 }}>{error}</div>
       )}
