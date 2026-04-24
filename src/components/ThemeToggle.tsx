@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 type Theme = 'light' | 'dark' | 'auto';
 
 const STORAGE_KEY = 'chaptify-theme';
+const VALID: Theme[] = ['light', 'dark', 'auto'];
 
 function apply(theme: Theme) {
   if (typeof document === 'undefined') return;
@@ -19,11 +21,14 @@ function apply(theme: Theme) {
 }
 
 // Переключатель темы (light / dark / auto). Мини-панель из трёх чипов.
-// Состояние сохраняется в localStorage. При 'auto' слушает
-// prefers-color-scheme и перерисовывает автоматически.
+// Состояние сохраняется в localStorage + profiles.settings.theme (мигр. 047,
+// RPC update_my_settings_patch). Синхронизация между устройствами: когда
+// юзер выбрал «Тёмная» на телефоне, на десктопе тема автоматически
+// применится при следующем заходе.
 //
-// При монтировании читает localStorage и применяет тему (на случай если
-// инлайн-скрипт в <head> не отработал).
+// При монтировании:
+//   1. Читаем localStorage и применяем немедленно — избегаем flash-of-light.
+//   2. Асинхронно спрашиваем сервер; если на сервере другая тема — применяем.
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('auto');
 
@@ -31,6 +36,37 @@ export default function ThemeToggle() {
     const stored = (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'auto';
     setTheme(stored);
     apply(stored);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const { data } = await supabase
+          .from('profiles')
+          .select('settings')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        const serverTheme = (data?.settings as { theme?: string } | null)?.theme;
+        if (
+          serverTheme &&
+          VALID.includes(serverTheme as Theme) &&
+          serverTheme !== stored
+        ) {
+          const t = serverTheme as Theme;
+          setTheme(t);
+          localStorage.setItem(STORAGE_KEY, t);
+          apply(t);
+        }
+      } catch {
+        // ignore — RPC/таблицы ещё не готовы
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -45,6 +81,19 @@ export default function ThemeToggle() {
     setTheme(next);
     localStorage.setItem(STORAGE_KEY, next);
     apply(next);
+    // Debounce не нужен: клики по переключателю редки. Можем сразу
+    // писать на сервер. При ошибке (мигр. 047 не накачена / юзер не
+    // залогинен) — тихо падаем, localStorage продолжает работать.
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await supabase.rpc('update_my_settings_patch', { patch: { theme: next } });
+      } catch {
+        // ignore
+      }
+    })();
   };
 
   const opts: Array<{ key: Theme; label: string; icon: string }> = [
