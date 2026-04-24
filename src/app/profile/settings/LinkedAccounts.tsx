@@ -371,8 +371,12 @@ export default function LinkedAccounts({ telegramId, hasChaptifyBot }: Props) {
             marginTop: 12,
             padding: '8px 12px',
             borderRadius: 6,
-            background: msg.tone === 'ok' ? '#e5f5ea' : '#fbeae8',
-            color: msg.tone === 'ok' ? '#2a7a44' : '#a5342b',
+            // CSS-переменные статуса (см. globals.css) — в тёмной теме
+            // автоматически переключаются на приглушённые тона.
+            background:
+              msg.tone === 'ok' ? 'var(--status-ok-bg)' : 'var(--status-err-bg)',
+            color:
+              msg.tone === 'ok' ? 'var(--status-ok-ink)' : 'var(--status-err-ink)',
             fontSize: 13,
           }}
         >
