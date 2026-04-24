@@ -341,9 +341,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @media (max-width: 540px) {
   .header-actions > a.btn { display: none; }
   /* Имя юзера в header-profile-btn скрываем — длинные ники пушат
-     кнопку за экран. Аватар + ▾ остаются; имя видно в dropdown'е. */
+     кнопку за экран. Аватар + ▾ остаются; имя видно в dropdown'е.
+     Заодно прячем chevron — на мобиле кнопка и так очевидно
+     кликабельная, без него аватар выглядит акцентнее. */
   .header-profile-name { display: none; }
-  .header-profile-btn { padding: 0 10px; }
+  .header-profile-chevron { display: none; }
+  /* Делаем кнопку компактной но заметной — крупный аватар (32px)
+     + минимальный padding чтобы прижаться к правому краю
+     контейнера (на мобиле .container даёт 20px safe-area). */
+  .header-profile-btn {
+    padding: 4px 6px !important;
+    height: 44px;
+  }
+  .header-profile-btn .user-avatar {
+    width: 32px;
+    height: 32px;
+  }
 }
 
 /* --- Гамбургер + мобильный drawer --- */
@@ -2849,6 +2862,28 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   gap: 20px;
   margin-bottom: 28px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+.admin-head > * { min-width: 0; }
+.admin-page h1 { word-break: break-word; }
+@media (max-width: 640px) {
+  .admin-page h1 { font-size: 24px; }
+  .admin-head { gap: 14px; margin-bottom: 20px; }
+  /* Кнопки в ряду экшнов админки сжимаются и переносятся; заодно
+     каждая growth'ает чтоб занять одну колонку — выглядит ровно
+     вместо «лесенки» из разных по ширине chip-ов. */
+  .admin-head > div[style*='flex'] {
+    width: 100%;
+    gap: 8px !important;
+  }
+  .admin-head > div[style*='flex'] .btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    justify-content: center;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 13px;
+  }
 }
 .admin-head-sub {
   color: var(--ink-mute);
@@ -2975,6 +3010,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  min-width: 0;
+}
+.application-row > * { min-width: 0; }
+.application-motivation {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .application-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .application-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .application-actions .btn { flex: 1 1 auto; min-width: 120px; }
 }
 .application-body {
   min-width: 0;
@@ -10427,9 +10480,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .reader-wrapper[data-read-mode='pages'] .novel-content {
   column-gap: 0;
   column-fill: auto;
-  /* 100dvh честнее 100vh на iOS (учитывает схлопывающуюся адресную
-     строку в Safari). Вычитаем на шапку + toolbar читалки + индикатор. */
-  height: calc(100dvh - 220px);
+  /* 100svh (small viewport) — фиксированная высота, которая НЕ
+     меняется когда iOS Safari схлопывает адресную строку. С 100dvh
+     при скролле к комментам высота прыгала, multi-column перетекал
+     заново и totalPages дёргалось. svh даёт чуть меньшую страницу,
+     но layout стабильный. */
+  height: calc(100svh - 220px);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
