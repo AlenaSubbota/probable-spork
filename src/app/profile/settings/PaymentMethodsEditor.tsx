@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
+import BoostyAutoConnect from './BoostyAutoConnect';
+
+const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || '';
 
 interface Method {
   id: number;
@@ -112,6 +115,10 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
     reload();
   };
 
+  // Сохраняем tg_chat_id — сначала валидируем через auth-service, чтобы
+  // переводчик сразу увидел, что @chaptifybot в чате (иначе автосинк не
+  // сработает, и узнал бы об этом только когда первый читатель попробует
+  // войти). Если AUTH_API_URL не задан — пропускаем валидацию (dev).
   const saveChatId = async (methodId: number) => {
     const v = editChatValue.trim();
     const parsed = v ? parseTgChatId(v) : null;
@@ -119,6 +126,47 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
       push('error', 'TG chat_id должен быть числом.');
       return;
     }
+
+    if (parsed !== null && AUTH_API_URL) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          push('error', 'Сессия потерялась. Перезайди.');
+          return;
+        }
+        const resp = await fetch(`${AUTH_API_URL}/auth/boosty-tg-chat-validate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ tg_chat_id: parsed }),
+        });
+        const vd = (await resp.json()) as {
+          ok?: boolean;
+          error?: string;
+          detail?: string;
+          title?: string;
+        };
+        if (!resp.ok || !vd.ok) {
+          const human: Record<string, string> = {
+            bot_not_member:       'Я не в этом чате. Добавь @chaptifybot в чат участником и попробуй снова.',
+            chat_not_found:       'Telegram не знает такой чат. Проверь chat_id (минус обязателен для групп).',
+            bad_chat_id:          'chat_id должен быть числом.',
+            no_chat_id:           'Не передан chat_id.',
+            telegram_unreachable: 'Telegram сейчас недоступен — попробуй через минуту.',
+            bot_chat_unreachable: vd.detail || 'Telegram отказал.',
+          };
+          push('error', human[vd.error ?? ''] ?? `Telegram: ${vd.error ?? resp.statusText}`);
+          return;
+        }
+        push('info', `Чат "${vd.title ?? '?'}" подтверждён — бот в нём.`);
+      } catch (e) {
+        push('error', `Не дозвонился до auth-service: ${e instanceof Error ? e.message : 'сеть'}`);
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from('translator_payment_methods')
       .update({ tg_chat_id: parsed })
@@ -321,6 +369,20 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {methods.some((m) => m.provider === 'boosty') && (
+        <div
+          style={{
+            marginTop: 18,
+            padding: 14,
+            borderRadius: 8,
+            background: 'var(--surface-alt, #faf7f0)',
+            border: '1px solid var(--border, rgba(0,0,0,0.08))',
+          }}
+        >
+          <BoostyAutoConnect />
         </div>
       )}
 
