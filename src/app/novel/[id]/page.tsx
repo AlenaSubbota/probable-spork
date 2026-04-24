@@ -12,7 +12,7 @@ import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
 import MyNovelHistory from '@/components/novel/MyNovelHistory';
 import { getCoverUrl } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
-import { fetchTranslatorSlugs } from '@/lib/translator';
+import { fetchTranslators } from '@/lib/translator';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -487,8 +487,9 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
   const translatorInitial =
     (translatorProfile?.displayName || 'П').trim().charAt(0).toUpperCase();
 
-  // Slugs для блоков «Похожее» (коллаборативка + fallback)
-  const similarSlugMap = await fetchTranslatorSlugs(
+  // Мапа переводчиков (slug + display name) для блоков «Похожее»
+  // — коллаборативка и fallback.
+  const similarTranslatorMap = await fetchTranslators(
     supabase,
     [
       ...((similarByReaders ?? []) as Array<{ translator_id?: string | null }>).map(
@@ -499,7 +500,6 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
       ),
     ]
   );
-  const fallbackSimilarSlugMap = similarSlugMap;
 
   return (
     <main>
@@ -931,14 +931,18 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
 
         {/* Киллер-фича #2 — созвучие читателей */}
         {similarByReaders && similarByReaders.length > 0 && (
-          <SimilarByReaders novels={similarByReaders} translatorSlugs={similarSlugMap} />
+          <SimilarByReaders novels={similarByReaders} translators={similarTranslatorMap} />
         )}
 
-        {/* Фолбэк: «От этого же автора», если коллаборативка пустая */}
+        {/* Фолбэк: «Похожее от <переводчик>» — пул взвешен по переводчику */}
         {(!similarByReaders || similarByReaders.length === 0) && fallbackSimilar.length > 0 && (
           <>
             <div className="section-head">
-              <h2>Похожее от {novel.author}</h2>
+              <h2>
+                {translatorProfile?.displayName
+                  ? `Похожее от ${translatorProfile.displayName}`
+                  : 'Похожие новеллы'}
+              </h2>
             </div>
             <div className="novel-grid">
               {(fallbackSimilar as Array<{
@@ -951,25 +955,24 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                 rating_count: number | null;
                 chapter_count: number | null;
                 translator_id?: string | null;
-              }>).map((n, index) => (
-                <NovelCard
-                  key={n.id}
-                  id={n.firebase_id}
-                  title={n.title}
-                  translator={n.author || 'Автор'}
-                  translatorSlug={
-                    n.translator_id
-                      ? fallbackSimilarSlugMap.get(n.translator_id) ?? null
-                      : null
-                  }
-                  metaInfo={`${n.rating_count || 0} оценок`}
-                  rating={n.average_rating ? Number(n.average_rating).toFixed(1) : '—'}
-                  coverUrl={getCoverUrl(n.cover_url)}
-                  placeholderClass={`p${(index % 8) + 1}`}
-                  placeholderText={n.title.substring(0, 16)}
-                  chapterCount={n.chapter_count}
-                />
-              ))}
+              }>).map((n, index) => {
+                const info = n.translator_id ? similarTranslatorMap.get(n.translator_id) : null;
+                return (
+                  <NovelCard
+                    key={n.id}
+                    id={n.firebase_id}
+                    title={n.title}
+                    translator={info?.name || 'Переводчик'}
+                    translatorSlug={info?.slug ?? null}
+                    metaInfo={`${n.rating_count || 0} оценок`}
+                    rating={n.average_rating ? Number(n.average_rating).toFixed(1) : '—'}
+                    coverUrl={getCoverUrl(n.cover_url)}
+                    placeholderClass={`p${(index % 8) + 1}`}
+                    placeholderText={n.title.substring(0, 16)}
+                    chapterCount={n.chapter_count}
+                  />
+                );
+              })}
             </div>
           </>
         )}

@@ -73,7 +73,7 @@ export default function UserMenu({
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <UserAvatar avatarUrl={avatarUrl} name={userName} size={24} />
+        <UserAvatar avatarUrl={avatarUrl} name={userName} size={32} />
         <span className="header-profile-name">{userName ?? 'Профиль'}</span>
         <span className="header-profile-chevron" aria-hidden="true">▾</span>
       </button>

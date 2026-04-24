@@ -25,7 +25,7 @@ function isPrefixMatch(path: string, prefixes: readonly string[]): boolean {
 }
 
 export async function proxy(req: NextRequest) {
-  const res = NextResponse.next();
+  let res = NextResponse.next({ request: req });
   const path = req.nextUrl.pathname;
   const code = req.nextUrl.searchParams.get('code');
 
@@ -45,42 +45,52 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(callbackUrl);
   }
 
-  // Быстрый выход для ассетов и явно публичных маршрутов
-  if (
-    path.startsWith('/_next') ||
-    path.startsWith('/api') ||
-    path.startsWith('/favicon') ||
-    path === '/login' ||
-    path.startsWith('/login/') ||
-    path === '/register' ||
-    path.startsWith('/register/') ||
-    path.startsWith('/auth')
-  ) {
+  // Быстрый выход для ассетов — там session не нужна
+  if (path.startsWith('/_next') || path.startsWith('/favicon')) {
     return res;
   }
 
-  const needsAuth = isPrefixMatch(path, PROTECTED_PREFIXES);
-  const needsAdmin = isPrefixMatch(path, ADMIN_PREFIXES);
-
-  // Публичные страницы (каталог, новеллы, главы, профили переводчиков и т.п.)
-  // вообще не требуют проверки сессии — проходят мимо Supabase, чтобы и
-  // анонимы видели контент.
-  if (!needsAuth) {
-    return res;
-  }
-
-  // Защищённые страницы — проверяем сессию
+  // КРИТИЧНО: supabase-auth refresh делаем в прокси на КАЖДОМ запросе,
+  // даже публичных. Иначе server component (SiteHeader и др.) сам
+  // триггерит refresh через fetch → Safari desktop с ITP режет ответ
+  // на установку новых cookies → getUser() висит → RSC-stream не
+  // закрывается → пользователь видит «бесконечную загрузку».
+  // В прокси refresh отрабатывает в контексте браузерной навигации,
+  // cookies ставятся в response.headers как first-party и ITP их
+  // принимает. Канонический паттерн из @supabase/ssr docs.
   const sb = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll: () => req.cookies.getAll(),
-        setAll: (list) => list.forEach((c) => res.cookies.set(c)),
+        setAll: (list) => {
+          list.forEach((c) => req.cookies.set(c.name, c.value));
+          res = NextResponse.next({ request: req });
+          list.forEach((c) => res.cookies.set(c.name, c.value, c.options));
+        },
       },
     }
   );
+  // getUser() (а не getSession) — именно он форсит refresh и выставляет
+  // обновлённые cookies через setAll выше.
   const { data: { user } } = await sb.auth.getUser();
+
+  // Публичные страницы — после refresh'а пропускаем без проверок.
+  // Для зарегистрированных просто доставляем свежие cookies;
+  // анонимам — тоже res без изменений.
+  const isAuthPath =
+    path === '/login' ||
+    path.startsWith('/login/') ||
+    path === '/register' ||
+    path.startsWith('/register/') ||
+    path.startsWith('/auth');
+  if (isAuthPath) return res;
+
+  const needsAuth = isPrefixMatch(path, PROTECTED_PREFIXES);
+  const needsAdmin = isPrefixMatch(path, ADMIN_PREFIXES);
+
+  if (!needsAuth) return res;
 
   if (!user) {
     // Неавторизованный на защищённой странице — на логин с returnUrl,
@@ -92,10 +102,6 @@ export async function proxy(req: NextRequest) {
 
   // Админ-роуты требуют role translator/admin
   if (needsAdmin) {
-    if (path.startsWith('/admin') && path !== '/admin' &&
-        path.startsWith('/admin/moderation')) {
-      // модерация — только чистый админ, но проверит сама страница
-    }
     const { data: profile } = await sb
       .from('profiles')
       .select('role, is_admin')
@@ -115,5 +121,9 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Исключаем статику, картинки и шрифты — там session обновлять
+  // не нужно и лишний supabase-round-trip только тормозит.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|otf)$).*)',
+  ],
 };

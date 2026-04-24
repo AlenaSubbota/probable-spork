@@ -6,7 +6,7 @@ import CommentsSection from '@/components/CommentsSection';
 import ChapterThanks from '@/components/reader/ChapterThanks';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
 import SimilarByReaders from '@/components/SimilarByReaders';
-import { fetchTranslatorSlugs } from '@/lib/translator';
+import { fetchTranslators } from '@/lib/translator';
 
 interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
@@ -367,7 +367,7 @@ export default async function ChapterPage({ params }: PageProps) {
   // `novel_ratings` (кто ставил 4+ этой же ставил 4+ вот этим).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let similarByReaders: any[] = [];
-  let similarSlugMap: Map<string, string> = new Map();
+  let similarTranslatorMap: Map<string, { slug: string; name: string }> = new Map();
   try {
     const { data } = await supabase.rpc('get_similar_novels_by_readers', {
       p_novel_id: novel.id,
@@ -378,7 +378,7 @@ export default async function ChapterPage({ params }: PageProps) {
       const ids = (data as Array<{ translator_id?: string | null }>)
         .map((n) => n.translator_id)
         .filter((v): v is string => !!v);
-      similarSlugMap = await fetchTranslatorSlugs(supabase, ids);
+      similarTranslatorMap = await fetchTranslators(supabase, ids);
     }
   } catch {
     // RPC ещё не накачена — тихо пропускаем блок
@@ -478,7 +478,7 @@ export default async function ChapterPage({ params }: PageProps) {
         {similarByReaders.length > 0 && (
           <SimilarByReaders
             novels={similarByReaders}
-            translatorSlugs={similarSlugMap}
+            translators={similarTranslatorMap}
           />
         )}
       </main>

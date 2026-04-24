@@ -28,8 +28,11 @@ export function resolveAvatarUrl(avatarUrl: string | null | undefined): string |
   if (!avatarUrl) return null;
   if (avatarUrl.startsWith('preset:')) return null;   // пресет → CSS, не URL
   if (avatarUrl.startsWith('http')) return avatarUrl; // внешний (Telegram / прочий CDN)
-  // Relative path в bucket avatars
-  return `https://tene.fun/storage/v1/object/public/avatars/${avatarUrl}`;
+  // Relative path в bucket avatars — same-origin через next.config
+  // rewrite `/sb-storage/*` → tene.fun/storage/*. Safari desktop
+  // не ходит к tene.fun напрямую, поэтому все supabase-storage ссылки
+  // проксируем через chaptify.ru.
+  return `/sb-storage/v1/object/public/avatars/${avatarUrl}`;
 }
 
 /**

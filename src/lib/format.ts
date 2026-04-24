@@ -6,20 +6,25 @@ export function getCoverUrl(path: string | null | undefined) {
   if (!path) return null;
   if (path.startsWith('http')) return path;
 
+  // Все пути ниже возвращаем как same-origin relative URLs (`/covers/*`,
+  // `/sb-storage/*`) — Next.config rewrites проксирует их через наш
+  // backend на tene.fun. Прямые https://tene.fun ссылки из браузера
+  // не работали в Safari desktop (ITP/TLS вешали соединение).
+
   // В старой базе tene cover_url часто лежит с префиксом «covers/» —
   // не добавляем его повторно, только кодируем имя файла.
   if (path.startsWith('covers/')) {
     const filename = path.slice('covers/'.length);
-    return `https://tene.fun/covers/${encodeURIComponent(filename)}`;
+    return `/covers/${encodeURIComponent(filename)}`;
   }
 
   // Новые загрузки через CoverUpload: UUID-like или timestamp-rand имена → Supabase Storage
   if (UUID_RE.test(path) || UPLOAD_RE.test(path)) {
-    return `https://tene.fun/storage/v1/object/public/covers/${encodeURIComponent(path)}`;
+    return `/sb-storage/v1/object/public/covers/${encodeURIComponent(path)}`;
   }
 
   // Старые обложки tene — прямое имя файла в /covers/
-  return `https://tene.fun/covers/${encodeURIComponent(path)}`;
+  return `/covers/${encodeURIComponent(path)}`;
 }
 
 export function timeAgo(iso: string | null | undefined) {

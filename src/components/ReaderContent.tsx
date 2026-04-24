@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client';
 import {
   loadSettings,
   saveSettings,
+  fetchServerSettings,
+  pushServerSettings,
   getFontCss,
   DEFAULT_SETTINGS,
   type ReaderSettings,
@@ -81,15 +83,41 @@ export default function ReaderContent({
   const [uiHidden, setUiHidden] = useState(false);
 
   // ---- 1. Загрузка настроек ----
+  // Сначала локально (мгновенно, без сетевого ожидания), затем
+  // подтягиваем серверные — если они есть, накатываем поверх. Это даёт
+  // кросс-девайс синк: меняешь шрифт на телефоне → открываешь на ноуте
+  // → видишь свои настройки.
   useEffect(() => {
     setSettings(loadSettings());
     setReady(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createClient();
+        const fromServer = await fetchServerSettings(supabase);
+        if (!cancelled && fromServer) {
+          setSettings(fromServer);
+          saveSettings(fromServer);
+        }
+      } catch { /* network — игнорим, остаёмся на локальных */ }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // ---- 2. Автосохранение настроек ----
+  // Локально — синхронно, на сервер — debounce 600мс (чтобы крутилка
+  // шрифта не дёргала RPC на каждый клик).
+  const settingsPushTimer = useRef<number | null>(null);
   const updateSettings = useCallback((next: ReaderSettings) => {
     setSettings(next);
     saveSettings(next);
+    if (settingsPushTimer.current != null) {
+      window.clearTimeout(settingsPushTimer.current);
+    }
+    settingsPushTimer.current = window.setTimeout(() => {
+      const supabase = createClient();
+      pushServerSettings(supabase, next).catch(() => { /* ignore */ });
+    }, 600);
   }, []);
 
   // ---- 3. Горячие клавиши (A+/A-/F = focus) ----
@@ -414,27 +442,82 @@ export default function ReaderContent({
       return;
     }
 
+    // Восстанавливаем позицию: сначала пробуем серверный last_read
+    // (актуальный с любого устройства), при отсутствии — локальный.
+    // Если серверный новее (timestamp), он перебивает.
+    let cancelled = false;
+    type ProgressEntry = {
+      chapterId: number;
+      paragraphIndex?: number;
+      timestamp?: string;
+    };
+    const restoreTo = (data: ProgressEntry) => {
+      if (data.chapterId !== chapterNumber) return;
+      const idx = data.paragraphIndex ?? 0;
+      const paragraphs = container.querySelectorAll<HTMLElement>(
+        'p, h1, h2, h3, blockquote'
+      );
+      const target = paragraphs[idx];
+      if (!target) return;
+      if (settings.readMode === 'pages') {
+        const pageW = container.clientWidth;
+        if (pageW > 0) {
+          const pageIdx = Math.floor(target.offsetLeft / pageW);
+          container.scrollTo({
+            left: pageIdx * pageW,
+            behavior: 'instant' as ScrollBehavior,
+          });
+        }
+      } else {
+        target.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
+      }
+    };
+
+    let localData: ProgressEntry | null = null;
     try {
       const raw = localStorage.getItem(`progress_${novelId}`);
-      if (!raw) return;
-      const data = JSON.parse(raw) as { chapterId: number; paragraphIndex: number };
-      if (data.chapterId !== chapterNumber) return;
-      const paragraphs = container.querySelectorAll<HTMLElement>('p, h1, h2, h3, blockquote');
-      const target = paragraphs[data.paragraphIndex];
-      if (!target) return;
-      setTimeout(() => {
-        if (settings.readMode === 'pages') {
-          const pageW = container.clientWidth;
-          if (pageW > 0) {
-            const targetLeft = target.offsetLeft;
-            const pageIdx = Math.floor(targetLeft / pageW);
-            container.scrollTo({ left: pageIdx * pageW, behavior: 'instant' as ScrollBehavior });
-          }
-        } else {
-          target.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
-        }
-      }, 160);
+      if (raw) localData = JSON.parse(raw) as ProgressEntry;
     } catch { /* ignore */ }
+
+    // Сразу применяем локальное (бесплатно, не ждёт сеть)
+    if (localData) {
+      setTimeout(() => { if (!cancelled) restoreTo(localData!); }, 160);
+    }
+
+    // И параллельно тянем серверный — если новее, перебиваем позицию
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('last_read')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        const lr = (profile?.last_read ?? {}) as Record<string, ProgressEntry>;
+        const serverData = lr[String(novelId)];
+        if (!serverData) return;
+        const localTs = localData?.timestamp ? Date.parse(localData.timestamp) : 0;
+        const serverTs = serverData.timestamp ? Date.parse(serverData.timestamp) : 0;
+        // Сервер свежее или ничего локального — применяем серверный
+        if (serverTs >= localTs) {
+          // Кладём в localStorage чтобы при следующем mount без сети
+          // позиция была актуальной
+          try {
+            localStorage.setItem(
+              `progress_${novelId}`,
+              JSON.stringify(serverData)
+            );
+          } catch { /* ignore */ }
+          // Дать html время измерить layout (font-loading, columns)
+          setTimeout(() => { if (!cancelled) restoreTo(serverData); }, 220);
+        }
+      } catch { /* offline / RLS — ничего не делаем */ }
+    })();
+
+    return () => { cancelled = true; };
   }, [ready, content, novelId, chapterNumber, settings.readMode]);
 
   // ---- 6.5. Pages mode: расчёт totalPages + currentPage ----
@@ -483,18 +566,41 @@ export default function ReaderContent({
     if (fontsReady) fontsReady.then(calc).catch(calc);
     else calc();
 
-    const ro = new ResizeObserver(() => calc());
+    // Только width-changes триггерят пересчёт. Высота с 100svh
+    // должна быть стабильна, но iOS-у мы доверяем не до конца —
+    // лучше явно отфильтровать height-only события, чтобы totalPages
+    // не дёргалось когда Safari убирает/возвращает адресную строку.
+    let lastWidth = container.clientWidth;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const w = Math.round(e.contentRect.width);
+        if (Math.abs(w - lastWidth) > 0.5) {
+          lastWidth = w;
+          calc();
+        }
+      }
+    });
     ro.observe(container);
 
+    // Smooth-scroll фризит палец на 300–500мс потому что onScroll
+    // стрельнёт 30+ раз и каждый раз setCurrentPage дёргает ре-рендер
+    // всего reader-wrapper. Заворачиваем в rAF — одно обновление на кадр.
+    let rafId: number | null = null;
     const onScroll = () => {
-      const w = container.clientWidth || 1;
-      setCurrentPage(Math.round(container.scrollLeft / w));
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const w = container.clientWidth || 1;
+        const next = Math.round(container.scrollLeft / w);
+        setCurrentPage((prev) => (prev === next ? prev : next));
+      });
     };
     container.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
       ro.disconnect();
       container.removeEventListener('scroll', onScroll);
+      if (rafId != null) cancelAnimationFrame(rafId);
     };
   }, [
     ready,
@@ -522,12 +628,16 @@ export default function ReaderContent({
         return;
       const w = container.clientWidth;
       if (!w) return;
+      const idx = Math.round(container.scrollLeft / w);
+      const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
         e.preventDefault();
-        container.scrollBy({ left: w, behavior: 'smooth' });
+        const t = Math.min(maxIdx, idx + 1);
+        container.scrollTo({ left: t * w, behavior: 'smooth' });
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault();
-        container.scrollBy({ left: -w, behavior: 'smooth' });
+        const t = Math.max(0, idx - 1);
+        container.scrollTo({ left: t * w, behavior: 'smooth' });
       } else if (e.key === 'Home') {
         e.preventDefault();
         container.scrollTo({ left: 0, behavior: 'smooth' });
@@ -543,6 +653,7 @@ export default function ReaderContent({
   // ---- 6.7. Smart tap/click navigation в pages-режиме ----
   // Тап по левой трети экрана = prev page, правой трети = next.
   // Центр игнорируем — это зона для выделений и глоссария.
+  const flipBusyRef = useRef(false);
   const onContentClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (settings.readMode !== 'pages') return;
@@ -562,10 +673,24 @@ export default function ReaderContent({
       if (!w) return;
       const rect = container.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      if (x < w * 0.33) {
-        container.scrollBy({ left: -w, behavior: 'smooth' });
-      } else if (x > w * 0.67) {
-        container.scrollBy({ left: w, behavior: 'smooth' });
+      const isEdgeTap = x < w * 0.33 || x > w * 0.67;
+      if (isEdgeTap) {
+        // Гасим повторные тапы пока идёт smooth-scroll — без этого
+        // двойной тап ставит два scrollBy в очередь и читателю
+        // кажется что страница «перескочила» на две.
+        if (flipBusyRef.current) return;
+        flipBusyRef.current = true;
+        // Считаем целевую страницу из текущего scrollLeft, не от
+        // currentPage state (который может отстать). scrollTo с
+        // явным целевым `idx * w` гарантирует, что снап придёт
+        // ровно к границе колонки — раньше scrollBy +/- w плюс
+        // дробные пиксели приводили к остановкам между страниц.
+        const idx = Math.round(container.scrollLeft / w);
+        const dir = x < w * 0.33 ? -1 : 1;
+        const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
+        const targetIdx = Math.max(0, Math.min(maxIdx, idx + dir));
+        container.scrollTo({ left: targetIdx * w, behavior: 'smooth' });
+        setTimeout(() => { flipBusyRef.current = false; }, 320);
       } else {
         // Центр: тоггл toolbar/индикатора — immersive чтение.
         setUiHidden((v) => !v);
@@ -580,7 +705,10 @@ export default function ReaderContent({
       if (!container) return;
       const w = container.clientWidth;
       if (!w) return;
-      container.scrollBy({ left: direction * w, behavior: 'smooth' });
+      const idx = Math.round(container.scrollLeft / w);
+      const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
+      const t = Math.max(0, Math.min(maxIdx, idx + direction));
+      container.scrollTo({ left: t * w, behavior: 'smooth' });
     },
     []
   );
@@ -615,9 +743,13 @@ export default function ReaderContent({
       return paragraphs.length - 1;
     };
 
+    let lastSavedIdx = -1;
     const flushSave = () => {
       if (paragraphs.length === 0) return;
-      saveProgress(findCurrent());
+      const idx = findCurrent();
+      if (idx === lastSavedIdx) return;
+      lastSavedIdx = idx;
+      saveProgress(idx);
     };
 
     const onHide = () => {
@@ -625,11 +757,18 @@ export default function ReaderContent({
     };
     const onPageHide = () => flushSave();
 
+    // Периодический бэкап раз в 30 сек: visibilitychange RPC на iOS
+    // может не докачаться до сервера (страница уходит в фон до
+    // завершения await). Лучший способ дать кросс-девайс синк —
+    // регулярно сбрасывать позицию пока пользователь читает.
+    const periodicId = window.setInterval(flushSave, 30_000);
+
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', onPageHide);
     return () => {
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', onPageHide);
+      window.clearInterval(periodicId);
     };
   }, [ready, saveProgress, settings.readMode]);
 

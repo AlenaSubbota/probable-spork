@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 type Theme = 'light' | 'dark' | 'auto';
 
@@ -18,12 +19,51 @@ function apply(theme: Theme) {
   root.setAttribute('data-theme', resolved);
 }
 
+// Серверная синхронизация темы — храним в profiles.settings.theme.
+// Тот же jsonb-контейнер, что reader-настройки и adult_confirmed_at.
+async function pushServerTheme(t: Theme) {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('settings')
+      .eq('id', user.id)
+      .maybeSingle();
+    const all = (data?.settings ?? {}) as Record<string, unknown>;
+    const merged = { ...all, theme: t };
+    await supabase.rpc('update_my_profile', {
+      data_to_update: { settings: merged },
+    });
+  } catch { /* ignore */ }
+}
+
+async function fetchServerTheme(): Promise<Theme | null> {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from('profiles')
+      .select('settings')
+      .eq('id', user.id)
+      .maybeSingle();
+    const all = (data?.settings ?? {}) as Record<string, unknown>;
+    const t = all.theme;
+    if (t === 'light' || t === 'dark' || t === 'auto') return t;
+    return null;
+  } catch { return null; }
+}
+
 // Переключатель темы (light / dark / auto). Мини-панель из трёх чипов.
-// Состояние сохраняется в localStorage. При 'auto' слушает
+// Состояние сохраняется в localStorage + profiles.settings.theme на
+// сервере (для синка между устройствами). При 'auto' слушает
 // prefers-color-scheme и перерисовывает автоматически.
 //
 // При монтировании читает localStorage и применяет тему (на случай если
-// инлайн-скрипт в <head> не отработал).
+// инлайн-скрипт в <head> не отработал), затем подтягивает серверную
+// тему и перебивает локальную если она отличается.
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('auto');
 
@@ -31,6 +71,17 @@ export default function ThemeToggle() {
     const stored = (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'auto';
     setTheme(stored);
     apply(stored);
+    let cancelled = false;
+    (async () => {
+      const fromServer = await fetchServerTheme();
+      if (cancelled || !fromServer) return;
+      if (fromServer !== stored) {
+        setTheme(fromServer);
+        localStorage.setItem(STORAGE_KEY, fromServer);
+        apply(fromServer);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -45,6 +96,7 @@ export default function ThemeToggle() {
     setTheme(next);
     localStorage.setItem(STORAGE_KEY, next);
     apply(next);
+    pushServerTheme(next);
   };
 
   const opts: Array<{ key: Theme; label: string; icon: string }> = [

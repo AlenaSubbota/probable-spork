@@ -102,6 +102,49 @@ export function saveSettings(s: ReaderSettings): void {
   }
 }
 
+// Серверная синхронизация: настройки лежат в profiles.settings.reader
+// (jsonb), читаются и пишутся через RPC update_my_profile (settings —
+// allowlisted, см. AdultGate.tsx и SettingsForm.tsx). Источник правды
+// — сервер: при mount страницу сначала восстанавливаем из localStorage
+// (мгновенно), затем накатываем серверные настройки если есть.
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+export async function fetchServerSettings(
+  supabase: SupabaseClient
+): Promise<ReaderSettings | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from('profiles')
+    .select('settings')
+    .eq('id', user.id)
+    .maybeSingle();
+  const all = (data?.settings ?? {}) as Record<string, unknown>;
+  const raw = all.reader as Partial<ReaderSettings> | undefined;
+  if (!raw || typeof raw !== 'object') return null;
+  return { ...DEFAULT_SETTINGS, ...raw, theme: 'light' };
+}
+
+export async function pushServerSettings(
+  supabase: SupabaseClient,
+  s: ReaderSettings
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  // Берём текущий settings jsonb, мержим reader-секцию, чтобы не
+  // затереть рядом лежащие adult_confirmed_at / show_reading_publicly.
+  const { data } = await supabase
+    .from('profiles')
+    .select('settings')
+    .eq('id', user.id)
+    .maybeSingle();
+  const all = (data?.settings ?? {}) as Record<string, unknown>;
+  const merged = { ...all, reader: s };
+  await supabase.rpc('update_my_profile', {
+    data_to_update: { settings: merged },
+  });
+}
+
 export function getFontCss(key: FontFamilyKey): string {
   return FONT_OPTIONS.find((o) => o.key === key)?.css ?? FONT_OPTIONS[0].css;
 }
