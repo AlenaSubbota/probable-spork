@@ -75,6 +75,13 @@ export const LIMITS = {
 
 export const STORAGE_KEY = 'chaptify-reader-settings';
 
+// Нормализация: обрезаем неизвестные поля, миграция старых пресетов
+// темы читалки (sepia/dark → light).
+function normalize(parsed: Partial<ReaderSettings> & { theme?: string }): ReaderSettings {
+  const theme: ReaderTheme = 'light';
+  return { ...DEFAULT_SETTINGS, ...parsed, theme };
+}
+
 export function loadSettings(): ReaderSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
@@ -83,11 +90,7 @@ export function loadSettings(): ReaderSettings {
     const parsed = JSON.parse(raw) as Partial<ReaderSettings> & {
       theme?: string;
     };
-    // Старые пресеты 'sepia' и 'dark' больше не поддерживаем —
-    // мигрируем на light, чтобы читалка не осталась тёмной у тех,
-    // кто сохранил настройку до убирания пресета.
-    const theme: ReaderTheme = 'light';
-    return { ...DEFAULT_SETTINGS, ...parsed, theme };
+    return normalize(parsed);
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -99,6 +102,50 @@ export function saveSettings(s: ReaderSettings): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
   } catch {
     // ignore
+  }
+}
+
+// -----------------------------------------------------------
+// Синхронизация настроек между устройствами (мигр. 047).
+// localStorage остаётся быстрым первоисточником на клиенте; сервер —
+// "истина" для синхронизации: когда юзер заходит на другом устройстве,
+// применяем серверные настройки поверх дефолтов.
+// -----------------------------------------------------------
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+export async function loadSettingsFromServer(
+  supabase: SupabaseClient
+): Promise<ReaderSettings | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from('profiles')
+      .select('settings')
+      .eq('id', user.id)
+      .maybeSingle();
+    const remote = (data?.settings as { reader?: Partial<ReaderSettings> } | null)?.reader;
+    if (!remote || typeof remote !== 'object') return null;
+    return normalize(remote);
+  } catch {
+    return null;
+  }
+}
+
+// Пишем только поддерево settings.reader через patch-RPC из мигр. 047.
+// Если RPC ещё не накачен (миграция 047 не прошла) — тихо падаем,
+// localStorage продолжит работать.
+export async function saveSettingsToServer(
+  supabase: SupabaseClient,
+  s: ReaderSettings
+): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.rpc('update_my_settings_patch', { patch: { reader: s } });
+  } catch {
+    // ignore — локальная версия уже в localStorage
   }
 }
 
