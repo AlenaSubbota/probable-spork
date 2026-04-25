@@ -67,6 +67,10 @@ export default function ReaderContent({
   const [sleepDismissed, setSleepDismissed] = useState(false);
 
   const contentRef = useRef<HTMLDivElement | null>(null);
+  // В pages-режиме «scroller» — это outer flex-контейнер с реальными
+  // CSS scroll-snap targets (страница-контент + spacer'ы). В scroll-режиме
+  // outer не используется — вертикальный скролл идёт через window.
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   // iOS/Android уносят scrollLeft overflow-контейнера при блокировке экрана —
   // запоминаем последнюю позицию и восстанавливаем при возврате на вкладку.
@@ -330,8 +334,16 @@ export default function ReaderContent({
     };
 
     const findBestPaged = (): number => {
-      const scrollLeft = container.scrollLeft;
-      const pageW = container.clientWidth || 1;
+      // В pages-режиме скролл — на outer scroller'е (snap-flex-контейнер).
+      // А абзацы лежат внутри inner-content'а (multi-column). offsetLeft
+      // абзаца отсчитан относительно content'а, поэтому сравниваем с
+      // scroller.scrollLeft напрямую — это та же координатная система
+      // (content начинается с 0 в outer'е, multi-col-колонки идут
+      // pageWidth-шагом).
+      const sc = scrollerRef.current;
+      if (!sc) return 0;
+      const scrollLeft = sc.scrollLeft;
+      const pageW = sc.clientWidth || 1;
       let bestIdx = 0;
       for (let i = 0; i < paragraphs.length; i++) {
         const el = paragraphs[i];
@@ -362,15 +374,14 @@ export default function ReaderContent({
 
     applyActive(isPages ? findBestPaged() : findBestVertical());
 
-    if (isPages) {
-      container.addEventListener('scroll', onAnyScroll, { passive: true });
-    } else {
-      window.addEventListener('scroll', onAnyScroll, { passive: true });
-    }
+    // В pages-режиме слушаем outer scroller, в scroll — window.
+    const scrollTarget: EventTarget = isPages
+      ? (scrollerRef.current ?? window)
+      : window;
+    scrollTarget.addEventListener('scroll', onAnyScroll, { passive: true });
 
     return () => {
-      if (isPages) container.removeEventListener('scroll', onAnyScroll);
-      else window.removeEventListener('scroll', onAnyScroll);
+      scrollTarget.removeEventListener('scroll', onAnyScroll);
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
         paragraphs[lastActiveId].classList.remove('focus-active');
@@ -387,10 +398,13 @@ export default function ReaderContent({
     const jumpToEnd = () => {
       setTimeout(() => {
         if (settings.readMode === 'pages') {
-          container.scrollTo({
-            left: container.scrollWidth,
-            behavior: 'instant' as ScrollBehavior,
-          });
+          const sc = scrollerRef.current;
+          if (sc) {
+            sc.scrollTo({
+              left: sc.scrollWidth,
+              behavior: 'instant' as ScrollBehavior,
+            });
+          }
         } else {
           window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' as ScrollBehavior });
         }
@@ -418,10 +432,14 @@ export default function ReaderContent({
       const target = paragraphs[idx];
       if (!target) return;
       if (settings.readMode === 'pages') {
-        const pageW = container.clientWidth;
-        if (pageW > 0) {
+        const sc = scrollerRef.current;
+        const pageW = sc?.clientWidth ?? 0;
+        if (sc && pageW > 0) {
+          // target.offsetLeft в pages-режиме отражает позицию абзаца
+          // внутри multi-column ВНУТРИ content-div'а. Колонки идут по
+          // pageW, gap=0, так что floor(offsetLeft / pageW) = индекс колонки.
           const pageIdx = Math.floor(target.offsetLeft / pageW);
-          container.scrollTo({
+          sc.scrollTo({
             left: pageIdx * pageW,
             behavior: 'instant' as ScrollBehavior,
           });
@@ -483,21 +501,26 @@ export default function ReaderContent({
       if (c) c.style.columnWidth = '';
       return;
     }
-    const container = contentRef.current;
-    if (!container) return;
+    const content = contentRef.current;
+    const scroller = scrollerRef.current;
+    if (!content || !scroller) return;
 
     const calc = () => {
-      const w = container.clientWidth;
+      const w = scroller.clientWidth;
       if (!w) return;
-      container.style.columnWidth = `${w}px`;
+      // Multi-column на content-div'е: column-width = pageWidth даёт по
+      // одной колонке на ширину рендер-бокса. Контент перетекает в
+      // следующие колонки, которые рендерятся ВПРАВО за пределы бокса
+      // (overflow visible). Outer flex-scroller со spacer'ами одной
+      // ширины делает их видимыми и снапаемыми.
+      content.style.width = `${w}px`;
+      content.style.columnWidth = `${w}px`;
       setPageWidth(w);
       requestAnimationFrame(() => {
-        // Math.ceil вместо round — иначе при scrollWidth=2.7w totalPages=3
-        // (правильно), но при scrollWidth=2.4w было бы 2 → последний 0.4w
-        // контента вообще нескроллируемый. Маленькая погрешность 1px
-        // (sub-pixel rendering) не должна давать лишнюю пустую страницу:
-        // вычитаем 2px перед делением.
-        const sw = Math.max(0, container.scrollWidth - 2);
+        // scrollWidth content'а = ширина одной колонки * число колонок.
+        // Берём именно его (а не scroller.scrollWidth, потому что spacer'ы
+        // ещё не подтянулись после первого расчёта).
+        const sw = Math.max(0, content.scrollWidth - 2);
         const total = Math.max(1, Math.ceil(sw / w));
         setTotalPages((prev) => (prev === total ? prev : total));
       });
@@ -513,8 +536,8 @@ export default function ReaderContent({
     // 3. Reflow при изменении ширины ИЛИ высоты контейнера. Высота
     //    меняется когда iOS Safari прячет адресную строку или когда
     //    клавиатура выезжает — multi-column перетекает, totalPages меняется.
-    let lastWidth = container.clientWidth;
-    let lastHeight = container.clientHeight;
+    let lastWidth = scroller.clientWidth;
+    let lastHeight = scroller.clientHeight;
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
         const w = Math.round(e.contentRect.width);
@@ -526,12 +549,10 @@ export default function ReaderContent({
         }
       }
     });
-    ro.observe(container);
+    ro.observe(scroller);
 
     // 4. Картинки внутри главы: каждая загруженная меняет column flow.
-    //    Без этого первая страница может остаться пустой, пока картинки
-    //    тянутся — totalPages посчитается до их прихода.
-    const imgs = container.querySelectorAll('img');
+    const imgs = content.querySelectorAll('img');
     const onImg = () => calc();
     imgs.forEach((img) => {
       if (img.complete) return;
@@ -543,23 +564,23 @@ export default function ReaderContent({
     const onScroll = () => {
       // Сохраняем позицию для visibilitychange-восстановления
       savedScrollRef.current = {
-        top: container.scrollTop,
-        left: container.scrollLeft,
+        top: scroller.scrollTop,
+        left: scroller.scrollLeft,
       };
       if (rafId != null) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        const w = container.clientWidth || 1;
-        const next = Math.round(container.scrollLeft / w);
+        const w = scroller.clientWidth || 1;
+        const next = Math.round(scroller.scrollLeft / w);
         setCurrentPage((prev) => (prev === next ? prev : next));
       });
     };
-    container.addEventListener('scroll', onScroll, { passive: true });
+    scroller.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
       window.clearTimeout(initialTimer);
       ro.disconnect();
-      container.removeEventListener('scroll', onScroll);
+      scroller.removeEventListener('scroll', onScroll);
       imgs.forEach((img) => {
         img.removeEventListener('load', onImg);
         img.removeEventListener('error', onImg);
@@ -609,19 +630,19 @@ export default function ReaderContent({
   // ---- 6.56. visibilitychange: iOS/Android уносят scrollLeft в фоне ----
   useEffect(() => {
     if (!ready || settings.readMode !== 'pages') return;
-    const container = contentRef.current;
-    if (!container) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
     const onVis = () => {
       if (document.visibilityState === 'hidden') {
         savedScrollRef.current = {
-          top: container.scrollTop,
-          left: container.scrollLeft,
+          top: scroller.scrollTop,
+          left: scroller.scrollLeft,
         };
       } else {
         const { top, left } = savedScrollRef.current;
         if (top > 0 || left > 0) {
           requestAnimationFrame(() => {
-            container.scrollTo({ top, left, behavior: 'instant' as ScrollBehavior });
+            scroller.scrollTo({ top, left, behavior: 'instant' as ScrollBehavior });
           });
         }
       }
@@ -634,13 +655,9 @@ export default function ReaderContent({
   useEffect(() => {
     if (!ready) return;
     if (settings.readMode !== 'pages') return;
-    const container = contentRef.current;
-    if (!container) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
     const onKey = (e: KeyboardEvent) => {
-      // Текстовые поля и редактируемые блоки — не перехватываем стрелки.
-      // Range-slider в нижней панели ИГНОРИРУЕМ из этого фильтра: на нём
-      // нативные стрелки тоже двигают слайдер, но это совпадает с нашей
-      // логикой — обе стороны заканчивают на той же странице.
       const tag = (e.target as HTMLElement | null)?.tagName;
       const isTextInput =
         (e.target instanceof HTMLInputElement && e.target.type !== 'range') ||
@@ -650,72 +667,30 @@ export default function ReaderContent({
       // Если фокус на range — даём слайдеру самому отработать стрелку
       // (избегаем двойной перемотки), но Home/End/PageUp/PageDown берём.
       const onRange = tag === 'INPUT' && (e.target as HTMLInputElement).type === 'range';
-      const w = container.clientWidth;
+      const w = scroller.clientWidth;
       if (!w) return;
-      const idx = Math.round(container.scrollLeft / w);
-      const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
+      const idx = Math.round(scroller.scrollLeft / w);
+      const maxIdx = Math.max(0, Math.round(scroller.scrollWidth / w) - 1);
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
-        if (onRange && e.key === 'ArrowRight') return; // слайдер сам сдвинет
+        if (onRange && e.key === 'ArrowRight') return;
         e.preventDefault();
         const t = Math.min(maxIdx, idx + 1);
-        container.scrollTo({ left: t * w, behavior: 'smooth' });
+        scroller.scrollTo({ left: t * w, behavior: 'smooth' });
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         if (onRange && e.key === 'ArrowLeft') return;
         e.preventDefault();
         const t = Math.max(0, idx - 1);
-        container.scrollTo({ left: t * w, behavior: 'smooth' });
+        scroller.scrollTo({ left: t * w, behavior: 'smooth' });
       } else if (e.key === 'Home') {
         e.preventDefault();
-        container.scrollTo({ left: 0, behavior: 'smooth' });
+        scroller.scrollTo({ left: 0, behavior: 'smooth' });
       } else if (e.key === 'End') {
         e.preventDefault();
-        container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+        scroller.scrollTo({ left: scroller.scrollWidth, behavior: 'smooth' });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ready, settings.readMode]);
-
-  // ---- 6.65. JS-snap: doтягиваем к ближайшей странице после inertial-скролла ----
-  // CSS scroll-snap на multi-column-контейнере без явных snap-target'ов
-  // не работает корректно — браузер не знает, к какой колонке снапить, и
-  // палец с инерцией может остановиться между двух страниц. Мы сами
-  // ловим момент остановки скролла (тишина 140 мс) и плавно дотягиваем
-  // scrollLeft к ближайшему кратному pageWidth. Tene делает то же самое
-  // через snap-spacers, у нас одна колонка — JS-fallback идентичен по
-  // эффекту.
-  useEffect(() => {
-    if (!ready || settings.readMode !== 'pages') return;
-    const container = contentRef.current;
-    if (!container) return;
-    let endTimer: number | null = null;
-    let programmaticUntil = 0;
-    const SNAP_TOLERANCE = 1; // px — меньше игнорируем (уже на странице)
-    const snap = () => {
-      const w = container.clientWidth;
-      if (!w) return;
-      const max = container.scrollWidth - container.clientWidth;
-      // Если пользователь почти у правого края — это последняя страница,
-      // которая короче полной (scrollWidth не делится без остатка на w).
-      // Snap-back к round*w отрезал бы хвост текста — оставляем как есть.
-      if (max - container.scrollLeft < 4) return;
-      let target = Math.round(container.scrollLeft / w) * w;
-      if (target > max) target = max;
-      if (Math.abs(container.scrollLeft - target) <= SNAP_TOLERANCE) return;
-      // Гасим повторный запуск из onScroll нашего же smooth-scroll.
-      programmaticUntil = Date.now() + 600;
-      container.scrollTo({ left: target, behavior: 'smooth' });
-    };
-    const onScroll = () => {
-      if (Date.now() < programmaticUntil) return;
-      if (endTimer != null) window.clearTimeout(endTimer);
-      endTimer = window.setTimeout(snap, 140);
-    };
-    container.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      container.removeEventListener('scroll', onScroll);
-      if (endTimer != null) window.clearTimeout(endTimer);
-    };
   }, [ready, settings.readMode]);
 
   // ---- 6.7. Smart tap/click navigation ----
@@ -731,21 +706,21 @@ export default function ReaderContent({
       ) {
         return;
       }
-      const container = contentRef.current;
-      if (!container) return;
-      const w = container.clientWidth;
+      const scroller = scrollerRef.current;
+      if (!scroller) return;
+      const w = scroller.clientWidth;
       if (!w) return;
-      const rect = container.getBoundingClientRect();
+      const rect = scroller.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const isEdgeTap = x < w * 0.33 || x > w * 0.67;
       if (isEdgeTap) {
         if (flipBusyRef.current) return;
         flipBusyRef.current = true;
-        const idx = Math.round(container.scrollLeft / w);
+        const idx = Math.round(scroller.scrollLeft / w);
         const dir = x < w * 0.33 ? -1 : 1;
-        const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
+        const maxIdx = Math.max(0, Math.round(scroller.scrollWidth / w) - 1);
         const targetIdx = Math.max(0, Math.min(maxIdx, idx + dir));
-        container.scrollTo({ left: targetIdx * w, behavior: 'smooth' });
+        scroller.scrollTo({ left: targetIdx * w, behavior: 'smooth' });
         setTimeout(() => { flipBusyRef.current = false; }, 320);
       } else {
         setUiHidden((v) => !v);
@@ -756,14 +731,14 @@ export default function ReaderContent({
 
   const scrollPageBy = useCallback(
     (direction: 1 | -1) => {
-      const container = contentRef.current;
-      if (!container) return;
-      const w = container.clientWidth;
+      const scroller = scrollerRef.current;
+      if (!scroller) return;
+      const w = scroller.clientWidth;
       if (!w) return;
-      const idx = Math.round(container.scrollLeft / w);
-      const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
+      const idx = Math.round(scroller.scrollLeft / w);
+      const maxIdx = Math.max(0, Math.round(scroller.scrollWidth / w) - 1);
       const t = Math.max(0, Math.min(maxIdx, idx + direction));
-      container.scrollTo({ left: t * w, behavior: 'smooth' });
+      scroller.scrollTo({ left: t * w, behavior: 'smooth' });
     },
     []
   );
@@ -787,7 +762,8 @@ export default function ReaderContent({
         });
         return best;
       }
-      const sl = container.scrollLeft;
+      // В pages-режиме скролл — на outer scroller'е, не на content.
+      const sl = scrollerRef.current?.scrollLeft ?? 0;
       for (let i = 0; i < paragraphs.length; i++) {
         if (paragraphs[i].offsetLeft + paragraphs[i].offsetWidth >= sl + 1) return i;
       }
@@ -841,9 +817,9 @@ export default function ReaderContent({
     const sec = document.querySelector('.comments-section');
     if (!sec) return;
     if (settings.readMode === 'pages') {
-      const container = contentRef.current;
-      if (container) {
-        container.scrollTo({ left: container.scrollWidth, behavior: 'instant' as ScrollBehavior });
+      const sc = scrollerRef.current;
+      if (sc) {
+        sc.scrollTo({ left: sc.scrollWidth, behavior: 'instant' as ScrollBehavior });
       }
       setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     } else {
@@ -907,16 +883,45 @@ export default function ReaderContent({
         />
       )}
 
-      <div className="novel-content-host">
+      {settings.readMode === 'pages' ? (
+        // Outer flex-scroller — реальный CSS scroll-snap. Каждый flex-item
+        // (контент-страница и spacer'ы по числу страниц - 1) имеет
+        // scroll-snap-align: start, поэтому браузер сам цепко
+        // фиксирует страницу на отпускании пальца — без JS-доводок.
+        // Multi-column рендерится внутри content-страницы (width = pageWidth)
+        // с overflow-visible: колонки 2..N визуально перетекают вправо
+        // поверх spacer'ов, и пользователь видит их при свайпе.
         <div
-          ref={contentRef}
-          className="novel-content"
-          style={bodyStyle}
+          ref={scrollerRef}
+          className="reader-pages-scroller"
           onClick={onContentClick}
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
-
-      </div>
+        >
+          <div
+            ref={contentRef}
+            className="novel-content reader-pages-content"
+            style={bodyStyle}
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+          {Array.from({ length: Math.max(0, totalPages - 1) }).map((_, i) => (
+            <div
+              key={`pm-spacer-${i}`}
+              className="reader-pages-spacer"
+              style={{ width: pageWidth || '100%' }}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="novel-content-host">
+          <div
+            ref={contentRef}
+            className="novel-content"
+            style={bodyStyle}
+            onClick={onContentClick}
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+        </div>
+      )}
 
       {glossaryPopover && (
         <div
@@ -959,10 +964,10 @@ export default function ReaderContent({
         prevChapterNumber={prevChapterNumber}
         nextChapterNumber={nextChapterNumber}
         onSeekPage={(idx) => {
-          const container = contentRef.current;
-          if (!container) return;
-          container.scrollTo({
-            left: idx * (pageWidth || container.clientWidth),
+          const sc = scrollerRef.current;
+          if (!sc) return;
+          sc.scrollTo({
+            left: idx * (pageWidth || sc.clientWidth),
             behavior: 'smooth',
           });
         }}
