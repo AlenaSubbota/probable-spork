@@ -131,31 +131,37 @@ export default async function StreakPage({ searchParams }: PageProps) {
             ))}
           </div>
           <div className="streak-calendar-grid">
-            {cells.map((c, i) => (
-              <div
-                key={i}
-                className={
-                  'streak-calendar-cell' +
-                  (c.outside ? ' is-outside' : '') +
-                  (c.today ? ' is-today' : '') +
-                  (c.entriesCount > 0 ? ' is-marked' : '')
-                }
-                title={
-                  c.outside
-                    ? ''
-                    : c.entriesCount > 0
-                      ? `${c.entriesCount} ${pluralEntries(c.entriesCount)}`
-                      : 'Нет записей'
-                }
-              >
-                <div className="streak-calendar-cell-num">{c.day}</div>
-                {c.lastEmotion && (
-                  <div className="streak-calendar-cell-emoji" aria-hidden="true">
-                    {c.lastEmotion}
-                  </div>
-                )}
-              </div>
-            ))}
+            {cells.map((c, i) => {
+              const ariaLabel = c.outside
+                ? ''
+                : c.entriesCount > 0
+                  ? `${c.day} число — ${c.entriesCount} ${pluralEntries(c.entriesCount)}${
+                      c.today ? ', сегодня' : ''
+                    }`
+                  : `${c.day} число${c.today ? ', сегодня' : ''} — нет записей`;
+              return (
+                <div
+                  key={i}
+                  role="gridcell"
+                  aria-label={ariaLabel || undefined}
+                  aria-hidden={c.outside ? 'true' : undefined}
+                  className={
+                    'streak-calendar-cell' +
+                    (c.outside ? ' is-outside' : '') +
+                    (c.today ? ' is-today' : '') +
+                    (c.entriesCount > 0 ? ' is-marked' : '')
+                  }
+                  title={ariaLabel}
+                >
+                  <div className="streak-calendar-cell-num">{c.day}</div>
+                  {c.lastEmotion && (
+                    <div className="streak-calendar-cell-emoji" aria-hidden="true">
+                      {c.lastEmotion}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

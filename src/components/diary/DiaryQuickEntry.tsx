@@ -183,6 +183,7 @@ export default function DiaryQuickEntry({
               key={e.key}
               role="radio"
               aria-checked={active}
+              aria-label={e.label}
               className={`diary-quick-emotion${active ? ' is-active' : ''}`}
               onClick={() => setEmotion(active ? null : e.key)}
               title={e.label}

@@ -6,6 +6,7 @@ import CommentsSection from '@/components/CommentsSection';
 import ChapterThanks from '@/components/reader/ChapterThanks';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
 import DiaryQuickEntry from '@/components/diary/DiaryQuickEntry';
+import ThanksMessageForm from '@/components/thanks/ThanksMessageForm';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import { fetchTranslators } from '@/lib/translator';
 
@@ -361,20 +362,24 @@ export default async function ChapterPage({ params }: PageProps) {
   const prevChapter = prevRow;
   const nextChapter = nextRow;
 
-  // Имя переводчика для tip-блока под главой (ChapterThanks)
+  // Имя + slug переводчика для пост-главных блоков (ChapterThanks,
+  // ThanksMessageForm). slug нужен для ссылки на стену благодарностей.
   let translatorDisplayName: string | null = null;
+  let translatorSlugMain: string | null = null;
   if (novel.translator_id) {
     const { data: tProfile } = await supabase
       .from('profiles')
-      .select('translator_display_name, user_name')
+      .select('translator_display_name, user_name, translator_slug')
       .eq('id', novel.translator_id)
       .maybeSingle();
     const tp = tProfile as {
       translator_display_name?: string | null;
       user_name?: string | null;
+      translator_slug?: string | null;
     } | null;
     translatorDisplayName =
       tp?.translator_display_name || tp?.user_name || null;
+    translatorSlugMain = tp?.translator_slug || tp?.user_name || null;
   }
 
   // Похожие новеллы в конце главы — чтобы читатель после дочитанной
@@ -483,6 +488,17 @@ export default async function ChapterPage({ params }: PageProps) {
                 chapterNumber={chapter.chapter_number}
                 isLoggedIn={!!user}
               />
+              {novel.translator_id && (
+                <ThanksMessageForm
+                  translatorId={novel.translator_id}
+                  translatorDisplayName={translatorDisplayName}
+                  novelId={novel.id}
+                  chapterNumber={chapter.chapter_number}
+                  isLoggedIn={!!user}
+                  currentUserId={user?.id ?? null}
+                  translatorSlug={translatorSlugMain}
+                />
+              )}
             </>
           }
         />

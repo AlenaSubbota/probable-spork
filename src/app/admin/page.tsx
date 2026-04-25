@@ -10,6 +10,8 @@ import {
 } from '@/lib/admin';
 import AdminApplications from './AdminApplications';
 import SubmitForReviewButton from '@/components/admin/SubmitForReviewButton';
+import ThanksInbox from '@/components/admin/ThanksInbox';
+import { fetchMyIncomingThanks } from '@/lib/thanks';
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -76,6 +78,15 @@ export default async function AdminDashboard() {
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
     applications = data ?? [];
+  }
+
+  // Входящие письма-благодарности (мигр. 060). Берём ВСЕ — компонент
+  // сам выделит непрочитанные. Тихо игнорируем, если миграция не накачена.
+  let incomingThanks: Awaited<ReturnType<typeof fetchMyIncomingThanks>> = [];
+  try {
+    incomingThanks = await fetchMyIncomingThanks(supabase, user.id, 50);
+  } catch {
+    /* ignore */
   }
 
   return (
@@ -145,6 +156,10 @@ export default async function AdminDashboard() {
           </Link>
         </div>
       </header>
+
+      {incomingThanks.length > 0 && (
+        <ThanksInbox initial={incomingThanks} />
+      )}
 
       <div className="admin-grid">
         <section>

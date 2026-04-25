@@ -14351,9 +14351,19 @@ html[data-theme='dark'] .novel-team-card-deco { opacity: 0.10; }
   font-size: 22px;
   line-height: 1;
   color: var(--ink-mute);
-  padding: 4px 8px;
+  /* HIG-минимум 44×44 для мобильных тап-целей */
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
-.diary-quick-close:hover { color: var(--ink); }
+.diary-quick-close:hover {
+  color: var(--ink);
+  background: var(--bg-soft);
+}
 .diary-quick-emotions {
   display: flex;
   gap: 6px;
@@ -14399,4 +14409,420 @@ html[data-theme='dark'] .novel-team-card-deco { opacity: 0.10; }
   .diary-quick-cta-text strong { font-size: 14px; }
   .diary-quick-cta-sub { font-size: 11.5px; }
   .diary-quick-emotion { width: 34px; height: 34px; font-size: 18px; }
+}
+
+/* =========================================================
+   Wall of Thanks — письма читателей переводчику.
+   ThanksMessageForm (на странице главы), ThanksWall (на /t/[slug]),
+   ThanksInbox (на /admin). Все цвета через CSS-переменные → светлая
+   и тёмная темы автоматом.
+   ========================================================= */
+
+/* ---------- ThanksMessageForm (chapter page topSlot) ---------- */
+.thanks-msg {
+  display: block;
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--rose);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--rose) 14%, var(--surface)) 0%,
+    var(--surface) 70%);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 140ms, transform 140ms, background 140ms;
+}
+.thanks-msg:hover { border-color: color-mix(in srgb, var(--rose) 80%, var(--ink)); }
+.thanks-msg--cta {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+.thanks-msg--cta:hover { transform: translateY(-1px); }
+.thanks-msg-cta-icon {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+.thanks-msg-cta-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.thanks-msg-cta-text strong { color: var(--ink); font-size: 15px; }
+.thanks-msg-cta-sub {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.thanks-msg-cta-arrow {
+  font-size: 18px;
+  color: var(--rose);
+  transition: transform 200ms;
+}
+.thanks-msg--cta:hover .thanks-msg-cta-arrow { transform: translateX(4px); }
+
+.thanks-msg--saved {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  cursor: default;
+}
+.thanks-msg-saved-icon {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.thanks-msg-saved-body { min-width: 0; }
+.thanks-msg-saved-title {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.thanks-msg-saved-link { color: var(--rose); }
+.thanks-msg-saved-link:hover { text-decoration: underline; }
+.thanks-msg-saved-text {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-style: italic;
+}
+
+.thanks-msg--form {
+  cursor: default;
+  padding: 16px 18px;
+}
+.thanks-msg-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.thanks-msg-head-icon { font-size: 20px; }
+.thanks-msg-head-text {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
+}
+.thanks-msg-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-mute);
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.thanks-msg-close:hover { color: var(--ink); background: var(--bg-soft); }
+.thanks-msg-public {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 8px 0 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.thanks-msg-public input[type="checkbox"] {
+  width: 18px; height: 18px;
+  accent-color: var(--rose);
+  margin-top: 2px;
+}
+.thanks-msg-public-sub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+.thanks-msg-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 540px) {
+  .thanks-msg { padding: 12px 14px; }
+  .thanks-msg--cta { grid-template-columns: auto 1fr auto; gap: 10px; }
+  .thanks-msg-cta-icon { width: 38px; height: 38px; font-size: 20px; }
+  .thanks-msg-cta-text strong { font-size: 14px; }
+  .thanks-msg-cta-sub { font-size: 11.5px; }
+  .thanks-msg--saved { grid-template-columns: auto 1fr; row-gap: 10px; }
+  .thanks-msg--saved .btn { grid-column: 1 / -1; justify-self: stretch; }
+}
+
+/* ---------- ThanksWall (public, на /t/[slug]) ---------- */
+.thanks-wall { padding-top: 24px; padding-bottom: 24px; }
+.thanks-wall .section-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.thanks-wall-icon { font-size: 20px; }
+.thanks-wall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.thanks-wall-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--rose);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 140ms, transform 140ms;
+}
+.thanks-wall-card:hover {
+  border-color: color-mix(in srgb, var(--rose) 50%, var(--border));
+  transform: translateY(-1px);
+}
+.thanks-wall-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.thanks-wall-card-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-serif);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.thanks-wall-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.thanks-wall-card-head-body { min-width: 0; flex: 1; }
+.thanks-wall-card-name {
+  display: block;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.thanks-wall-card-name:hover { color: var(--accent); }
+.thanks-wall-card-context {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: baseline;
+}
+.thanks-wall-card-novel { color: var(--accent); text-decoration: none; }
+.thanks-wall-card-novel:hover { text-decoration: underline; }
+.thanks-wall-card-sep { opacity: 0.4; }
+.thanks-wall-card-time { color: var(--ink-mute); }
+.thanks-wall-card-message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+  font-style: italic;
+  padding-left: 6px;
+}
+
+@media (max-width: 540px) {
+  .thanks-wall-grid { grid-template-columns: 1fr; gap: 10px; }
+  .thanks-wall-card { padding: 14px 16px; }
+}
+
+/* ---------- ThanksInbox (admin dashboard) ---------- */
+.thanks-inbox {
+  margin-bottom: 28px;
+  padding: 20px 22px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--rose) 10%, var(--surface)) 0%,
+    var(--surface) 70%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.thanks-inbox-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.thanks-inbox-head-text { min-width: 0; flex: 1 1 280px; }
+.thanks-inbox-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+.thanks-inbox-icon { font-size: 22px; }
+.thanks-inbox-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--rose);
+  color: var(--surface-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+}
+.thanks-inbox-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.thanks-inbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.thanks-inbox-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 140ms;
+}
+.thanks-inbox-item.is-unread {
+  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--rose) 35%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--rose) 14%, transparent);
+}
+.thanks-inbox-item-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.thanks-inbox-item-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.thanks-inbox-item-body { min-width: 0; flex: 1; }
+.thanks-inbox-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-bottom: 4px;
+}
+.thanks-inbox-item-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.thanks-inbox-item-name:hover { color: var(--accent); }
+.thanks-inbox-item-novel { color: var(--accent); text-decoration: none; }
+.thanks-inbox-item-novel:hover { text-decoration: underline; }
+.thanks-inbox-item-sep { opacity: 0.4; }
+.thanks-inbox-item-message {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  font-style: italic;
+}
+.thanks-inbox-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.thanks-inbox-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-mute);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 140ms, border-color 140ms, background 140ms;
+}
+.thanks-inbox-toggle:hover { color: var(--ink); border-color: var(--accent-soft); }
+.thanks-inbox-toggle.is-on {
+  color: var(--rose);
+  border-color: color-mix(in srgb, var(--rose) 50%, var(--border));
+  background: color-mix(in srgb, var(--rose) 10%, var(--surface));
+}
+
+.thanks-inbox-toggle-more {
+  margin-top: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 140ms, background 140ms;
+}
+.thanks-inbox-toggle-more:hover {
+  border-color: var(--accent-soft);
+  background: var(--bg-soft);
+}
+
+@media (max-width: 540px) {
+  .thanks-inbox { padding: 16px 16px; }
+  .thanks-inbox-title { font-size: 17px; }
+  .thanks-inbox-head .btn { width: 100%; justify-content: center; }
+  .thanks-inbox-item { padding: 10px 12px; gap: 10px; }
+  .thanks-inbox-item-message { font-size: 13px; }
 }

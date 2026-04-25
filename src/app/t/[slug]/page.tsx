@@ -9,6 +9,8 @@ import TranslatorSchedule, {
   type PublicScheduleSlot,
 } from '@/components/TranslatorSchedule';
 import TributesWall, { type Tribute } from '@/components/translator/TributesWall';
+import ThanksWall from '@/components/translator/ThanksWall';
+import { fetchPublicThanksForTranslator, type ThanksWallRow } from '@/lib/thanks';
 import RoadmapBoard, { type RoadmapItem } from '@/components/translator/RoadmapBoard';
 import QuietBanner from '@/components/translator/QuietBanner';
 import ProfileRatingBadge from '@/components/marketplace/ProfileRatingBadge';
@@ -384,6 +386,14 @@ export default async function TranslatorPage({ params }: PageProps) {
     // миграция 031 ещё не накачена — пропускаем
   }
 
+  // ---- Письма читателей (free thanks, мигр. 060) ----
+  let thanks: ThanksWallRow[] = [];
+  try {
+    thanks = await fetchPublicThanksForTranslator(supabase, profile.id, 24);
+  } catch {
+    // миграция 060 ещё не накачена — тихо пропускаем
+  }
+
   // ---- Публичный роадмап ----
   let roadmap: RoadmapItem[] = [];
   try {
@@ -528,7 +538,10 @@ export default async function TranslatorPage({ params }: PageProps) {
       {/* Роадмап: «что буду переводить» */}
       <RoadmapBoard items={roadmap} />
 
-      {/* Стена благодарностей */}
+      {/* Письма читателей — бесплатные эмоциональные сообщения (мигр. 060) */}
+      <ThanksWall thanks={thanks} />
+
+      {/* Стена благодарностей — чаевые с сообщением (мигр. 031) */}
       <TributesWall tributes={tributes} />
 
       {/* Отзывы о работе из маркетплейса */}
