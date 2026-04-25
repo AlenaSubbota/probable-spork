@@ -24,6 +24,9 @@ interface CatalogParams {
   sort?: string;
   age?: string;
   page?: string;
+  /** slug команды-переводчиков. Если задан — каталог фильтруется
+      по novels.team_id = (id команды по slug). */
+  team?: string;
 }
 
 const AGE_RE = /^\d{1,2}\+$/;
@@ -60,16 +63,36 @@ export default async function CatalogPage({
   const wantGenre = params.genre ?? null;
   const wantMoodGenres = mood && mood.genres.length > 0 ? mood.genres : null;
 
+  // Команда-фильтр: если задан ?team=slug, перерезолвим в team_id и
+  // отфильтруем novels_view по нему. Слаг неправильный → 0 результатов.
+  let teamFilter: { id: number; name: string; slug: string } | null = null;
+  if (params.team) {
+    const cleanSlug = params.team.toLowerCase().trim();
+    const { data: tv } = await supabase
+      .from('team_view')
+      .select('id, name, slug')
+      .eq('slug', cleanSlug)
+      .maybeSingle();
+    if (tv) {
+      const r = tv as { id: number; name: string; slug: string };
+      teamFilter = { id: r.id, name: r.name, slug: r.slug };
+    }
+  }
+
   // Колонка `covers` появилась в миграции 046. Если она не накатана —
   // запрос валится с ошибкой схемы и каталог показывает пусто. Строим
   // SELECT без covers; главная обложка в cover_url всё равно отдаётся.
   let query = supabase
     .from('novels_view')
     .select(
-      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description, translator_id, moderation_status',
+      'id, firebase_id, title, author, cover_url, genres, age_rating, average_rating, rating_count, views, is_completed, chapter_count, latest_chapter_published_at, description, translator_id, team_id, moderation_status',
       { count: 'exact' }
     )
     .eq('moderation_status', 'published');
+
+  if (teamFilter) {
+    query = query.eq('team_id', teamFilter.id);
+  }
 
   if (params.status === 'completed') query = query.eq('is_completed', true);
   if (params.status === 'ongoing')   query = query.eq('is_completed', false);
@@ -187,12 +210,23 @@ export default async function CatalogPage({
             <div className="catalog-count">
               Найдено <strong>{totalCount}</strong>{' '}
               {pluralNovels(totalCount)}
-              {(params.genre || params.time || params.mood || params.status) && (
+              {(params.genre || params.time || params.mood || params.status || teamFilter) && (
                 <Link href="/catalog" className="more" style={{ marginLeft: 14 }}>
                   Сбросить фильтры
                 </Link>
               )}
             </div>
+            {teamFilter && (
+              <Link
+                href={`/team/${teamFilter.slug}`}
+                className="catalog-team-chip"
+                title={`Открыть страницу команды ${teamFilter.name}`}
+              >
+                <span className="catalog-team-chip-icon" aria-hidden="true">🪶</span>
+                Команда: <strong>{teamFilter.name}</strong>
+                <span className="catalog-team-chip-arrow" aria-hidden="true">→</span>
+              </Link>
+            )}
           </div>
 
           {novels && novels.length > 0 ? (

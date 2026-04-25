@@ -55,6 +55,48 @@ export default async function EditNovelPage({ params }: PageProps) {
     .order('category', { ascending: true, nullsFirst: false })
     .order('term_original', { ascending: true });
 
+  // Команды юзера: где он лидер (owner). Админ может прицепить новеллу
+  // в любую свою. Если новелла уже в чужой команде — показываем её отдельно.
+  const { data: ownedRaw } = await supabase
+    .from('team_view')
+    .select('id, slug, name, avatar_url, member_count')
+    .eq('owner_id', user.id)
+    .eq('is_archived', false)
+    .order('created_at', { ascending: true });
+  const availableTeams: Array<{
+    id: number; slug: string; name: string;
+    avatar_url: string | null; member_count: number;
+  }> = (ownedRaw ?? []).map((t) => {
+    const r = t as {
+      id: number; slug: string; name: string;
+      avatar_url: string | null; member_count: number | null;
+    };
+    return {
+      id: r.id, slug: r.slug, name: r.name,
+      avatar_url: r.avatar_url, member_count: r.member_count ?? 1,
+    };
+  });
+  // Если новелла прикреплена к команде, которой юзер не владеет, всё
+  // равно показываем её в picker'е — иначе UI потерял бы выбор.
+  const novelTeamId = (novel as { team_id?: number | null }).team_id ?? null;
+  if (novelTeamId && !availableTeams.some((t) => t.id === novelTeamId)) {
+    const { data: foreignTeam } = await supabase
+      .from('team_view')
+      .select('id, slug, name, avatar_url, member_count')
+      .eq('id', novelTeamId)
+      .maybeSingle();
+    if (foreignTeam) {
+      const r = foreignTeam as {
+        id: number; slug: string; name: string;
+        avatar_url: string | null; member_count: number | null;
+      };
+      availableTeams.unshift({
+        id: r.id, slug: r.slug, name: r.name,
+        avatar_url: r.avatar_url, member_count: r.member_count ?? 1,
+      });
+    }
+  }
+
   return (
     <main className="container admin-page">
       <div className="admin-breadcrumbs">
@@ -94,9 +136,11 @@ export default async function EditNovelPage({ params }: PageProps) {
         isAdmin={isAdmin}
         currentUserId={user.id}
         currentUserName={currentUserName}
+        availableTeams={availableTeams}
         initial={{
           id: novel.id,
           firebase_id: novel.firebase_id,
+          team_id: novelTeamId,
           title: novel.title,
           title_original: novel.title_original,
           title_en: novel.title_en,

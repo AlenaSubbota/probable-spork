@@ -13360,20 +13360,37 @@ a.team-novels-row-title:hover { color: var(--accent); }
    с банером, аватаром и стопкой участников. Дорого-богато, как
    премиум-обложка релиза, а не служебная плашка.
    ========================================================= */
+/* Компактная одно-строчная карточка. Без отдельного баннера-полосы:
+   градиент кладём фоном на саму карточку. С баннером (если задан
+   banner_url через CSS-var --ntc-banner) — тонкая полупрозрачная
+   подложка справа, не на пол-карты. */
 .novel-team-card {
   position: relative;
-  display: block;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 16px;
-  padding: 0;
-  background: var(--surface);
-  border: 1px solid var(--accent-soft);
-  border-radius: var(--radius);
-  overflow: hidden;
+  padding: 16px 22px;
   text-decoration: none;
   color: inherit;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent-soft);
+  overflow: hidden;
+  isolation: isolate;
+  /* Базовый фон: тёплый кофейный градиент с золотой подсветкой справа.
+     Через CSS-переменные = обе темы автоматом. */
+  background:
+    radial-gradient(circle at 100% 50%,
+      color-mix(in srgb, var(--gold) 28%, transparent) 0%,
+      transparent 55%),
+    linear-gradient(120deg,
+      var(--accent-wash) 0%,
+      var(--surface) 55%,
+      var(--surface) 100%);
   box-shadow:
     0 1px 2px rgba(88, 63, 40, 0.06),
-    0 8px 24px rgba(140, 90, 60, 0.08);
+    0 6px 18px rgba(140, 90, 60, 0.08);
   transition: transform 200ms, box-shadow 200ms, border-color 200ms;
 }
 .novel-team-card:hover {
@@ -13381,138 +13398,134 @@ a.team-novels-row-title:hover { color: var(--accent); }
   border-color: var(--accent);
   box-shadow:
     0 1px 2px rgba(88, 63, 40, 0.06),
-    0 14px 36px rgba(140, 90, 60, 0.18);
+    0 12px 30px rgba(140, 90, 60, 0.18);
 }
 html[data-theme='dark'] .novel-team-card {
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.35),
-    0 10px 30px rgba(0, 0, 0, 0.45);
+    0 8px 24px rgba(0, 0, 0, 0.4);
 }
 html[data-theme='dark'] .novel-team-card:hover {
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.35),
-    0 14px 40px rgba(214, 160, 108, 0.22);
+    0 12px 32px rgba(214, 160, 108, 0.18);
 }
 
-/* Полоса-баннер сверху. Если URL баннера задан — берём его, иначе
-   рисуем тёплый кофейный градиент + золотое сияние. */
-.novel-team-card-banner {
-  position: relative;
-  height: 92px;
-  background-color: var(--accent-wash);
-  background-size: cover;
-  background-position: center;
-  border-bottom: 1px solid var(--border);
-}
-.novel-team-card-banner::after {
-  /* Золотое сияние с правого верха — премиум-аура.
-     На светлой теме мягкое, на тёмной — поярче. */
+/* Если у команды есть свой banner_url — через --ntc-banner кладём его
+   как полупрозрачный «фон-вуаль» поверх всей карточки. Тонко, не
+   доминирует. */
+.novel-team-card.has-banner::before {
   content: '';
   position: absolute; inset: 0;
-  background:
-    radial-gradient(circle at 90% 0%, var(--accent-soft) 0%, transparent 55%),
-    linear-gradient(180deg,
-      transparent 0%,
-      color-mix(in srgb, var(--surface) 80%, transparent) 100%);
+  z-index: -1;
+  background-image: var(--ntc-banner);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.18;
   pointer-events: none;
 }
-.novel-team-card-banner--gradient {
-  background:
-    radial-gradient(circle at 18% 20%, var(--gold) 0%, transparent 45%),
-    radial-gradient(circle at 90% 100%, var(--rose) 0%, transparent 50%),
-    linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-}
-.novel-team-card-banner--gradient::after {
-  background:
-    radial-gradient(circle at 90% 0%, rgba(255,255,255,0.32) 0%, transparent 55%),
-    linear-gradient(180deg,
-      transparent 0%,
-      color-mix(in srgb, var(--surface) 75%, transparent) 100%);
-}
 
-/* Тело карточки — налегает на баннер аватаром (как в карточках каналов
-   в Discord/Telegram). Большой, тёплый, с воздухом. */
-.novel-team-card-body {
-  position: relative;
-  padding: 0 24px 18px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: flex-end;
-  gap: 18px;
-  margin-top: -38px; /* подъём аватара над баннером */
+/* Декор: крупный полупрозрачный «🪶» в правом нижнем углу, чтобы
+   карточка не выглядела пустой даже без баннера / описания. На мобиле
+   спрятан — там и так всё впритык. */
+.novel-team-card-deco {
+  position: absolute;
+  right: -8px;
+  bottom: -22px;
+  font-size: 96px;
+  line-height: 1;
+  opacity: 0.06;
+  transform: rotate(-12deg);
+  pointer-events: none;
+  z-index: 0;
 }
+html[data-theme='dark'] .novel-team-card-deco { opacity: 0.10; }
+
 .novel-team-card-avatar {
-  width: 76px;
-  height: 76px;
-  border-radius: 18px;
+  position: relative;
+  z-index: 1;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
   overflow: hidden;
   background: var(--surface);
-  border: 4px solid var(--surface);
-  box-shadow: var(--shadow-md);
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-serif);
   font-weight: 700;
   color: var(--accent);
-  font-size: 32px;
+  font-size: 26px;
   flex-shrink: 0;
 }
 .novel-team-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .novel-team-card-text {
+  position: relative;
+  z-index: 1;
   min-width: 0;
-  padding-top: 38px; /* выровнять текст с низом аватара */
 }
 .novel-team-card-eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--accent);
   background: var(--accent-wash);
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
   margin-bottom: 6px;
 }
-.novel-team-card-eyebrow-icon { font-size: 12px; }
+.novel-team-card-eyebrow-icon { font-size: 11px; }
 .novel-team-card-name {
   font-family: var(--font-serif);
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.15;
   color: var(--ink);
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   word-break: break-word;
 }
 .novel-team-card-desc {
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--ink-soft);
+  margin-bottom: 6px;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
-/* Боковой блок: стопка аватарок участников + meta. */
-.novel-team-card-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  padding-top: 38px;
-  flex-shrink: 0;
-}
-.novel-team-card-stack {
+.novel-team-card-meta {
+  font-size: 12.5px;
+  color: var(--ink-mute);
   display: flex;
   align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.novel-team-card-meta strong { color: var(--ink-soft); font-weight: 600; }
+.novel-team-card-meta-sep { opacity: 0.45; }
+.novel-team-card-leader-inline {
+  color: var(--ink) !important;
+}
+
+/* Стопка аватарок участников. Показывается только при memberCount > 1 —
+   с одним членом стопка из одного кружка справа выглядит сиротливо. */
+.novel-team-card-stack {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 .novel-team-card-stack-item {
-  width: 32px; height: 32px;
+  width: 30px; height: 30px;
   border-radius: 50%;
   overflow: hidden;
   background: var(--bg-soft);
@@ -13521,11 +13534,10 @@ html[data-theme='dark'] .novel-team-card:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--accent);
   font-family: var(--font-serif);
-  position: relative;
 }
 .novel-team-card-stack-item:first-child { margin-left: 0; }
 .novel-team-card-stack-item img { width: 100%; height: 100%; object-fit: cover; }
@@ -13533,53 +13545,15 @@ html[data-theme='dark'] .novel-team-card:hover {
 .novel-team-card-stack-more {
   background: var(--accent);
   color: var(--surface-2);
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: -0.02em;
 }
 
-.novel-team-card-meta {
-  font-size: 12.5px;
-  color: var(--ink-mute);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.novel-team-card-meta strong { color: var(--ink); font-weight: 600; }
-.novel-team-card-meta-sep { opacity: 0.5; }
-
-/* Нижняя строка: лидер слева, CTA справа. Тонкая разделительная линия. */
-.novel-team-card-cta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 24px 16px;
-  border-top: 1px dashed var(--border);
-  background: linear-gradient(180deg, transparent 0%, var(--bg-soft) 100%);
-}
-.novel-team-card-leader {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-.novel-team-card-leader-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-mute);
-}
-.novel-team-card-leader-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* CTA — не отдельной строкой, а в той же строке справа. На hover
+   стрелка едет вправо. */
 .novel-team-card-cta {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -13587,9 +13561,17 @@ html[data-theme='dark'] .novel-team-card:hover {
   font-weight: 600;
   color: var(--accent);
   white-space: nowrap;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent-wash);
+  transition: background 160ms, color 160ms;
+}
+.novel-team-card:hover .novel-team-card-cta {
+  background: var(--accent);
+  color: var(--surface-2);
 }
 .novel-team-card-cta-arrow {
-  font-size: 16px;
+  font-size: 14px;
   transition: transform 200ms;
 }
 .novel-team-card:hover .novel-team-card-cta-arrow {
@@ -13598,41 +13580,333 @@ html[data-theme='dark'] .novel-team-card:hover {
 
 /* ----- mobile / tablet ----- */
 @media (max-width: 760px) {
-  .novel-team-card-banner { height: 80px; }
-  .novel-team-card-body {
-    padding: 0 18px 14px;
-    grid-template-columns: auto 1fr;
-    gap: 14px;
-  }
-  .novel-team-card-avatar { width: 64px; height: 64px; border-radius: 16px; }
-  .novel-team-card-text { padding-top: 30px; }
-  .novel-team-card-name { font-size: 20px; }
-  .novel-team-card-desc { font-size: 13px; -webkit-line-clamp: 2; }
-  .novel-team-card-side {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding-top: 4px;
+  .novel-team-card {
+    padding: 14px 16px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 12px;
+    row-gap: 10px;
   }
-  .novel-team-card-cta-row { padding: 12px 18px 14px; }
+  /* На планшете прячем стопку аватарок — она лежит между текстом и CTA
+     и в узкой ширине жмёт всё в одну букву. Цифра «N участников» в
+     meta всё равно остаётся. */
+  .novel-team-card-stack { display: none; }
+  .novel-team-card-deco { font-size: 80px; right: -10px; bottom: -18px; }
+  .novel-team-card-avatar { width: 52px; height: 52px; border-radius: 14px; }
+  .novel-team-card-name { font-size: 19px; }
+  .novel-team-card-desc { font-size: 12.5px; }
 }
 @media (max-width: 540px) {
-  .novel-team-card-banner { height: 70px; }
-  .novel-team-card-body {
-    padding: 0 16px 12px;
-    margin-top: -32px;
+  .novel-team-card {
+    padding: 14px 14px;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 12px;
   }
-  .novel-team-card-avatar { width: 56px; height: 56px; border-radius: 14px; border-width: 3px; }
-  .novel-team-card-text { padding-top: 26px; }
-  .novel-team-card-eyebrow { font-size: 10px; padding: 3px 8px; }
-  .novel-team-card-name { font-size: 18px; }
-  .novel-team-card-desc { font-size: 12.5px; }
-  .novel-team-card-stack-item { width: 26px; height: 26px; margin-left: -8px; font-size: 11px; }
+  .novel-team-card-deco { display: none; }
+  .novel-team-card-avatar { width: 48px; height: 48px; border-radius: 12px; }
+  .novel-team-card-eyebrow { font-size: 10px; padding: 2px 8px; margin-bottom: 4px; }
+  .novel-team-card-name { font-size: 17px; }
+  .novel-team-card-desc { font-size: 12px; -webkit-line-clamp: 2; }
   .novel-team-card-meta { font-size: 11.5px; }
-  .novel-team-card-cta-row { padding: 12px 16px 14px; flex-wrap: wrap; gap: 8px; }
-  .novel-team-card-cta { font-size: 13px; }
+  .novel-team-card-cta {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    justify-content: center;
+    font-size: 13px;
+    padding: 10px 14px;
+  }
 }
 
+
+/* =========================================================
+   TeamPicker (форма новеллы) — большая радио-карточка для выбора
+   команды-бренда. На мобиле и десктопе одинаково: кликабельные
+   плитки с аватаром, именем, slug'ом и счётчиком участников.
+   ========================================================= */
+.team-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.team-picker-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms, background 140ms, transform 140ms;
+}
+.team-picker-card:hover {
+  border-color: var(--accent-soft);
+  transform: translateY(-1px);
+}
+.team-picker-card.is-active {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.team-picker-card-avatar {
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-soft);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.team-picker-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.team-picker-card-body { min-width: 0; }
+.team-picker-card-name {
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--ink);
+  display: block;
+  margin-bottom: 2px;
+}
+.team-picker-card-meta {
+  font-size: 12px;
+  color: var(--ink-mute);
+  display: block;
+}
+.team-picker-card-check {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 700;
+  flex-shrink: 0;
+  background: var(--surface);
+  transition: border-color 140ms, background 140ms;
+}
+.team-picker-card.is-active .team-picker-card-check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface-2);
+}
+.team-picker-card--none .team-picker-card-avatar {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--ink-mute);
+}
+.team-picker-empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 18px;
+  background: var(--accent-wash);
+  border: 1px dashed var(--accent-soft);
+  border-radius: 12px;
+}
+.team-picker-empty-text {
+  flex: 1 1 280px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.team-picker-empty strong { color: var(--ink); }
+
+/* «Расширенные настройки переводчика» — details-блок для админа */
+.admin-form-extra {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.admin-form-extra > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+  user-select: none;
+}
+.admin-form-extra[open] > summary { color: var(--accent); }
+
+/* Catalog: чип «Команда: …» когда применён ?team-фильтр */
+.catalog-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 14px;
+  padding: 6px 12px;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-soft);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: border-color 140ms, background 140ms;
+}
+.catalog-team-chip:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-wash) 60%, var(--accent) 10%);
+}
+.catalog-team-chip strong { color: var(--ink); font-weight: 600; }
+.catalog-team-chip-icon { font-size: 14px; }
+.catalog-team-chip-arrow { color: var(--accent); font-weight: 700; }
+
+/* /teams — каталог команд */
+.teams-index-page { padding-top: 18px; padding-bottom: 56px; }
+.teams-index-hero {
+  margin-bottom: 24px;
+  padding: 24px 26px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0%, var(--accent-wash) 0%, transparent 55%),
+    linear-gradient(135deg, var(--surface) 0%, var(--bg-soft) 100%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.teams-index-title {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  margin: 8px 0 8px;
+  color: var(--ink);
+}
+.teams-index-sub {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: 640px;
+}
+.teams-index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.teams-index-card {
+  position: relative;
+  display: block;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 160ms, transform 160ms, box-shadow 160ms;
+  box-shadow: var(--shadow-sm);
+}
+.teams-index-card:hover {
+  border-color: var(--accent-soft);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.teams-index-card-banner {
+  height: 64px;
+  background-color: var(--accent-wash);
+  background-size: cover;
+  background-position: center;
+  border-bottom: 1px solid var(--border);
+}
+.teams-index-card-body {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px 12px;
+  align-items: flex-start;
+  margin-top: -28px;
+}
+.teams-index-card-avatar {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 3px solid var(--surface);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 22px;
+}
+.teams-index-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.teams-index-card-text { min-width: 0; flex: 1; padding-top: 28px; }
+.teams-index-card-name {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+.teams-index-card-desc {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.teams-index-card-meta {
+  font-size: 12px;
+  color: var(--ink-mute);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.teams-index-card-meta strong { color: var(--ink-soft); font-weight: 600; }
+.teams-index-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px 14px;
+  border-top: 1px dashed var(--border);
+}
+.teams-index-card-cta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.teams-index-card-filter {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  transition: color 140ms, border-color 140ms;
+}
+.teams-index-card-filter:hover {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+@media (max-width: 540px) {
+  .teams-index-title { font-size: 24px; }
+  .teams-index-grid { grid-template-columns: 1fr; }
+}
+
+/* Bulk-плашка «прицепить все мои новеллы» в редакторе команды */
+.team-novels-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent-wash) 0%, var(--surface) 60%);
+  border: 1px solid var(--accent-soft);
+}
+.team-novels-bulk-text {
+  flex: 1 1 280px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.team-novels-bulk-text strong { color: var(--ink); }

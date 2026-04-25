@@ -24,6 +24,32 @@ export default async function NewNovelPage() {
   if (!isTranslator) redirect('/translator/apply');
   const currentUserName = p?.translator_display_name ?? p?.user_name ?? null;
 
+  // Команды, в которые юзер может прицепить новеллу: где он лидер
+  // (owner_id = user.id). Если ноль — форма покажет CTA «Создай команду».
+  const { data: teamsRaw } = await supabase
+    .from('team_view')
+    .select('id, slug, name, avatar_url, member_count')
+    .eq('owner_id', user.id)
+    .eq('is_archived', false)
+    .order('created_at', { ascending: true });
+  const availableTeams = (teamsRaw ?? []).map((t) => {
+    const r = t as {
+      id: number;
+      slug: string;
+      name: string;
+      avatar_url: string | null;
+      member_count: number | null;
+    };
+    return {
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      avatar_url: r.avatar_url,
+      member_count: r.member_count ?? 1,
+    };
+  });
+  const defaultTeamId = availableTeams[0]?.id ?? null;
+
   return (
     <main className="container admin-page">
       <div className="admin-breadcrumbs">
@@ -44,6 +70,7 @@ export default async function NewNovelPage() {
         isAdmin={isAdmin}
         currentUserId={user.id}
         currentUserName={currentUserName}
+        availableTeams={availableTeams}
         initial={{
           // Преселект себя — если админ/переводчик добавляет свою работу
           translator: {
@@ -52,6 +79,7 @@ export default async function NewNovelPage() {
             external_url: null,
             external_consent: false,
           },
+          team_id: defaultTeamId,
         }}
       />
     </main>

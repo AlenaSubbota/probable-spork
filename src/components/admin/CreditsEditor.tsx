@@ -182,14 +182,13 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
   return (
     <section className="admin-form credits-editor">
       <h2 style={{ fontFamily: 'var(--font-serif)', margin: '0 0 6px' }}>
-        Переводчики и команда новеллы
+        Кто работал над этой новеллой
       </h2>
       <p style={{ color: 'var(--ink-mute)', fontSize: 13.5, margin: '0 0 14px' }}>
-        Кто работает над этой новеллой. Можно добавить второго переводчика,
-        редактора, корректора, иллюстратора — кого нужно. Доли % — ориентир
-        для будущих выплат по главам: 0 % означает «помогает без денежного
-        интереса». Сумма не обязана быть ровно 100 %, но чем дальше — тем
-        запутаннее. Обычно основной переводчик берёт 60–80 %.
+        Указанные люди появятся в подписи новеллы как «работали:
+        переводчик X, редактор Y». Делёжка денег не считается здесь —
+        донаты идут на единый счёт команды, лидер делит сам. Этот блок
+        нужен только чтобы все были упомянуты.
       </p>
 
       {loading ? (
@@ -238,30 +237,10 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
                         {c.note && <span className="credits-row-note"> · {c.note}</span>}
                       </div>
                     </div>
-                    <div className="credits-row-share">
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={c.share_percent}
-                        min={0}
-                        max={100}
-                        step={0.5}
-                        style={{ width: 70 }}
-                        onChange={(e) =>
-                          setCredits((prev) =>
-                            prev.map((p) =>
-                              p.id === c.id
-                                ? { ...p, share_percent: Number(e.target.value) }
-                                : p,
-                            ),
-                          )
-                        }
-                        onBlur={(e) =>
-                          handleUpdateShare(c.id, Number(e.target.value))
-                        }
-                      />
-                      <span style={{ color: 'var(--ink-mute)' }}>%</span>
-                    </div>
+                    {/* Доли убраны: смысла на UI нет (донаты на единый
+                        счёт команды). Поле share_percent в БД остаётся —
+                        вдруг пригодится для аналитики, кто сколько глав
+                        сделал. */}
                     <button
                       type="button"
                       className="btn btn-ghost"
@@ -274,14 +253,6 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
                   </div>
                 );
               })}
-              <div className="credits-total">
-                Сумма долей: <strong>{totalShare.toFixed(1)} %</strong>
-                {totalShare > 100 && (
-                  <span style={{ color: 'var(--rose)', marginLeft: 8 }}>
-                    перебор — больше 100%
-                  </span>
-                )}
-              </div>
             </div>
           )}
 
@@ -392,22 +363,8 @@ export default function CreditsEditor({ novelId, translatorId }: Props) {
                 ))}
               </select>
             </div>
-            <div className="credits-add-row">
-              <div className="form-field" style={{ flex: 1 }}></div>
-              <div className="form-field" style={{ width: 100 }}>
-                <label>Доля, %</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={sharePct}
-                  onChange={(e) => setSharePct(e.target.value)}
-                  min={0}
-                  max={100}
-                  step={0.5}
-                  placeholder="0"
-                />
-              </div>
-            </div>
+            {/* Доли убраны: на UI не нужны (донаты на единый счёт команды,
+                лидер делит сам). sharePct в стейте остаётся 0 по умолчанию. */}
 
             <div className="form-field">
               <label>Пометка (необязательно)</label>

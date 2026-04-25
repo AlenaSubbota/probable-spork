@@ -666,23 +666,36 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
               </div>
             )}
 
-            {teamProfile && (
-              <Link
-                href={`/team/${teamProfile.slug}`}
-                className="novel-team-card"
-                aria-label={`Перевод команды ${teamProfile.name}`}
-              >
-                {teamProfile.bannerUrl ? (
-                  <div
-                    className="novel-team-card-banner"
-                    style={{ backgroundImage: `url(${teamProfile.bannerUrl})` }}
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <div className="novel-team-card-banner novel-team-card-banner--gradient" aria-hidden="true" />
-                )}
+            {teamProfile && (() => {
+              // Подавляем дубль «Лидер: X», если имя команды и имя лидера
+              // совпадают (соло-команда вроде "Tenebris" с лидером
+              // "Tenebris" — в карточке не нужен повтор).
+              const showLeader =
+                teamProfile.leaderName &&
+                teamProfile.leaderName.trim().toLowerCase() !==
+                  teamProfile.name.trim().toLowerCase();
+              // Стопку аватарок показываем только если в команде >1 человек.
+              // С одним участником на «стек» из одного кружка справа
+              // смотреть стрёмно — лучше совсем убрать.
+              const showStack = teamProfile.memberCount > 1 &&
+                teamProfile.memberAvatars.length > 0;
+              return (
+                <Link
+                  href={`/team/${teamProfile.slug}`}
+                  className={`novel-team-card${
+                    teamProfile.bannerUrl ? ' has-banner' : ''
+                  }`}
+                  aria-label={`Перевод команды ${teamProfile.name}`}
+                  style={
+                    teamProfile.bannerUrl
+                      ? ({ ['--ntc-banner' as string]: `url(${teamProfile.bannerUrl})` } as React.CSSProperties)
+                      : undefined
+                  }
+                >
+                  {/* Декоративный «🪶» в углу, чтобы карточка не выглядела
+                      пустой даже без баннера. На мобиле скрыт. */}
+                  <span className="novel-team-card-deco" aria-hidden="true">🪶</span>
 
-                <div className="novel-team-card-body">
                   <div className="novel-team-card-avatar" aria-hidden="true">
                     {teamProfile.avatarUrl ? (
                       <img src={teamProfile.avatarUrl} alt="" />
@@ -702,65 +715,61 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                         {teamProfile.description}
                       </div>
                     )}
-                  </div>
-
-                  <div className="novel-team-card-side">
-                    {teamProfile.memberAvatars.length > 0 && (
-                      <div
-                        className="novel-team-card-stack"
-                        aria-hidden="true"
-                        title={`${teamProfile.memberCount} ${pluralMembers(
-                          teamProfile.memberCount
-                        )} в команде`}
-                      >
-                        {teamProfile.memberAvatars.map((a, i) => (
-                          <span
-                            key={i}
-                            className={`novel-team-card-stack-item${
-                              !a.url ? ' is-fallback' : ''
-                            }`}
-                            style={{ zIndex: 5 - i }}
-                          >
-                            {a.url ? <img src={a.url} alt="" /> : <span>{a.initial}</span>}
-                          </span>
-                        ))}
-                        {teamProfile.memberCount > teamProfile.memberAvatars.length && (
-                          <span
-                            className="novel-team-card-stack-item novel-team-card-stack-more"
-                            style={{ zIndex: 0 }}
-                          >
-                            +{teamProfile.memberCount - teamProfile.memberAvatars.length}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
                     <div className="novel-team-card-meta">
                       <strong>{teamProfile.memberCount}</strong>{' '}
                       {pluralMembers(teamProfile.memberCount)}
                       <span className="novel-team-card-meta-sep" aria-hidden="true">·</span>
                       <strong>{teamProfile.novelCount}</strong>{' '}
                       {pluralNovels(teamProfile.novelCount)}
+                      {showLeader && (
+                        <>
+                          <span className="novel-team-card-meta-sep" aria-hidden="true">·</span>
+                          лидер{' '}
+                          <strong className="novel-team-card-leader-inline">
+                            {teamProfile.leaderName}
+                          </strong>
+                        </>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                <div className="novel-team-card-cta-row">
-                  {teamProfile.leaderName && (
-                    <div className="novel-team-card-leader">
-                      <span className="novel-team-card-leader-label">Лидер</span>
-                      <span className="novel-team-card-leader-name">
-                        {teamProfile.leaderName}
-                      </span>
+                  {showStack && (
+                    <div
+                      className="novel-team-card-stack"
+                      aria-hidden="true"
+                      title={`${teamProfile.memberCount} ${pluralMembers(
+                        teamProfile.memberCount
+                      )} в команде`}
+                    >
+                      {teamProfile.memberAvatars.map((a, i) => (
+                        <span
+                          key={i}
+                          className={`novel-team-card-stack-item${
+                            !a.url ? ' is-fallback' : ''
+                          }`}
+                          style={{ zIndex: 5 - i }}
+                        >
+                          {a.url ? <img src={a.url} alt="" /> : <span>{a.initial}</span>}
+                        </span>
+                      ))}
+                      {teamProfile.memberCount > teamProfile.memberAvatars.length && (
+                        <span
+                          className="novel-team-card-stack-item novel-team-card-stack-more"
+                          style={{ zIndex: 0 }}
+                        >
+                          +{teamProfile.memberCount - teamProfile.memberAvatars.length}
+                        </span>
+                      )}
                     </div>
                   )}
+
                   <span className="novel-team-card-cta">
                     Зайти в команду
                     <span className="novel-team-card-cta-arrow" aria-hidden="true">→</span>
                   </span>
-                </div>
-              </Link>
-            )}
+                </Link>
+              );
+            })()}
 
             {/* Если новелла в команде — карточку одиночного переводчика
                 не рендерим: лидер уже внутри team-card как «Лидер: …»,

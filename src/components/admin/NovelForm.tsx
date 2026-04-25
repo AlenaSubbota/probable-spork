@@ -9,6 +9,7 @@ import BBCodeEditor from './BBCodeEditor';
 import TranslatorPicker, {
   type TranslatorPickerValue,
 } from './TranslatorPicker';
+import TeamPicker, { type PickerTeam } from './TeamPicker';
 import { bbToHtml, htmlToBb } from '@/lib/bbcode';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
 import {
@@ -46,8 +47,13 @@ export interface NovelFormValues {
   external_links: Array<{ label: string; url: string }>;
   // Путь к EPUB в bucket или полный URL. Показывает кнопку 📘 на странице.
   epub_path: string | null;
-  /** Переводчик — либо id зарегистрированного, либо внешний текстом */
+  /** Переводчик — либо id зарегистрированного, либо внешний текстом.
+      В новой модели это «технический владелец строки» (для RLS), бренд
+      выбирается отдельно через team_id ниже. */
   translator: TranslatorPickerValue;
+  /** Команда, под чьим брендом выйдет новелла. На карточке читатель
+      видит «Перевод команды [name]» вместо одиночного переводчика. */
+  team_id: number | null;
 }
 
 const EMPTY: NovelFormValues = {
@@ -74,6 +80,7 @@ const EMPTY: NovelFormValues = {
     external_url: null,
     external_consent: false,
   },
+  team_id: null,
 };
 
 interface Props {
@@ -82,6 +89,8 @@ interface Props {
   isAdmin?: boolean;
   currentUserId?: string | null;
   currentUserName?: string | null;
+  /** Команды, в которые юзер может прицепить новеллу (где он лидер). */
+  availableTeams?: PickerTeam[];
 }
 
 export default function NovelForm({
@@ -90,6 +99,7 @@ export default function NovelForm({
   isAdmin = false,
   currentUserId = null,
   currentUserName = null,
+  availableTeams = [],
 }: Props) {
   const router = useRouter();
   const [values, setValues] = useState<NovelFormValues>(() => {
@@ -188,6 +198,7 @@ export default function NovelForm({
       external_translator_url: hasRegistered
         ? null
         : t.external_url?.trim() || null,
+      team_id: values.team_id,
     };
 
     if (mode === 'create') {
@@ -405,17 +416,43 @@ export default function NovelForm({
         </div>
       </div>
 
-      <div className="form-field">
-        <label title="Кто перевёл эту новеллу. Если он зарегистрирован у нас — выбери из списка. Если нет — укажи как внешнего переводчика (нужна галочка, что у тебя есть разрешение).">
-          Переводчик *
+      <div className="form-field form-field--team">
+        <label title="Под каким брендом выйдет новелла. Под именем команды читатели видят её на карточке: «Перевод команды [имя]».">
+          Команда *
         </label>
-        <TranslatorPicker
-          value={values.translator}
-          onChange={(v) => set('translator', v)}
-          currentUserId={currentUserId}
-          currentUserName={currentUserName}
+        <TeamPicker
+          value={values.team_id}
+          onChange={(v) => set('team_id', v)}
+          teams={availableTeams}
+          allowNoTeam={isAdmin}
         />
+        {availableTeams.length > 0 && (
+          <div className="form-hint">
+            Это бренд новеллы для читателя. Лидер команды получает донаты,
+            остальные участники видны на странице команды.
+          </div>
+        )}
       </div>
+
+      {/* Технический владелец строки (для RLS / связи с автором). Для
+          админа важно видеть, кто завёл новеллу, и при необходимости
+          указать external-переводчика. Обычному переводчику этот блок
+          не нужен — мы его прячем (он подставит сам себя на сабмите). */}
+      {isAdmin && (
+        <details className="admin-form-extra">
+          <summary>
+            Расширенные настройки переводчика (для админа)
+          </summary>
+          <div style={{ marginTop: 12 }}>
+            <TranslatorPicker
+              value={values.translator}
+              onChange={(v) => set('translator', v)}
+              currentUserId={currentUserId}
+              currentUserName={currentUserName}
+            />
+          </div>
+        </details>
+      )}
 
       <div className="form-field">
         <label title="Выбери подходящие жанры. Выберешь точнее — алгоритм лучше рекомендует новеллу читателям.">
