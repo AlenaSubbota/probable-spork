@@ -110,6 +110,10 @@ export default function ReaderBottomBar({
               if (isPages) onSeekPage(val);
               else onSeekScroll(val);
             }}
+            // После касания/отпускания мыши блюрим, чтобы клавиатурные
+            // стрелки сразу листали текст, а не двигали слайдер ещё раз.
+            onPointerUp={(e) => (e.currentTarget as HTMLInputElement).blur()}
+            onTouchEnd={(e) => (e.currentTarget as HTMLInputElement).blur()}
             aria-label="Прогресс по главе"
           />
         </div>
