@@ -12125,3 +12125,314 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .claim-auto-btn:hover {
   filter: brightness(1.05);
 }
+
+/* =========================================================
+   /admin/payment-methods — отдельная страница способов оплаты.
+   Все цвета через CSS-переменные → автоматически работает в
+   светлой и тёмной темах. Брейкпоинты совпадают с глобальными
+   (760 / 540).
+   ========================================================= */
+
+.pm-page { padding-bottom: 64px; }
+
+/* Hero */
+.pm-hero {
+  position: relative;
+  padding: 32px 32px 28px;
+  margin-bottom: 26px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0%, var(--accent-wash) 0%, transparent 55%),
+    linear-gradient(135deg, var(--surface) 0%, var(--bg-soft) 100%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.pm-hero::after {
+  content: '💳';
+  position: absolute;
+  right: -10px;
+  bottom: -28px;
+  font-size: 180px;
+  line-height: 1;
+  opacity: 0.07;
+  pointer-events: none;
+  filter: grayscale(0.3);
+}
+.pm-hero-text { position: relative; z-index: 1; max-width: 720px; }
+.pm-hero-eyebrow {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-wash);
+  padding: 5px 12px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+}
+.pm-page h1.pm-hero-title {
+  font-family: var(--font-serif);
+  font-size: 36px;
+  line-height: 1.1;
+  margin: 0 0 12px;
+  color: var(--ink);
+}
+.pm-hero-sub {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0 0 18px;
+  max-width: 620px;
+}
+.pm-hero-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.pm-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.pm-status-pill strong { color: var(--ink); font-weight: 600; }
+.pm-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--ink-mute);
+}
+.pm-status-pill.is-on  .pm-status-dot { background: var(--leaf); box-shadow: 0 0 0 3px color-mix(in srgb, var(--leaf) 25%, transparent); }
+.pm-status-pill.is-off .pm-status-dot { background: var(--rose); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rose) 25%, transparent); }
+.pm-hero-preview { height: 32px; padding: 0 14px; font-size: 13px; }
+
+/* Шаги «как это работает» */
+.pm-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.pm-step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 18px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 120ms, transform 120ms;
+}
+.pm-step:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+.pm-step-num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-wash);
+  border-radius: 50%;
+}
+.pm-step-body { min-width: 0; }
+.pm-step-title {
+  font-family: var(--font-serif);
+  font-size: 15.5px;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+.pm-step-text {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* Заголовок секции (общий) */
+.pm-section-title {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+
+/* Сетка платформ */
+.pm-providers { margin-bottom: 28px; }
+.pm-providers-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+.pm-provider-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 16px 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 120ms, transform 120ms, background 120ms;
+}
+.pm-provider-card:hover {
+  border-color: var(--accent-soft);
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
+.pm-provider-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  background: var(--bg-soft);
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+.pm-provider-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.pm-provider-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-mute);
+}
+
+/* FAQ */
+.pm-faq { margin-top: 28px; margin-bottom: 22px; }
+.pm-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pm-faq-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 120ms;
+}
+.pm-faq-item[open] { border-color: var(--accent-soft); }
+.pm-faq-q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--ink);
+  user-select: none;
+}
+.pm-faq-q::-webkit-details-marker { display: none; }
+.pm-faq-q-text { flex: 1; }
+.pm-faq-q-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--accent);
+  background: var(--accent-wash);
+  border-radius: 50%;
+  transition: transform 160ms;
+}
+.pm-faq-item[open] .pm-faq-q-icon { transform: rotate(45deg); }
+.pm-faq-a {
+  padding: 0 18px 16px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+/* CTA-плашка снизу */
+.pm-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  margin-top: 8px;
+}
+.pm-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  min-width: 0;
+}
+.pm-cta-text strong { color: var(--ink); font-size: 14.5px; }
+
+/* ---------- mobile / tablet ---------- */
+@media (max-width: 760px) {
+  .pm-hero { padding: 24px 22px 22px; }
+  .pm-hero::after { font-size: 140px; bottom: -22px; right: -14px; }
+  .pm-page h1.pm-hero-title { font-size: 28px; }
+  .pm-hero-sub { font-size: 14px; }
+  .pm-steps { grid-template-columns: 1fr; gap: 10px; }
+  .pm-providers-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 540px) {
+  .pm-page { padding-bottom: 48px; }
+  .pm-hero {
+    padding: 22px 18px 20px;
+    border-radius: var(--radius-sm);
+  }
+  .pm-hero::after { font-size: 110px; bottom: -16px; right: -10px; }
+  .pm-hero-eyebrow { font-size: 10.5px; padding: 4px 10px; margin-bottom: 12px; }
+  .pm-page h1.pm-hero-title { font-size: 24px; }
+  .pm-hero-sub { font-size: 13.5px; margin-bottom: 14px; }
+  .pm-status-pill { font-size: 12.5px; padding: 6px 11px; }
+
+  .pm-step { padding: 14px 14px; gap: 12px; }
+  .pm-step-num { width: 32px; height: 32px; font-size: 16px; }
+  .pm-step-title { font-size: 14.5px; }
+  .pm-step-text { font-size: 13px; }
+
+  .pm-section-title { font-size: 17px; }
+  .pm-providers-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .pm-provider-card { padding: 14px 10px 12px; }
+  .pm-provider-icon { width: 42px; height: 42px; font-size: 22px; margin-bottom: 8px; }
+  .pm-provider-name { font-size: 13.5px; }
+  .pm-provider-desc { font-size: 11.5px; }
+
+  .pm-faq-q { padding: 12px 14px; font-size: 13.5px; }
+  .pm-faq-a { padding: 0 14px 14px; font-size: 13px; }
+
+  .pm-cta {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    gap: 12px;
+  }
+  .pm-cta .btn { justify-content: center; }
+}
