@@ -110,6 +110,10 @@ export default function UserMenu({
                 <span className="user-menu-icon" aria-hidden="true">🎛</span>
                 <span>Админка</span>
               </Link>
+              <Link href="/admin/team" className="user-menu-item" onClick={() => setOpen(false)}>
+                <span className="user-menu-icon" aria-hidden="true">🪶</span>
+                <span>Моя команда</span>
+              </Link>
               <Link href="/admin/novels/new" className="user-menu-item" onClick={() => setOpen(false)}>
                 <span className="user-menu-icon" aria-hidden="true">＋</span>
                 <span>Новая новелла</span>

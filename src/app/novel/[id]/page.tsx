@@ -99,6 +99,44 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
+  // Команда, которой принадлежит новелла (если novels.team_id задан).
+  // Если есть — UI показывает «Перевод команды [name]» вместо одиночного
+  // переводчика. Это и есть «бренд» новеллы для читателя.
+  const novelTeamId = (novel as { team_id?: number | null }).team_id ?? null;
+  let teamProfile: {
+    id: number;
+    slug: string;
+    name: string;
+    avatarUrl: string | null;
+    description: string | null;
+    memberCount: number;
+  } | null = null;
+  if (novelTeamId) {
+    const { data: tv } = await supabase
+      .from('team_view')
+      .select('id, slug, name, avatar_url, description, member_count')
+      .eq('id', novelTeamId)
+      .maybeSingle();
+    if (tv) {
+      const t = tv as {
+        id: number;
+        slug: string;
+        name: string;
+        avatar_url: string | null;
+        description: string | null;
+        member_count: number | null;
+      };
+      teamProfile = {
+        id: t.id,
+        slug: t.slug,
+        name: t.name,
+        avatarUrl: t.avatar_url,
+        description: t.description,
+        memberCount: t.member_count ?? 0,
+      };
+    }
+  }
+
   // Профиль переводчика для блока «Переводчик»
   let translatorProfile: {
     slug: string | null;
@@ -593,6 +631,32 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
               </div>
             )}
 
+            {teamProfile && (
+              <Link href={`/team/${teamProfile.slug}`} className="novel-team-card">
+                <div className="novel-team-card-avatar" aria-hidden="true">
+                  {teamProfile.avatarUrl ? (
+                    <img src={teamProfile.avatarUrl} alt="" />
+                  ) : (
+                    <span>{teamProfile.name.slice(0, 1).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="novel-team-card-body">
+                  <div className="novel-team-card-eyebrow">Перевод команды</div>
+                  <div className="novel-team-card-name">{teamProfile.name}</div>
+                  <div className="novel-team-card-meta">
+                    {teamProfile.memberCount} {pluralMembers(teamProfile.memberCount)}
+                    {teamProfile.description && (
+                      <>
+                        <span aria-hidden="true"> · </span>
+                        <span className="novel-team-card-desc">{teamProfile.description}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <span className="novel-team-card-arrow" aria-hidden="true">→</span>
+              </Link>
+            )}
+
             {translatorProfile && (
               <div className="translator-card">
                 <Link
@@ -1030,4 +1094,11 @@ function pluralCoins(n: number): string {
   if (mod10 === 1) return 'монета';
   if (mod10 >= 2 && mod10 <= 4) return 'монеты';
   return 'монет';
+}
+
+function pluralMembers(n: number): string {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return 'участник';
+  if ([2, 3, 4].includes(m10) && ![12, 13, 14].includes(m100)) return 'участника';
+  return 'участников';
 }

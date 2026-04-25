@@ -12788,3 +12788,650 @@ html[data-theme='dark'] .rbb-btn-edge .rbb-btn-sub {
   .reader-similar-out { padding-bottom: 152px; }
 }
 
+/* =========================================================
+   Команды переводчиков — публичная страница /team/[slug],
+   карточки команд внутри novel page, админка команды.
+   Все цвета через CSS-переменные → светлая и тёмная темы автоматом.
+   Брейкпоинты совпадают с глобальными (760 / 540).
+   ========================================================= */
+
+.team-page { padding-top: 18px; padding-bottom: 56px; }
+
+/* Hero: большой блок шапки команды с аватаром, именем, описанием,
+   мета-полосой и опциональным баннером-фоном. */
+.team-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0%, var(--accent-wash) 0%, transparent 55%),
+    linear-gradient(135deg, var(--surface) 0%, var(--bg-soft) 100%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 28px;
+}
+.team-hero-banner {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+.team-hero-banner::after {
+  /* Затемнение на баннере, чтобы текст всегда читался — на светлом
+     баннере = светлая вуаль, на тёмной теме нет необходимости */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--surface) 0%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 95%, transparent) 100%);
+}
+.team-hero-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  padding: 32px 32px 26px;
+}
+.team-hero-avatar {
+  flex-shrink: 0;
+  width: 116px;
+  height: 116px;
+  border-radius: 28px;
+  background: var(--bg-soft);
+  border: 4px solid var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.team-hero-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.team-hero-avatar-fallback {
+  font-family: var(--font-serif);
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.team-hero-text { min-width: 0; flex: 1; }
+.team-hero-eyebrow {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-wash);
+  padding: 5px 12px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+.team-hero-title {
+  font-family: var(--font-serif);
+  font-size: 38px;
+  line-height: 1.1;
+  margin: 0 0 10px;
+  color: var(--ink);
+  word-break: break-word;
+}
+.team-hero-desc {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0 0 14px;
+  max-width: 680px;
+}
+.team-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+.team-hero-meta strong { color: var(--ink); font-weight: 600; }
+.team-hero-meta-sep { opacity: 0.45; }
+.team-hero-lead-link { color: var(--accent); font-weight: 600; }
+.team-hero-lead-link:hover { text-decoration: underline; }
+
+/* Заголовки секций на странице команды */
+.team-section-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+.team-section-count {
+  color: var(--ink-mute);
+  font-size: 0.7em;
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+/* Поддержать команду — единый блок донатов */
+.team-support {
+  margin-bottom: 32px;
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.team-support-sub {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+}
+.team-support-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.team-support-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 120ms, transform 120ms, background 120ms;
+}
+.team-support-card:hover {
+  border-color: var(--accent-soft);
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
+.team-support-card-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: var(--surface);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.team-support-card-body { min-width: 0; flex: 1; }
+.team-support-card-name { font-weight: 600; font-size: 14px; color: var(--ink); }
+.team-support-card-hint {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+  word-break: break-word;
+}
+.team-support-card-arrow {
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Участники команды */
+.team-members { margin-bottom: 32px; }
+.team-member-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 120ms, transform 120ms, background 120ms;
+}
+.team-member-card:hover {
+  border-color: var(--accent-soft);
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
+.team-member-card--lead {
+  background: linear-gradient(135deg, var(--accent-wash) 0%, var(--surface) 60%);
+  margin-bottom: 14px;
+  padding: 18px 22px;
+}
+.team-member-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--bg-soft);
+  border: 2px solid var(--surface);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 22px;
+}
+.team-member-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.team-member-avatar--fallback { background: var(--accent-wash); }
+.team-member-body { min-width: 0; flex: 1; }
+.team-member-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+a.team-member-name { color: var(--ink); }
+a.team-member-name:hover { color: var(--accent); }
+.team-member-role {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.team-member-about {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+.team-member-note {
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-style: italic;
+  margin-top: 4px;
+}
+.team-members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+/* Новеллы команды — компактный грид плиток */
+.team-novels { margin-bottom: 24px; }
+.team-novels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+.team-novel-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 140ms;
+}
+.team-novel-card:hover { transform: translateY(-2px); }
+.team-novel-cover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-soft);
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+.team-novel-cover img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.team-novel-cover-fallback {
+  width: 100%; height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  font-family: var(--font-serif);
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.team-novel-flag {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: var(--accent);
+  color: var(--surface-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.team-novel-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.team-novel-meta {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  margin-top: 4px;
+}
+
+/* ----- Mobile / tablet ----- */
+@media (max-width: 760px) {
+  .team-hero-body { padding: 26px 22px 22px; gap: 18px; }
+  .team-hero-banner { height: 140px; }
+  .team-page h1.team-hero-title { font-size: 30px; }
+  .team-hero-avatar { width: 92px; height: 92px; border-radius: 22px; }
+  .team-hero-avatar-fallback { font-size: 38px; }
+  .team-section-title { font-size: 19px; }
+  .team-support { padding: 18px 18px; }
+}
+@media (max-width: 540px) {
+  .team-page { padding-bottom: 36px; }
+  .team-hero { border-radius: var(--radius-sm); }
+  .team-hero-body {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 22px 18px 20px;
+    gap: 14px;
+  }
+  .team-hero-banner { height: 120px; }
+  .team-hero-avatar { width: 80px; height: 80px; border-radius: 18px; border-width: 3px; }
+  .team-hero-avatar-fallback { font-size: 32px; }
+  .team-page h1.team-hero-title { font-size: 24px; margin-bottom: 8px; }
+  .team-hero-desc { font-size: 13.5px; }
+  .team-hero-eyebrow { font-size: 10.5px; padding: 4px 10px; margin-bottom: 10px; }
+
+  .team-support { padding: 16px 14px; }
+  .team-section-title { font-size: 17px; }
+  .team-support-sub { font-size: 13px; }
+  .team-support-grid { grid-template-columns: 1fr; }
+
+  .team-member-card { padding: 12px 14px; }
+  .team-member-card--lead { padding: 16px 18px; }
+  .team-members-grid { grid-template-columns: 1fr; }
+  .team-novels-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+}
+
+/* =========================================================
+   /admin/team/new и /admin/team/[id]/edit — стили админки команды
+   ========================================================= */
+
+.team-create-hero,
+.team-edit-hero {
+  margin-bottom: 22px;
+  padding: 24px 24px 20px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0%, var(--accent-wash) 0%, transparent 55%),
+    linear-gradient(135deg, var(--surface) 0%, var(--bg-soft) 100%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.team-create-title,
+.team-edit-title {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+.team-create-sub,
+.team-edit-sub {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: 620px;
+}
+.team-edit-public-link {
+  color: var(--accent);
+  font-weight: 600;
+}
+.team-edit-public-link:hover { text-decoration: underline; }
+
+.team-create-form,
+.team-settings-form,
+.team-members-editor,
+.team-novels-linker {
+  /* visually те же settings-block — оставляем единый ритм страницы */
+}
+
+.team-slug-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding-left: 12px;
+}
+.team-slug-prefix {
+  color: var(--ink-mute);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.team-slug-input .form-input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  padding-left: 4px;
+}
+.team-slug-input .form-input:focus { box-shadow: none; }
+
+/* Список участников в редакторе команды */
+.team-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.team-member-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.team-member-row.is-lead {
+  background: linear-gradient(135deg, var(--accent-wash) 0%, var(--bg-soft) 60%);
+}
+.team-member-row-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  border: 1px solid var(--border);
+}
+.team-member-row-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.team-member-row-body { min-width: 0; }
+.team-member-row-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.team-member-row-lead-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-wash);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.team-member-row-handle {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+.team-member-row-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.team-member-row-role-static {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.team-members-invite {
+  margin-top: 6px;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, var(--bg-soft), var(--surface));
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+}
+.team-members-invite-title {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  margin: 0 0 10px;
+  color: var(--ink);
+}
+
+/* Привязка новелл к команде */
+.team-novels-list,
+.team-novels-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.team-novels-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.team-novels-row--candidate {
+  background: var(--surface);
+  border-style: dashed;
+}
+.team-novels-row-title {
+  font-size: 13.5px;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.team-novels-row-title:hover { color: var(--accent); }
+.team-novels-row-pill {
+  font-size: 11px;
+  color: var(--ink-mute);
+  padding: 3px 9px;
+  background: var(--surface);
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.team-novels-candidates-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 14px 0 8px;
+}
+
+/* =========================================================
+   Карточка команды на странице новеллы (/novel/[id]).
+   Рендерится над .translator-card если novels.team_id задан.
+   Это и есть «бренд-имя» новеллы для читателя — кликом он попадает
+   на /team/[slug] и видит всех участников.
+   ========================================================= */
+.novel-team-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--accent-wash) 0%, var(--surface) 60%);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 12px;
+  transition: border-color 120ms, transform 120ms, box-shadow 120ms;
+  box-shadow: var(--shadow-sm);
+}
+.novel-team-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.novel-team-card-avatar {
+  flex-shrink: 0;
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 22px;
+}
+.novel-team-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.novel-team-card-body { flex: 1; min-width: 0; }
+.novel-team-card-eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.novel-team-card-name {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 2px;
+  word-break: break-word;
+}
+.novel-team-card-meta {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin-top: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.novel-team-card-desc {
+  color: var(--ink-soft);
+}
+.novel-team-card-arrow {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+}
+@media (max-width: 540px) {
+  .novel-team-card { padding: 12px 14px; gap: 10px; }
+  .novel-team-card-avatar { width: 42px; height: 42px; }
+  .novel-team-card-name { font-size: 15px; }
+  .novel-team-card-meta { font-size: 12px; }
+}
+
