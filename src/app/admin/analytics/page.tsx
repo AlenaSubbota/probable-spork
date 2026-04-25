@@ -82,7 +82,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
   // --- Параллельно: главы за период + за прошлый период + подписки + рейтинги + покупки ---
   // Для подписок: если админ — смотрим все, иначе только свои.
   const subsBase = () => {
-    const q = supabase.from('subscriptions').select('id');
+    const q = supabase.from('chaptify_subscriptions').select('id');
     return isAdmin ? q : q.eq('translator_id', user.id);
   };
 

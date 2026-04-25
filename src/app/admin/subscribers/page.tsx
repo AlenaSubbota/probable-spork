@@ -59,7 +59,7 @@ export default async function SubscribersPage() {
 
   // Активные подписчики прямо сейчас
   const { data: active } = await supabase
-    .from('subscriptions')
+    .from('chaptify_subscriptions')
     .select('id, user_id, provider, plan, status, expires_at, started_at')
     .eq('translator_id', user.id)
     .eq('status', 'active')

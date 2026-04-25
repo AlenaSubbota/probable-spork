@@ -336,7 +336,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
   let hasActiveSubscription = false;
   if (user && novel.translator_id) {
     const { data: sub } = await supabase
-      .from('subscriptions')
+      .from('chaptify_subscriptions')
       .select('id, expires_at')
       .eq('user_id', user.id)
       .eq('translator_id', novel.translator_id)
