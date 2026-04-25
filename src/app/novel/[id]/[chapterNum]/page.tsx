@@ -464,14 +464,20 @@ export default async function ChapterPage({ params }: PageProps) {
         <hr className="reader-divider" />
 
         <CommentsSection novelId={novel.id} chapterNumber={chapter.chapter_number} />
+      </main>
 
-        {similarByReaders.length > 0 && (
+      {/* «Созвучие читателей» — выносим за пределы .reader-main (max-width
+          760), чтобы сетка из 4-6 обложек дышала по полной ширине
+          .container, как на странице новеллы. Внутри узкой колонки
+          цифры/обложки слипались и не помещались. */}
+      {similarByReaders.length > 0 && (
+        <section className="container reader-similar-out">
           <SimilarByReaders
             novels={similarByReaders}
             translators={similarTranslatorMap}
           />
-        )}
-      </main>
+        </section>
+      )}
     </div>
   );
 }

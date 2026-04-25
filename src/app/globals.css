@@ -10554,31 +10554,60 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    multi-column flow в браузерах). Pixel-value проставляется из JS в
    inline style после измерения clientWidth контейнера. В CSS даём
    только базовые свойства flow. */
-.reader-wrapper[data-read-mode='pages'] .novel-content {
-  column-gap: 0;
-  column-fill: auto;
-  /* 100svh (small viewport) — фиксированная высота, не меняется когда
-     iOS Safari схлопывает адресную строку. Минусуем высоту шапки
-     и нижней панели + воздух, чтобы текст не лип под кнопками. */
+/* Outer snap-scroller для pages-режима. Flex-items (страница-контент +
+   spacer'ы) имеют scroll-snap-align: start — реальный CSS-снап, никаких
+   JS-доводок, листание страниц как у настоящей книги. */
+.reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
+  display: flex;
+  align-items: stretch;
+  /* Высота viewport минус шапка/панель — чтобы pages-контент не уезжал
+     под кнопки. svh — стабильная высота на iOS даже при сворачивании
+     адресной строки. */
   height: calc(100svh - 220px);
   overflow-x: auto;
   overflow-y: hidden;
-  /* CSS scroll-snap НЕ ставим: в multi-column нет явных snap-target'ов,
-     и поведение браузеров расходится — палец с инерцией может застрять
-     между колонок. Снап делаем сами в JS (см. ReaderContent
-     эффект «JS-snap»). */
+  scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  padding: 8px 0 16px;
-  cursor: default;
-  /* Прячем скроллбар — навигация через snap/кнопки/свайп */
   scrollbar-width: none;
+  cursor: default;
+}
+.reader-wrapper[data-read-mode='pages'] .reader-pages-scroller::-webkit-scrollbar {
+  display: none;
 }
 @media (max-width: 760px) {
-  .reader-wrapper[data-read-mode='pages'] .novel-content {
-    /* На мобиле шапка тоньше + нижняя панель компактнее → уменьшаем минус */
+  .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
     height: calc(100svh - 180px);
   }
+}
+
+/* Content-страница: ОДНА на главу, но визуально содержит все страницы
+   через multi-column. Width = pageWidth ставит JS, а multi-column
+   расщепляет текст на N колонок шириной pageWidth каждая. Колонки 2..N
+   рендерятся справа от content-бокса (overflow visible) — поверх
+   spacer'ов, у которых нет своего фона. snap-align: start — каждая
+   страница цепляется к левому краю scroller'а. */
+.reader-wrapper[data-read-mode='pages'] .reader-pages-content {
+  flex: 0 0 auto;          /* не сжимать, ширину задаём JS-ом */
+  scroll-snap-align: start;
+  scroll-snap-stop: always; /* не пролистывать инерцией мимо страницы */
+  height: 100%;
+  column-gap: 0;
+  column-fill: auto;
+  padding: 8px 0 16px;
+  overflow: visible;        /* колонки рисуются вправо за пределы width */
+}
+/* Spacer — невидимый flex-item той же ширины, что и content-страница.
+   Его задача: дать scroll-snap ещё одну точку фиксации на каждый pageWidth.
+   Контент multi-column'а с предыдущей content-страницы визуально перетекает
+   поверх spacer'ов — пользователь видит колонки 2..N. */
+.reader-wrapper[data-read-mode='pages'] .reader-pages-spacer {
+  flex: 0 0 auto;
+  /* width задаётся inline-стилем = pageWidth, см. ReaderContent */
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  pointer-events: none;
 }
 .reader-wrapper[data-read-mode='pages'] .novel-content::-webkit-scrollbar {
   display: none;
@@ -12748,4 +12777,14 @@ html[data-theme='dark'] .rbb-btn-edge .rbb-btn-sub {
 /* Иммерсив (центр-тап в pages-режиме): is-hidden ставится из ReaderContent
    через prop visible={!uiHidden}, поэтому отдельных CSS-завязок на
    reader-wrapper.ui-hidden здесь не нужно. */
+
+/* Блок «Созвучие читателей» рендерится после <main.reader-main>, но
+   нужен запас снизу под sticky-панель и небольшой отступ сверху. */
+.reader-similar-out {
+  padding-top: 8px;
+  padding-bottom: 140px;
+}
+@media (max-width: 540px) {
+  .reader-similar-out { padding-bottom: 152px; }
+}
 
