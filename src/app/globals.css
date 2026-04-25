@@ -24,6 +24,19 @@
   --rose:          #B4766A;
   --leaf:          #8BA076;
 
+  /* Семантические статусы — для inline-плашек «подключено / ошибка / внимание».
+     Светлая тема: пастельные фоны + тёмный текст. Тёмная — заглушены ниже. */
+  --status-ok-bg:      #E1F0E2;
+  --status-ok-ink:     #2A7A44;
+  --status-err-bg:     #F8E1DD;
+  --status-err-ink:    #A5342B;
+  --status-warn-bg:    #FFF6DC;
+  --status-warn-border:#E8D7A1;
+  --status-warn-ink:   #6B4A16;
+  --status-info-bg:    #E8EFFB;
+  --status-info-border:#C8D4E8;
+  --status-info-ink:   #2D4A6E;
+
   --radius:        14px;
   --radius-sm:     8px;
   --shadow-sm:     0 1px 2px rgba(88, 63, 40, 0.06);
@@ -69,6 +82,18 @@ html[data-theme="dark"] {
 
   --shadow-sm:     0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-md:     0 6px 20px rgba(0, 0, 0, 0.45);
+
+  /* Тёмные статусы — приглушённый фон + светлый текст; читается на --surface */
+  --status-ok-bg:      rgba(139, 160, 118, 0.18);
+  --status-ok-ink:     #A5C28C;
+  --status-err-bg:     rgba(180, 118, 106, 0.20);
+  --status-err-ink:    #E5A39A;
+  --status-warn-bg:    rgba(201, 163, 95, 0.18);
+  --status-warn-border:rgba(201, 163, 95, 0.45);
+  --status-warn-ink:   #DAB67A;
+  --status-info-bg:    rgba(120, 150, 200, 0.18);
+  --status-info-border:rgba(120, 150, 200, 0.40);
+  --status-info-ink:   #9BB4DA;
 
   /* theme-color для мобильного браузера (адресная строка) */
   color-scheme: dark;

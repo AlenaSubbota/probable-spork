@@ -379,8 +379,8 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
             marginTop: 18,
             padding: 14,
             borderRadius: 8,
-            background: 'var(--surface-alt, #faf7f0)',
-            border: '1px solid var(--border, rgba(0,0,0,0.08))',
+            background: 'var(--bg-soft)',
+            border: '1px solid var(--border)',
           }}
         >
           <BoostyAutoConnect />
@@ -393,8 +393,8 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
             marginTop: 18,
             padding: 14,
             borderRadius: 8,
-            background: 'var(--surface-alt, #faf7f0)',
-            border: '1px solid var(--border, rgba(0,0,0,0.08))',
+            background: 'var(--bg-soft)',
+            border: '1px solid var(--border)',
           }}
         >
           <TributeAutoConnect />

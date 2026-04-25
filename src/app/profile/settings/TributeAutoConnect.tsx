@@ -176,8 +176,8 @@ export default function TributeAutoConnect() {
           <span
             style={{
               fontSize: 11,
-              color: '#2a7d2a',
-              background: '#e7f4e7',
+              color: 'var(--status-ok-ink)',
+              background: 'var(--status-ok-bg)',
               borderRadius: 4,
               padding: '1px 6px',
             }}
@@ -198,7 +198,7 @@ export default function TributeAutoConnect() {
             </>
           )}
           {status.last_error && (
-            <div style={{ color: '#a04040', fontSize: 12, marginTop: 4 }}>
+            <div style={{ color: 'var(--status-err-ink)', fontSize: 12, marginTop: 4 }}>
               ⚠ Ошибка: {status.last_error}
             </div>
           )}
@@ -215,7 +215,7 @@ export default function TributeAutoConnect() {
               type="button"
               className="btn btn-ghost"
               onClick={disconnect}
-              style={{ height: 28, fontSize: 12, color: '#a04040' }}
+              style={{ height: 28, fontSize: 12, color: 'var(--status-err-ink)' }}
             >
               Отвязать
             </button>
@@ -247,8 +247,9 @@ export default function TributeAutoConnect() {
           style={{
             marginTop: 12,
             padding: 12,
-            background: '#fffbea',
-            border: '1px solid #e8d7a1',
+            background: 'var(--status-warn-bg)',
+            border: '1px solid var(--status-warn-border)',
+            color: 'var(--status-warn-ink)',
             borderRadius: 6,
             fontSize: 13,
             lineHeight: 1.55,
@@ -304,8 +305,9 @@ export default function TributeAutoConnect() {
           style={{
             marginTop: 12,
             padding: 12,
-            background: '#f4f8ff',
-            border: '1px solid #c8d4e8',
+            background: 'var(--status-info-bg)',
+            border: '1px solid var(--status-info-border)',
+            color: 'var(--status-info-ink)',
             borderRadius: 6,
             fontSize: 13,
             lineHeight: 1.55,
@@ -321,10 +323,11 @@ export default function TributeAutoConnect() {
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <code
               style={{
-                background: '#fff',
+                background: 'var(--surface)',
+                color: 'var(--ink)',
                 padding: '6px 10px',
                 borderRadius: 4,
-                border: '1px solid #d8e0ec',
+                border: '1px solid var(--border)',
                 fontSize: 12,
                 wordBreak: 'break-all',
                 flex: 1,
