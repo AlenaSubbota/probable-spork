@@ -99,6 +99,10 @@ export default function UserMenu({
             <span className="user-menu-icon" aria-hidden="true">📚</span>
             <span>Моя библиотека</span>
           </Link>
+          <Link href="/streak" className="user-menu-item" onClick={() => setOpen(false)}>
+            <span className="user-menu-icon" aria-hidden="true">🔥</span>
+            <span>Дневник чтения</span>
+          </Link>
           <Link href="/market" className="user-menu-item" onClick={() => setOpen(false)}>
             <span className="user-menu-icon" aria-hidden="true">🤝</span>
             <span>Маркетплейс команды</span>

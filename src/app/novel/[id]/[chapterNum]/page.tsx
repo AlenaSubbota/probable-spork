@@ -5,6 +5,7 @@ import ReaderContent from '@/components/ReaderContent';
 import CommentsSection from '@/components/CommentsSection';
 import ChapterThanks from '@/components/reader/ChapterThanks';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
+import DiaryQuickEntry from '@/components/diary/DiaryQuickEntry';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import { fetchTranslators } from '@/lib/translator';
 
@@ -323,6 +324,13 @@ export default async function ChapterPage({ params }: PageProps) {
     finalContent = '<p><em>Текст главы отсутствует.</em></p>';
   }
 
+  // Auto-check-in для стрика: серверная RPC, fire-and-forget. Если не
+  // залогинен или RPC ещё не накачен (миграция 059) — тихо игнорируем.
+  // Дублей в один день не будет, RPC сама проверит last_check_in_date.
+  if (user) {
+    void supabase.rpc('reader_check_in').then(() => {}, () => {});
+  }
+
   // Соседние главы. Читатели не должны переходить в черновики/запланированные:
   // берём ближайшие видимые, не обязательно соседние по номеру.
   const nowIso = new Date().toISOString();
@@ -455,20 +463,27 @@ export default async function ChapterPage({ params }: PageProps) {
 
         <hr className="reader-divider" />
 
-        {/* «♥ Спасибо переводчику» переехало внутрь блока комментариев,
-            прямо под заголовком — это часть жеста после прочтения, а не
-            отдельная секция. */}
+        {/* «♥ Спасибо переводчику» + «📖 Закладка дня» — оба жеста
+            после прочтения, оба живут в верхней части обсуждения,
+            рядом с комментариями. */}
         <CommentsSection
           novelId={novel.id}
           chapterNumber={chapter.chapter_number}
           topSlot={
-            <ChapterThanks
-              novelId={novel.id}
-              chapterNumber={chapter.chapter_number}
-              hasTranslator={!!novel.translator_id}
-              translatorDisplayName={translatorDisplayName}
-              isLoggedIn={!!user}
-            />
+            <>
+              <ChapterThanks
+                novelId={novel.id}
+                chapterNumber={chapter.chapter_number}
+                hasTranslator={!!novel.translator_id}
+                translatorDisplayName={translatorDisplayName}
+                isLoggedIn={!!user}
+              />
+              <DiaryQuickEntry
+                novelId={novel.id}
+                chapterNumber={chapter.chapter_number}
+                isLoggedIn={!!user}
+              />
+            </>
           }
         />
       </main>
