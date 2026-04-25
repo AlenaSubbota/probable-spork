@@ -4,7 +4,6 @@ import { createClient } from '@/utils/supabase/server';
 import SettingsForm from './SettingsForm';
 import LinkedAccounts from './LinkedAccounts';
 import RoadmapEditor from './RoadmapEditor';
-import PaymentMethodsEditor from './PaymentMethodsEditor';
 
 export const metadata = { title: 'Настройки — Chaptify' };
 
@@ -115,7 +114,18 @@ export default async function ProfileSettingsPage() {
         hasChaptifyBot={profile.chaptify_bot_chat_id != null}
       />
 
-      {isTranslator && <PaymentMethodsEditor translatorId={user.id} />}
+      {isTranslator && (
+        <section className="settings-block pm-link-card">
+          <h2>Способы оплаты</h2>
+          <p style={{ color: 'var(--ink-mute)', margin: '0 0 14px', fontSize: 13.5 }}>
+            Куда читатели отправляют деньги за платные главы. Управление
+            переехало на отдельную страницу — там удобнее и больше подсказок.
+          </p>
+          <Link href="/admin/payment-methods" className="btn btn-primary">
+            💳 Открыть способы оплаты →
+          </Link>
+        </section>
+      )}
 
       {isTranslator && <RoadmapEditor translatorId={user.id} />}
     </main>
