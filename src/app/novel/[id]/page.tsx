@@ -101,38 +101,73 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
 
   // Команда, которой принадлежит новелла (если novels.team_id задан).
   // Если есть — UI показывает «Перевод команды [name]» вместо одиночного
-  // переводчика. Это и есть «бренд» новеллы для читателя.
+  // переводчика. Это и есть «бренд» новеллы для читателя. Подтягиваем
+  // банер, описание, кол-во участников и ТОП-5 аватарок для стопки —
+  // карточка должна выглядеть «дорого-богато», а не служебной плашкой.
   const novelTeamId = (novel as { team_id?: number | null }).team_id ?? null;
   let teamProfile: {
     id: number;
     slug: string;
     name: string;
     avatarUrl: string | null;
+    bannerUrl: string | null;
     description: string | null;
     memberCount: number;
+    novelCount: number;
+    leaderName: string | null;
+    memberAvatars: Array<{ url: string | null; initial: string }>;
   } | null = null;
   if (novelTeamId) {
-    const { data: tv } = await supabase
-      .from('team_view')
-      .select('id, slug, name, avatar_url, description, member_count')
-      .eq('id', novelTeamId)
-      .maybeSingle();
+    const [{ data: tv }, { data: tm }] = await Promise.all([
+      supabase
+        .from('team_view')
+        .select(
+          'id, slug, name, avatar_url, banner_url, description, member_count, novel_count, owner_display_name, owner_user_name'
+        )
+        .eq('id', novelTeamId)
+        .maybeSingle(),
+      supabase
+        .from('team_members_view')
+        .select('user_id, avatar_url, translator_display_name, user_name, sort_order, role')
+        .eq('team_id', novelTeamId)
+        // лидер первым (sort_order = 0), потом по порядку
+        .order('sort_order', { ascending: true })
+        .limit(5),
+    ]);
     if (tv) {
       const t = tv as {
         id: number;
         slug: string;
         name: string;
         avatar_url: string | null;
+        banner_url: string | null;
         description: string | null;
         member_count: number | null;
+        novel_count: number | null;
+        owner_display_name: string | null;
+        owner_user_name: string | null;
       };
+      const members = (tm ?? []) as Array<{
+        user_id: string;
+        avatar_url: string | null;
+        translator_display_name: string | null;
+        user_name: string | null;
+      }>;
       teamProfile = {
         id: t.id,
         slug: t.slug,
         name: t.name,
         avatarUrl: t.avatar_url,
+        bannerUrl: t.banner_url,
         description: t.description,
-        memberCount: t.member_count ?? 0,
+        memberCount: t.member_count ?? members.length,
+        novelCount: t.novel_count ?? 0,
+        leaderName: t.owner_display_name || t.owner_user_name || null,
+        memberAvatars: members.map((m) => ({
+          url: m.avatar_url,
+          initial:
+            (m.translator_display_name || m.user_name || '?').slice(0, 1).toUpperCase(),
+        })),
       };
     }
   }
@@ -632,32 +667,105 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             )}
 
             {teamProfile && (
-              <Link href={`/team/${teamProfile.slug}`} className="novel-team-card">
-                <div className="novel-team-card-avatar" aria-hidden="true">
-                  {teamProfile.avatarUrl ? (
-                    <img src={teamProfile.avatarUrl} alt="" />
-                  ) : (
-                    <span>{teamProfile.name.slice(0, 1).toUpperCase()}</span>
-                  )}
-                </div>
+              <Link
+                href={`/team/${teamProfile.slug}`}
+                className="novel-team-card"
+                aria-label={`Перевод команды ${teamProfile.name}`}
+              >
+                {teamProfile.bannerUrl ? (
+                  <div
+                    className="novel-team-card-banner"
+                    style={{ backgroundImage: `url(${teamProfile.bannerUrl})` }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <div className="novel-team-card-banner novel-team-card-banner--gradient" aria-hidden="true" />
+                )}
+
                 <div className="novel-team-card-body">
-                  <div className="novel-team-card-eyebrow">Перевод команды</div>
-                  <div className="novel-team-card-name">{teamProfile.name}</div>
-                  <div className="novel-team-card-meta">
-                    {teamProfile.memberCount} {pluralMembers(teamProfile.memberCount)}
-                    {teamProfile.description && (
-                      <>
-                        <span aria-hidden="true"> · </span>
-                        <span className="novel-team-card-desc">{teamProfile.description}</span>
-                      </>
+                  <div className="novel-team-card-avatar" aria-hidden="true">
+                    {teamProfile.avatarUrl ? (
+                      <img src={teamProfile.avatarUrl} alt="" />
+                    ) : (
+                      <span>{teamProfile.name.slice(0, 1).toUpperCase()}</span>
                     )}
                   </div>
+
+                  <div className="novel-team-card-text">
+                    <div className="novel-team-card-eyebrow">
+                      <span className="novel-team-card-eyebrow-icon" aria-hidden="true">🪶</span>
+                      Перевод команды
+                    </div>
+                    <div className="novel-team-card-name">{teamProfile.name}</div>
+                    {teamProfile.description && (
+                      <div className="novel-team-card-desc">
+                        {teamProfile.description}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="novel-team-card-side">
+                    {teamProfile.memberAvatars.length > 0 && (
+                      <div
+                        className="novel-team-card-stack"
+                        aria-hidden="true"
+                        title={`${teamProfile.memberCount} ${pluralMembers(
+                          teamProfile.memberCount
+                        )} в команде`}
+                      >
+                        {teamProfile.memberAvatars.map((a, i) => (
+                          <span
+                            key={i}
+                            className={`novel-team-card-stack-item${
+                              !a.url ? ' is-fallback' : ''
+                            }`}
+                            style={{ zIndex: 5 - i }}
+                          >
+                            {a.url ? <img src={a.url} alt="" /> : <span>{a.initial}</span>}
+                          </span>
+                        ))}
+                        {teamProfile.memberCount > teamProfile.memberAvatars.length && (
+                          <span
+                            className="novel-team-card-stack-item novel-team-card-stack-more"
+                            style={{ zIndex: 0 }}
+                          >
+                            +{teamProfile.memberCount - teamProfile.memberAvatars.length}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="novel-team-card-meta">
+                      <strong>{teamProfile.memberCount}</strong>{' '}
+                      {pluralMembers(teamProfile.memberCount)}
+                      <span className="novel-team-card-meta-sep" aria-hidden="true">·</span>
+                      <strong>{teamProfile.novelCount}</strong>{' '}
+                      {pluralNovels(teamProfile.novelCount)}
+                    </div>
+                  </div>
                 </div>
-                <span className="novel-team-card-arrow" aria-hidden="true">→</span>
+
+                <div className="novel-team-card-cta-row">
+                  {teamProfile.leaderName && (
+                    <div className="novel-team-card-leader">
+                      <span className="novel-team-card-leader-label">Лидер</span>
+                      <span className="novel-team-card-leader-name">
+                        {teamProfile.leaderName}
+                      </span>
+                    </div>
+                  )}
+                  <span className="novel-team-card-cta">
+                    Зайти в команду
+                    <span className="novel-team-card-cta-arrow" aria-hidden="true">→</span>
+                  </span>
+                </div>
               </Link>
             )}
 
-            {translatorProfile && (
+            {/* Если новелла в команде — карточку одиночного переводчика
+                не рендерим: лидер уже внутри team-card как «Лидер: …»,
+                и дублирование путает. Команда — приоритетный «бренд». */}
+            {!teamProfile && translatorProfile && (
               <div className="translator-card">
                 <Link
                   href={translatorSlug ? `/t/${translatorSlug}` : '#'}
@@ -1101,4 +1209,11 @@ function pluralMembers(n: number): string {
   if (m10 === 1 && m100 !== 11) return 'участник';
   if ([2, 3, 4].includes(m10) && ![12, 13, 14].includes(m100)) return 'участника';
   return 'участников';
+}
+
+function pluralNovels(n: number): string {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return 'новелла';
+  if ([2, 3, 4].includes(m10) && ![12, 13, 14].includes(m100)) return 'новеллы';
+  return 'новелл';
 }
