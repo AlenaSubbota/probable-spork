@@ -44,7 +44,7 @@ export default async function SubscriptionsPage() {
 
   try {
     const { data: subsData } = await supabase
-      .from('subscriptions')
+      .from('chaptify_subscriptions')
       .select('id, translator_id, provider, plan, status, started_at, expires_at')
       .eq('user_id', user.id)
       .order('started_at', { ascending: false });

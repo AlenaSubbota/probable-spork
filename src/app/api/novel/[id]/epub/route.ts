@@ -94,7 +94,7 @@ export async function GET(
   if (user && novel.translator_id) {
     const [{ data: subs }, { data: purchased }] = await Promise.all([
       supabase
-        .from('subscriptions')
+        .from('chaptify_subscriptions')
         .select('id')
         .eq('user_id', user.id)
         .eq('translator_id', novel.translator_id)

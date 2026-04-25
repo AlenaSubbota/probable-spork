@@ -284,7 +284,7 @@ export default async function ProfilePage() {
   }> = [];
   try {
     const { data: subsRaw } = await supabase
-      .from('subscriptions')
+      .from('chaptify_subscriptions')
       .select('id, translator_id, expires_at, started_at')
       .eq('user_id', user.id)
       .eq('status', 'active')
