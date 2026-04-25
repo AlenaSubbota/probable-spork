@@ -453,17 +453,24 @@ export default async function ChapterPage({ params }: PageProps) {
           </nav>
         )}
 
-        <ChapterThanks
-          novelId={novel.id}
-          chapterNumber={chapter.chapter_number}
-          hasTranslator={!!novel.translator_id}
-          translatorDisplayName={translatorDisplayName}
-          isLoggedIn={!!user}
-        />
-
         <hr className="reader-divider" />
 
-        <CommentsSection novelId={novel.id} chapterNumber={chapter.chapter_number} />
+        {/* «♥ Спасибо переводчику» переехало внутрь блока комментариев,
+            прямо под заголовком — это часть жеста после прочтения, а не
+            отдельная секция. */}
+        <CommentsSection
+          novelId={novel.id}
+          chapterNumber={chapter.chapter_number}
+          topSlot={
+            <ChapterThanks
+              novelId={novel.id}
+              chapterNumber={chapter.chapter_number}
+              hasTranslator={!!novel.translator_id}
+              translatorDisplayName={translatorDisplayName}
+              isLoggedIn={!!user}
+            />
+          }
+        />
       </main>
 
       {/* «Созвучие читателей» — выносим за пределы .reader-main (max-width

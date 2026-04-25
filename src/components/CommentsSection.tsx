@@ -28,9 +28,14 @@ interface Comment {
 interface Props {
   novelId: number;
   chapterNumber: number;
+  /** Опциональный блок, который рендерится в самом верху секции
+      обсуждения, прямо под заголовком. Использовался для «♥ спасибо
+      переводчику» — теперь это естественный жест после прочтения, и
+      ему место рядом с комментариями, а не отдельной секцией. */
+  topSlot?: React.ReactNode;
 }
 
-export default function CommentsSection({ novelId, chapterNumber }: Props) {
+export default function CommentsSection({ novelId, chapterNumber, topSlot }: Props) {
   const supabase = createClient();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -396,6 +401,10 @@ export default function CommentsSection({ novelId, chapterNumber }: Props) {
   return (
     <section className="comments-section">
       <h3>Обсуждение {comments.length > 0 && <small>({comments.length})</small>}</h3>
+
+      {topSlot && (
+        <div className="comments-section-top-slot">{topSlot}</div>
+      )}
 
       {userId ? (
         <form

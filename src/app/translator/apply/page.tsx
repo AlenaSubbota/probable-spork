@@ -30,12 +30,13 @@ export default async function TranslatorApplyPage() {
   return (
     <main className="container section" style={{ maxWidth: 720 }}>
       <h1 style={{ fontFamily: 'var(--font-serif)', marginBottom: 6 }}>
-        Стать переводчиком
+        Собрать команду для перевода
       </h1>
       <p style={{ color: 'var(--ink-mute)', marginBottom: 28 }}>
-        Chaptify — это площадка для переводчиков. После одобрения заявки ты
-        сможешь добавлять свои новеллы и главы, принимать подписки и продавать
-        главы штучно за монетки.
+        Chaptify — площадка для переводческих команд. После одобрения заявки
+        ты сможешь создать команду (даже из одного человека), позвать в неё
+        редакторов и корректоров, добавлять новеллы и главы, принимать
+        подписки и донаты — всё на общий счёт команды.
       </p>
 
       {existing?.status === 'pending' && (
