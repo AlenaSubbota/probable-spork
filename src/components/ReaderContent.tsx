@@ -637,21 +637,30 @@ export default function ReaderContent({
     const container = contentRef.current;
     if (!container) return;
     const onKey = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
+      // Текстовые поля и редактируемые блоки — не перехватываем стрелки.
+      // Range-slider в нижней панели ИГНОРИРУЕМ из этого фильтра: на нём
+      // нативные стрелки тоже двигают слайдер, но это совпадает с нашей
+      // логикой — обе стороны заканчивают на той же странице.
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const isTextInput =
+        (e.target instanceof HTMLInputElement && e.target.type !== 'range') ||
         e.target instanceof HTMLTextAreaElement ||
-        (e.target instanceof HTMLElement && e.target.isContentEditable)
-      )
-        return;
+        (e.target instanceof HTMLElement && e.target.isContentEditable);
+      if (isTextInput) return;
+      // Если фокус на range — даём слайдеру самому отработать стрелку
+      // (избегаем двойной перемотки), но Home/End/PageUp/PageDown берём.
+      const onRange = tag === 'INPUT' && (e.target as HTMLInputElement).type === 'range';
       const w = container.clientWidth;
       if (!w) return;
       const idx = Math.round(container.scrollLeft / w);
       const maxIdx = Math.max(0, Math.round(container.scrollWidth / w) - 1);
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        if (onRange && e.key === 'ArrowRight') return; // слайдер сам сдвинет
         e.preventDefault();
         const t = Math.min(maxIdx, idx + 1);
         container.scrollTo({ left: t * w, behavior: 'smooth' });
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        if (onRange && e.key === 'ArrowLeft') return;
         e.preventDefault();
         const t = Math.max(0, idx - 1);
         container.scrollTo({ left: t * w, behavior: 'smooth' });
@@ -665,6 +674,48 @@ export default function ReaderContent({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, [ready, settings.readMode]);
+
+  // ---- 6.65. JS-snap: doтягиваем к ближайшей странице после inertial-скролла ----
+  // CSS scroll-snap на multi-column-контейнере без явных snap-target'ов
+  // не работает корректно — браузер не знает, к какой колонке снапить, и
+  // палец с инерцией может остановиться между двух страниц. Мы сами
+  // ловим момент остановки скролла (тишина 140 мс) и плавно дотягиваем
+  // scrollLeft к ближайшему кратному pageWidth. Tene делает то же самое
+  // через snap-spacers, у нас одна колонка — JS-fallback идентичен по
+  // эффекту.
+  useEffect(() => {
+    if (!ready || settings.readMode !== 'pages') return;
+    const container = contentRef.current;
+    if (!container) return;
+    let endTimer: number | null = null;
+    let programmaticUntil = 0;
+    const SNAP_TOLERANCE = 1; // px — меньше игнорируем (уже на странице)
+    const snap = () => {
+      const w = container.clientWidth;
+      if (!w) return;
+      const max = container.scrollWidth - container.clientWidth;
+      // Если пользователь почти у правого края — это последняя страница,
+      // которая короче полной (scrollWidth не делится без остатка на w).
+      // Snap-back к round*w отрезал бы хвост текста — оставляем как есть.
+      if (max - container.scrollLeft < 4) return;
+      let target = Math.round(container.scrollLeft / w) * w;
+      if (target > max) target = max;
+      if (Math.abs(container.scrollLeft - target) <= SNAP_TOLERANCE) return;
+      // Гасим повторный запуск из onScroll нашего же smooth-scroll.
+      programmaticUntil = Date.now() + 600;
+      container.scrollTo({ left: target, behavior: 'smooth' });
+    };
+    const onScroll = () => {
+      if (Date.now() < programmaticUntil) return;
+      if (endTimer != null) window.clearTimeout(endTimer);
+      endTimer = window.setTimeout(snap, 140);
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (endTimer != null) window.clearTimeout(endTimer);
+    };
   }, [ready, settings.readMode]);
 
   // ---- 6.7. Smart tap/click navigation ----

@@ -573,6 +573,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 600;
   transition: background .15s, color .15s, border-color .15s, transform .15s;
   white-space: nowrap;
+  /* Эмодзи на Windows/Linux рендерятся без trailing-advance: «📘 EPUB»
+     визуально становится «📘EPUB», даже если в JSX стоит обычный пробел.
+     word-spacing немного раздвигает все межсловные пробелы — на коротких
+     лейблах это не вредит ни «Открыть каталог», ни «📘 EPUB». */
+  word-spacing: 0.18em;
 }
 .btn-primary { background: var(--accent); color: var(--surface-2); }
 .btn-primary:hover { background: var(--accent-hover); }
@@ -725,6 +730,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-size: 13px;
   font-weight: 500;
   transition: all .15s;
+  word-spacing: 0.18em; /* «📘 EPUB» не должен слипаться (см. .btn) */
 }
 .chip:hover, .chip.active {
   background: var(--accent);
@@ -1345,7 +1351,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 .actions-row {
-  display: flex; gap: 10px; flex-wrap: wrap;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+/* На очень узких экранах кнопки в actions-row растягиваем на всю ширину —
+   так не получаем «вторая кнопка справа на полстроки», и тап-таргет
+   попадает под палец. Если строка с одной короткой кнопкой и одной
+   длинной — обе ровные, выглядит аккуратно. */
+@media (max-width: 540px) {
+  .actions-row { gap: 8px; }
+  .actions-row > * { flex: 1 1 calc(50% - 4px); justify-content: center; }
+  /* «Читать с 1-й главы» обычно длиннее всех — пусть берёт всю строку */
+  .actions-row > .btn-primary { flex-basis: 100%; }
 }
 
 /* ---------- chapter list ---------- */
@@ -1429,21 +1448,38 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 4px 10px;
   border-radius: 999px;
 }
-.chapter-item .tag-price.free { background: #E7EDDE; color: var(--leaf); }
-.chapter-item .tag-price.paid { background: var(--accent-wash); color: var(--accent-hover); }
-.chapter-item .tag-price.owned { background: #e8f3e4; color: #3f7a3a; }
+/* Бесплатная / платная / купленная — все три используют CSS-переменные,
+   так что одинаково читаются в светлой и тёмной темах. */
+.chapter-item .tag-price.free {
+  background: color-mix(in srgb, var(--leaf) 18%, transparent);
+  color: var(--leaf);
+}
+.chapter-item .tag-price.paid {
+  background: var(--accent-wash);
+  color: var(--accent-hover);
+}
+.chapter-item .tag-price.owned {
+  background: var(--status-ok-bg);
+  color: var(--status-ok-ink);
+}
 
 /* Уже купленная глава — мягкая акцентная подсветка всей строки,
-   чтобы читатель одним взглядом видел что ему доступно. */
+   чтобы читатель одним взглядом видел что ему доступно. На тёмной
+   теме фон --status-ok-bg уже приглушён и достаточно контрастен на
+   --surface, поэтому градиент тоже работает в обоих режимах. */
 .chapter-item--owned {
-  background: linear-gradient(90deg, rgba(232, 243, 228, 0.45), transparent 60%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--status-ok-bg) 70%, transparent),
+    transparent 60%
+  );
 }
 .chapter-owned-badge {
   display: inline-block;
   margin-left: 8px;
   padding: 1px 8px;
-  background: #e8f3e4;
-  color: #3f7a3a;
+  background: var(--status-ok-bg);
+  color: var(--status-ok-ink);
   border-radius: 999px;
   font-size: 10.5px;
   font-weight: 700;
@@ -2297,25 +2333,34 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(245, 239, 230, 0.92);
-  backdrop-filter: blur(10px);
+  /* color-mix через --surface — фон автоматически темнеет на тёмной теме.
+     В обеих темах фон полупрозрачный с blur, чтобы текст под ним немного
+     просвечивал, но был читаем. */
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: saturate(160%) blur(10px);
+  backdrop-filter: saturate(160%) blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .reader-header-row {
-  display: flex;
+  /* Grid 1fr auto 1fr — название слева (сжатое), номер главы по центру,
+     справа спейсер симметричной ширины (чтобы номер реально центрировался).
+     Раньше использовался хак с reader-header-spacer width:200px — на мобиле
+     он схлопывался до 0 и номер главы съезжал вправо. Grid делает это
+     прозрачно и без лишнего div. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 16px;
-  height: 56px;
-  justify-content: space-between;
+  gap: 12px;
+  height: 52px;
 }
 .reader-back {
   font-size: 14px;
   color: var(--ink-soft);
   font-weight: 500;
-  max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0; /* чтобы 1fr реально мог сжимать длинное название */
 }
 .reader-back:hover {
   color: var(--accent);
@@ -2324,32 +2369,39 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-weight: 600;
   color: var(--ink);
   font-family: var(--font-serif);
+  font-size: 15px;
+  text-align: center;
+  white-space: nowrap;
 }
-.reader-header-spacer {
-  width: 200px;
-}
-@media (max-width: 700px) {
-  .reader-header-spacer { width: 0; }
-  .reader-back { max-width: 150px; font-size: 13px; }
+/* Поддерживаем старую разметку с .reader-header-spacer (если кто-то
+   добавит) — но делаем его невидимым; центрирование берёт grid. */
+.reader-header-spacer { display: none; }
+
+@media (max-width: 540px) {
+  .reader-header-row { height: 44px; gap: 8px; }
+  .reader-back { font-size: 13px; }
+  .reader-chapter-num { font-size: 13.5px; }
 }
 
 .reader-main {
   max-width: 760px;
   margin: 0 auto;
-  /* Меньше воздуха по вертикали, чуть больше по горизонтали —
-     текст на мобиле не должен липнуть к краям экрана. */
-  padding: 8px 28px 40px;
+  /* Минус-padding-top: header уже даёт визуальный отступ. Боковые
+     padding'и оставляем для воздуха у строк. */
+  padding: 4px 28px 40px;
 }
 @media (max-width: 540px) {
-  .reader-main { padding: 6px 20px 28px; }
-  .reader-title { font-size: 22px; margin-bottom: 24px; }
-  .reader-nav { margin-top: 32px; }
+  .reader-main { padding: 0 18px 24px; }
+  /* На мобиле дублирующий h1 «Глава N» прячем — он уже в шапке. */
+  .reader-main .reader-title { display: none; }
+  .reader-nav { margin-top: 24px; }
 }
 .reader-title {
   font-family: var(--font-serif);
   text-align: center;
-  margin: 0 0 36px;
-  font-size: 26px;
+  /* Чуть меньше воздуха, особенно сверху — на десктопе тоже. */
+  margin: 12px 0 22px;
+  font-size: 24px;
   color: var(--ink);
 }
 .reader-nav {
@@ -10511,7 +10563,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   height: calc(100svh - 220px);
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x mandatory;
+  /* CSS scroll-snap НЕ ставим: в multi-column нет явных snap-target'ов,
+     и поведение браузеров расходится — палец с инерцией может застрять
+     между колонок. Снап делаем сами в JS (см. ReaderContent
+     эффект «JS-snap»). */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   padding: 8px 0 16px;
@@ -12581,6 +12636,7 @@ html[data-theme='dark'] .reader-bottom-bar {
   position: relative;
   white-space: nowrap;
   user-select: none;
+  word-spacing: 0.18em;
 }
 .rbb-btn:hover:not(:disabled) {
   background: var(--accent-wash);
