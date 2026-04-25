@@ -131,8 +131,8 @@ export default function BoostyAutoConnect() {
           <span
             style={{
               fontSize: 11,
-              color: '#2a7d2a',
-              background: '#e7f4e7',
+              color: 'var(--status-ok-ink)',
+              background: 'var(--status-ok-bg)',
               borderRadius: 4,
               padding: '1px 6px',
             }}
@@ -153,7 +153,7 @@ export default function BoostyAutoConnect() {
             ? new Date(status.last_synced_at).toLocaleString()
             : 'ещё не было'}
           {status.last_sync_error && (
-            <div style={{ color: '#a04040', fontSize: 12, marginTop: 4 }}>
+            <div style={{ color: 'var(--status-err-ink)', fontSize: 12, marginTop: 4 }}>
               ⚠ Ошибка: {status.last_sync_error}. Скорее всего refresh-токен
               протух — перетащи букмарклет ещё раз и кликни на boosty.to.
             </div>
@@ -172,7 +172,7 @@ export default function BoostyAutoConnect() {
               type="button"
               className="btn btn-ghost"
               onClick={disconnect}
-              style={{ height: 28, fontSize: 12, color: '#a04040' }}
+              style={{ height: 28, fontSize: 12, color: 'var(--status-err-ink)' }}
             >
               Отвязать
             </button>
@@ -204,8 +204,8 @@ export default function BoostyAutoConnect() {
           style={{
             marginTop: 12,
             padding: 12,
-            background: '#fffbea',
-            border: '1px solid #e8d7a1',
+            background: 'var(--status-warn-bg)',
+            border: '1px solid var(--status-warn-border)',
             borderRadius: 6,
             fontSize: 13,
             lineHeight: 1.55,
