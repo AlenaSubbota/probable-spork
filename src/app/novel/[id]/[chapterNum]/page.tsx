@@ -434,33 +434,15 @@ export default async function ChapterPage({ params }: PageProps) {
           glossary={glossary}
           novelFirebaseId={novel.firebase_id}
           novelTitle={novel.title}
+          prevChapterNumber={prevChapter?.chapter_number ?? null}
+          nextChapterNumber={nextChapter?.chapter_number ?? null}
         />
 
-        <nav className="reader-nav">
-          {prevChapter ? (
-            /* ?end=1 — ReaderContent при загрузке прыгнет к последней
-               странице / концу главы. Логичнее для чтения: пришёл
-               с «← предыдущая» → начинаешь с конца. */
-            <Link
-              href={`/novel/${id}/${prevChapter.chapter_number}?end=1`}
-              className="btn btn-ghost"
-              style={{ flex: 1, textAlign: 'center' }}
-            >
-              ← Глава {prevChapter.chapter_number}
-            </Link>
-          ) : (
-            <div style={{ flex: 1 }} />
-          )}
-
-          {nextChapter ? (
-            <Link
-              href={`/novel/${id}/${nextChapter.chapter_number}`}
-              className="btn btn-primary"
-              style={{ flex: 1, textAlign: 'center' }}
-            >
-              Глава {nextChapter.chapter_number} →
-            </Link>
-          ) : (
+        {/* prev/next chapter переехали в sticky-панель снизу читалки
+            (ReaderBottomBar). Здесь оставляем «К новелле» только если
+            следующей главы нет — финальный аккорд после комментариев. */}
+        {!nextChapter && (
+          <nav className="reader-nav">
             <Link
               href={`/novel/${id}`}
               className="btn btn-ghost"
@@ -468,8 +450,8 @@ export default async function ChapterPage({ params }: PageProps) {
             >
               К новелле
             </Link>
-          )}
-        </nav>
+          </nav>
+        )}
 
         <ChapterThanks
           novelId={novel.id}

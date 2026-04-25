@@ -24,6 +24,19 @@
   --rose:          #B4766A;
   --leaf:          #8BA076;
 
+  /* Семантические статусы — для inline-плашек «подключено / ошибка / внимание».
+     Светлая тема: пастельные фоны + тёмный текст. Тёмная — заглушены ниже. */
+  --status-ok-bg:      #E1F0E2;
+  --status-ok-ink:     #2A7A44;
+  --status-err-bg:     #F8E1DD;
+  --status-err-ink:    #A5342B;
+  --status-warn-bg:    #FFF6DC;
+  --status-warn-border:#E8D7A1;
+  --status-warn-ink:   #6B4A16;
+  --status-info-bg:    #E8EFFB;
+  --status-info-border:#C8D4E8;
+  --status-info-ink:   #2D4A6E;
+
   --radius:        14px;
   --radius-sm:     8px;
   --shadow-sm:     0 1px 2px rgba(88, 63, 40, 0.06);
@@ -69,6 +82,18 @@ html[data-theme="dark"] {
 
   --shadow-sm:     0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-md:     0 6px 20px rgba(0, 0, 0, 0.45);
+
+  /* Тёмные статусы — приглушённый фон + светлый текст; читается на --surface */
+  --status-ok-bg:      rgba(139, 160, 118, 0.18);
+  --status-ok-ink:     #A5C28C;
+  --status-err-bg:     rgba(180, 118, 106, 0.20);
+  --status-err-ink:    #E5A39A;
+  --status-warn-bg:    rgba(201, 163, 95, 0.18);
+  --status-warn-border:rgba(201, 163, 95, 0.45);
+  --status-warn-ink:   #DAB67A;
+  --status-info-bg:    rgba(120, 150, 200, 0.18);
+  --status-info-border:rgba(120, 150, 200, 0.40);
+  --status-info-ink:   #9BB4DA;
 
   /* theme-color для мобильного браузера (адресная строка) */
   color-scheme: dark;
@@ -10480,11 +10505,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .reader-wrapper[data-read-mode='pages'] .novel-content {
   column-gap: 0;
   column-fill: auto;
-  /* 100svh (small viewport) — фиксированная высота, которая НЕ
-     меняется когда iOS Safari схлопывает адресную строку. С 100dvh
-     при скролле к комментам высота прыгала, multi-column перетекал
-     заново и totalPages дёргалось. svh даёт чуть меньшую страницу,
-     но layout стабильный. */
+  /* 100svh (small viewport) — фиксированная высота, не меняется когда
+     iOS Safari схлопывает адресную строку. Минусуем высоту шапки
+     и нижней панели + воздух, чтобы текст не лип под кнопками. */
   height: calc(100svh - 220px);
   overflow-x: auto;
   overflow-y: hidden;
@@ -10495,6 +10518,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   cursor: default;
   /* Прячем скроллбар — навигация через snap/кнопки/свайп */
   scrollbar-width: none;
+}
+@media (max-width: 760px) {
+  .reader-wrapper[data-read-mode='pages'] .novel-content {
+    /* На мобиле шапка тоньше + нижняя панель компактнее → уменьшаем минус */
+    height: calc(100svh - 180px);
+  }
 }
 .reader-wrapper[data-read-mode='pages'] .novel-content::-webkit-scrollbar {
   display: none;
@@ -12436,3 +12465,231 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   }
   .pm-cta .btn { justify-content: center; }
 }
+
+/* =========================================================
+   ReaderBottomBar — большая sticky-панель управления чтением.
+   Прилипает к низу viewport, всегда поверх контента (как в tene).
+   Все цвета через переменные → светлая/тёмная темы автоматически.
+   ========================================================= */
+
+.reader-bottom-bar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  backdrop-filter: saturate(160%) blur(12px);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -10px 30px rgba(60, 40, 20, 0.10);
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0));
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+html[data-theme='dark'] .reader-bottom-bar {
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.45);
+}
+.reader-bottom-bar.is-hidden {
+  transform: translateY(110%);
+  opacity: 0;
+  pointer-events: none;
+}
+.reader-bottom-bar-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Прогресс-блок */
+.rbb-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px;
+}
+.rbb-progress-text {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.rbb-progress-text-sep { opacity: 0.5; }
+.rbb-progress-bar {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+  margin: 0;
+}
+.rbb-progress-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}
+.rbb-progress-bar::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+}
+
+/* Ряд кнопок */
+.rbb-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rbb-center {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Базовая кнопка нижней панели */
+.rbb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--ink);
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms, transform 120ms;
+  position: relative;
+  white-space: nowrap;
+  user-select: none;
+}
+.rbb-btn:hover:not(:disabled) {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+.rbb-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.rbb-btn:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+.rbb-btn-label { font-size: 12.5px; }
+.rbb-btn-sub {
+  font-size: 10px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Edge-кнопки (◀ ▶) — крупнее, акцентные */
+.rbb-btn-edge {
+  width: 48px;
+  padding: 0 8px;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 400;
+  background: var(--accent);
+  color: var(--surface-2);
+  border-color: var(--accent);
+  flex-direction: row;
+  gap: 2px;
+}
+.rbb-btn-edge:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--surface-2);
+}
+.rbb-btn-edge:disabled {
+  background: var(--bg-soft);
+  color: var(--ink-mute);
+  border-color: transparent;
+}
+.rbb-btn-edge .rbb-btn-sub {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 9.5px;
+}
+html[data-theme='dark'] .rbb-btn-edge .rbb-btn-sub {
+  color: rgba(0, 0, 0, 0.7);
+}
+.rbb-btn-edge:disabled .rbb-btn-sub {
+  color: var(--ink-mute);
+}
+
+/* Кнопка комментариев со счётчиком */
+.rbb-btn-comments { padding-right: 12px; }
+.rbb-btn-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+}
+
+/* Мобила: сокращаем подписи и ужимаем кнопки */
+@media (max-width: 540px) {
+  .reader-bottom-bar-inner { padding: 0 8px; }
+  .rbb-progress { padding: 0 2px; }
+  .rbb-progress-text { font-size: 11px; }
+  .rbb-actions { gap: 6px; }
+  .rbb-center { gap: 4px; }
+  .rbb-btn {
+    height: 38px;
+    padding: 0 10px;
+    font-size: 13px;
+    min-width: 38px;
+  }
+  .rbb-btn-label { display: none; }
+  .rbb-btn-edge { width: 44px; font-size: 20px; padding: 0 4px; }
+  .rbb-btn-edge .rbb-btn-sub { display: none; }
+}
+
+/* Под нижней панелью текст всё ещё должен быть достижим скроллом — не
+   должен прятаться. У <main className="reader-main"> уже есть padding-bottom,
+   но в pages-режиме высота .novel-content уже учитывает 220px. Для
+   scroll-режима добавляем небольшой запас, чтобы последняя строка
+   не лежала под панелью. */
+.reader-wrapper[data-read-mode='scroll'] ~ .reader-nav,
+.reader-page .reader-nav {
+  margin-bottom: 96px;
+}
+.reader-page main.reader-main {
+  /* Достаточный запас, чтобы конец комментов не прятался под панелью.
+     На мобиле панель ниже из-за safe-area, поэтому больше воздуха. */
+  padding-bottom: 120px;
+}
+@media (max-width: 540px) {
+  .reader-page main.reader-main { padding-bottom: 132px; }
+}
+
+/* Иммерсив (центр-тап в pages-режиме): is-hidden ставится из ReaderContent
+   через prop visible={!uiHidden}, поэтому отдельных CSS-завязок на
+   reader-wrapper.ui-hidden здесь не нужно. */
+

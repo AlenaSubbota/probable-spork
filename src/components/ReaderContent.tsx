@@ -15,6 +15,7 @@ import ReaderSettingsPanel from './ReaderSettings';
 import QuoteBubble from './QuoteBubble';
 import SleepTimerOverlay from './SleepTimerOverlay';
 import ChapterTOC from './reader/ChapterTOC';
+import ReaderBottomBar from './reader/ReaderBottomBar';
 
 interface GlossaryItem {
   term_original: string;
@@ -29,6 +30,8 @@ interface Props {
   glossary?: GlossaryItem[];
   novelFirebaseId?: string;
   novelTitle?: string;
+  prevChapterNumber?: number | null;
+  nextChapterNumber?: number | null;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -49,6 +52,8 @@ export default function ReaderContent({
   glossary = [],
   novelFirebaseId,
   novelTitle,
+  prevChapterNumber = null,
+  nextChapterNumber = null,
 }: Props) {
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
@@ -63,10 +68,14 @@ export default function ReaderContent({
 
   const contentRef = useRef<HTMLDivElement | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  // iOS/Android уносят scrollLeft overflow-контейнера при блокировке экрана —
+  // запоминаем последнюю позицию и восстанавливаем при возврате на вкладку.
+  const savedScrollRef = useRef<{ top: number; left: number }>({ top: 0, left: 0 });
 
   const [pageWidth, setPageWidth] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [scrollPercent, setScrollPercent] = useState(0);
 
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [uiHidden, setUiHidden] = useState(false);
@@ -483,29 +492,60 @@ export default function ReaderContent({
       container.style.columnWidth = `${w}px`;
       setPageWidth(w);
       requestAnimationFrame(() => {
-        const total = Math.max(1, Math.round(container.scrollWidth / w));
-        setTotalPages(total);
+        // Math.ceil вместо round — иначе при scrollWidth=2.7w totalPages=3
+        // (правильно), но при scrollWidth=2.4w было бы 2 → последний 0.4w
+        // контента вообще нескроллируемый. Маленькая погрешность 1px
+        // (sub-pixel rendering) не должна давать лишнюю пустую страницу:
+        // вычитаем 2px перед делением.
+        const sw = Math.max(0, container.scrollWidth - 2);
+        const total = Math.max(1, Math.ceil(sw / w));
+        setTotalPages((prev) => (prev === total ? prev : total));
       });
     };
 
+    // 1. Первый расчёт после монтирования
+    const initialTimer = window.setTimeout(calc, 80);
+
+    // 2. После загрузки шрифтов (web-fonts сильно меняют ширину текста)
     const fontsReady = document.fonts?.ready;
     if (fontsReady) fontsReady.then(calc).catch(calc);
-    else calc();
 
+    // 3. Reflow при изменении ширины ИЛИ высоты контейнера. Высота
+    //    меняется когда iOS Safari прячет адресную строку или когда
+    //    клавиатура выезжает — multi-column перетекает, totalPages меняется.
     let lastWidth = container.clientWidth;
+    let lastHeight = container.clientHeight;
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
         const w = Math.round(e.contentRect.width);
-        if (Math.abs(w - lastWidth) > 0.5) {
+        const h = Math.round(e.contentRect.height);
+        if (Math.abs(w - lastWidth) > 0.5 || Math.abs(h - lastHeight) > 0.5) {
           lastWidth = w;
+          lastHeight = h;
           calc();
         }
       }
     });
     ro.observe(container);
 
+    // 4. Картинки внутри главы: каждая загруженная меняет column flow.
+    //    Без этого первая страница может остаться пустой, пока картинки
+    //    тянутся — totalPages посчитается до их прихода.
+    const imgs = container.querySelectorAll('img');
+    const onImg = () => calc();
+    imgs.forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener('load', onImg);
+      img.addEventListener('error', onImg);
+    });
+
     let rafId: number | null = null;
     const onScroll = () => {
+      // Сохраняем позицию для visibilitychange-восстановления
+      savedScrollRef.current = {
+        top: container.scrollTop,
+        left: container.scrollLeft,
+      };
       if (rafId != null) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;
@@ -517,8 +557,13 @@ export default function ReaderContent({
     container.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
+      window.clearTimeout(initialTimer);
       ro.disconnect();
       container.removeEventListener('scroll', onScroll);
+      imgs.forEach((img) => {
+        img.removeEventListener('load', onImg);
+        img.removeEventListener('error', onImg);
+      });
       if (rafId != null) cancelAnimationFrame(rafId);
     };
   }, [
@@ -531,6 +576,59 @@ export default function ReaderContent({
     settings.textIndent,
     settings.fontFamily,
   ]);
+
+  // ---- 6.55. Scroll-mode: вычисляем процент прогресса для нижней панели ----
+  useEffect(() => {
+    if (!ready || settings.readMode === 'pages') {
+      setScrollPercent(0);
+      return;
+    }
+    let rafId: number | null = null;
+    const onScroll = () => {
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        // window.scrollY относительно body. Делим на «реальный» max-scroll
+        // (высота документа − высота viewport).
+        const max = Math.max(
+          1,
+          document.documentElement.scrollHeight - window.innerHeight
+        );
+        const pct = Math.max(0, Math.min(100, (window.scrollY / max) * 100));
+        setScrollPercent((prev) => (Math.abs(prev - pct) < 0.5 ? prev : pct));
+      });
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (rafId != null) cancelAnimationFrame(rafId);
+    };
+  }, [ready, settings.readMode]);
+
+  // ---- 6.56. visibilitychange: iOS/Android уносят scrollLeft в фоне ----
+  useEffect(() => {
+    if (!ready || settings.readMode !== 'pages') return;
+    const container = contentRef.current;
+    if (!container) return;
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        savedScrollRef.current = {
+          top: container.scrollTop,
+          left: container.scrollLeft,
+        };
+      } else {
+        const { top, left } = savedScrollRef.current;
+        if (top > 0 || left > 0) {
+          requestAnimationFrame(() => {
+            container.scrollTo({ top, left, behavior: 'instant' as ScrollBehavior });
+          });
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [ready, settings.readMode]);
 
   // ---- 6.6. Keyboard nav в pages-режиме ----
   useEffect(() => {
@@ -743,50 +841,9 @@ export default function ReaderContent({
       data-theme={settings.theme ?? 'light'}
       data-read-mode={settings.readMode ?? 'scroll'}
     >
-      <div className="reader-toolbar">
-        {novelFirebaseId && (
-          <button
-            type="button"
-            className="chip"
-            onClick={() => setTocOpen(true)}
-            title="Оглавление"
-          >
-            ≡ Оглавление
-          </button>
-        )}
-        {/* Фокус-режим (затемнение соседних абзацев) имеет смысл только
-            в свитке. В pages-mode все видимые абзацы уже в одной колонке,
-            «фокус» только мешает. Кнопку не рендерим. */}
-        {settings.readMode !== 'pages' && (
-          <button
-            type="button"
-            className={`chip${settings.focusMode ? ' active' : ''}`}
-            onClick={() => updateSettings({ ...settings, focusMode: !settings.focusMode })}
-            title="F — включить/выключить"
-          >
-            ◉ Фокус
-          </button>
-        )}
-        <button
-          type="button"
-          className="chip reader-toolbar-comments"
-          onClick={scrollToComments}
-          title="К обсуждению главы"
-        >
-          💬
-          {commentCount !== null && commentCount > 0 && (
-            <span className="chip-count">{commentCount}</span>
-          )}
-        </button>
-        <button
-          type="button"
-          className="chip"
-          onClick={() => setSettingsOpen(true)}
-          aria-label="Настройки чтения"
-        >
-          ⚙ Настройки
-        </button>
-      </div>
+      {/* Старый верхний reader-toolbar убран — управление переехало в
+          sticky-панель снизу (ReaderBottomBar), как в tene. Фокус-режим
+          теперь только в Settings (плюс F-горячка ниже). */}
 
       {novelFirebaseId && (
         <ChapterTOC
@@ -808,59 +865,6 @@ export default function ReaderContent({
           dangerouslySetInnerHTML={{ __html: content }}
         />
 
-        {settings.readMode === 'pages' && totalPages > 1 && (
-          <>
-            <button
-              type="button"
-              className="reader-page-btn reader-page-btn--prev"
-              onClick={() => scrollPageBy(-1)}
-              disabled={currentPage === 0}
-              aria-label="Предыдущая страница"
-              title="← или PgUp"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="reader-page-btn reader-page-btn--next"
-              onClick={() => scrollPageBy(1)}
-              disabled={currentPage >= totalPages - 1}
-              aria-label="Следующая страница"
-              title="→ или PgDn"
-            >
-              ›
-            </button>
-
-            <div
-              className="reader-page-indicator"
-              role="progressbar"
-              aria-valuemin={1}
-              aria-valuemax={totalPages}
-              aria-valuenow={currentPage + 1}
-            >
-              <span className="reader-page-indicator-text">
-                {currentPage + 1} / {totalPages}
-              </span>
-              <input
-                type="range"
-                className="reader-page-indicator-bar"
-                min={0}
-                max={totalPages - 1}
-                value={Math.min(currentPage, totalPages - 1)}
-                onChange={(e) => {
-                  const container = contentRef.current;
-                  if (!container) return;
-                  const idx = parseInt(e.target.value, 10);
-                  container.scrollTo({
-                    left: idx * (pageWidth || container.clientWidth),
-                    behavior: 'smooth',
-                  });
-                }}
-                aria-label="Прогресс по главе"
-              />
-            </div>
-          </>
-        )}
       </div>
 
       {glossaryPopover && (
@@ -893,6 +897,41 @@ export default function ReaderContent({
         containerRef={contentRef}
         novelFirebaseId={novelFirebaseId}
         novelTitle={novelTitle}
+      />
+
+      <ReaderBottomBar
+        readMode={settings.readMode === 'pages' ? 'pages' : 'scroll'}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        scrollPercent={scrollPercent}
+        novelFirebaseId={novelFirebaseId ?? null}
+        prevChapterNumber={prevChapterNumber}
+        nextChapterNumber={nextChapterNumber}
+        onSeekPage={(idx) => {
+          const container = contentRef.current;
+          if (!container) return;
+          container.scrollTo({
+            left: idx * (pageWidth || container.clientWidth),
+            behavior: 'smooth',
+          });
+        }}
+        onSeekScroll={(percent) => {
+          const max = Math.max(
+            1,
+            document.documentElement.scrollHeight - window.innerHeight
+          );
+          window.scrollTo({
+            top: (percent / 100) * max,
+            behavior: 'smooth',
+          });
+        }}
+        onPrevPage={() => scrollPageBy(-1)}
+        onNextPage={() => scrollPageBy(1)}
+        onOpenTOC={() => setTocOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onJumpToComments={scrollToComments}
+        commentCount={commentCount}
+        visible={!uiHidden}
       />
 
       <ReaderSettingsPanel
