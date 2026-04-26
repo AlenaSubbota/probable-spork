@@ -51,6 +51,11 @@ export interface ReaderSettings {
   focusMode:       boolean;
   theme:           ReaderTheme;
   readMode:        ReadMode;
+  // Сноски переводчика: по умолчанию выключено — текст сноски и так
+  // лежит сразу под абзацем, тап по маркеру просто плавно подсвечивает
+  // её. Когда включено — открывается всплывающая карточка над маркером
+  // (удобнее на мобиле, если сноска длинная и уехала за фолд).
+  footnotePopover: boolean;
 }
 
 export const DEFAULT_SETTINGS: ReaderSettings = {
@@ -63,6 +68,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   focusMode: false,
   theme: 'light',
   readMode: 'scroll',
+  footnotePopover: false,
 };
 
 // Пределы значений (чтобы случайно не сломать глазами)

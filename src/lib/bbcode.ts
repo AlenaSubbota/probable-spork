@@ -1,7 +1,7 @@
 // -----------------------------------------------------------
 // Простой BB-код → HTML конвертер. Используется в формах,
 // чтобы переводчики не писали HTML-теги руками (путаются).
-// Поддерживает: [b] [i] [u] [s] [quote] [spoiler] [center] [h]
+// Поддерживает: [b] [i] [u] [s] [quote] [spoiler] [center] [h] [fn]
 // Плюс двойной перенос строки → <p>...</p>.
 // -----------------------------------------------------------
 
@@ -31,45 +31,116 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;');
 }
 
-function textToParagraphs(text: string): string {
-  // Пустая строка = разрыв абзаца
+// Разбиваем входной текст на «чанки-абзацы» (по двойному переносу).
+// Возвращает массив строк, в которых блочные теги уже сохранены как есть,
+// а обычный текст готов к оборачиванию в <p>.
+function splitParagraphs(text: string): string[] {
   return text
     .split(/\n{2,}/g)
     .map((chunk) => chunk.trim())
-    .filter(Boolean)
-    .map((chunk) => {
-      // Если в чанке уже есть блочный тег — не оборачиваем
-      if (/^<(h[1-6]|p|blockquote|details|ul|ol|div|table)\b/i.test(chunk)) {
-        return chunk;
-      }
-      // Одиночный перенос строки → <br>
-      const withBr = chunk.replace(/\n/g, '<br>');
-      return `<p>${withBr}</p>`;
-    })
-    .join('\n');
+    .filter(Boolean);
+}
+
+// Внутри одного абзаца:
+// - вытаскиваем все [fn]…[/fn] по очереди, заменяем на <sup class="fn-ref">N</sup>
+// - параллельно копим список пояснений
+// counter — внешний счётчик сквозной нумерации по всей главе.
+// Возвращает { html, footnotes } — html абзаца и список вынесенных сносок.
+function extractFootnotesFromChunk(
+  chunk: string,
+  counter: { n: number },
+): { html: string; footnotes: Array<{ n: number; text: string }> } {
+  const footnotes: Array<{ n: number; text: string }> = [];
+  // [fn]…[/fn] на экранированном тексте — никаких ` < > ` внутри быть не должно.
+  // Заметка: split-функция вызывается ДО общего escape, чтобы маркер можно
+  // было поставить даже внутри предложения с тире/кавычками — escape применим
+  // отдельно к якорю и к телу сноски ниже.
+  const html = chunk.replace(
+    /\[fn\]([\s\S]*?)\[\/fn\]/gi,
+    (_m, body: string) => {
+      counter.n += 1;
+      const n = counter.n;
+      footnotes.push({ n, text: body.trim() });
+      return `<sup class="fn-ref" data-fn-id="${n}">${n}</sup>`;
+    },
+  );
+  return { html, footnotes };
+}
+
+// Оборачиваем «голый» чанк в <p>…</p>, если он не начинается с блочного тега.
+// Одиночные \n внутри → <br>.
+function wrapChunkAsParagraph(chunk: string): string {
+  if (/^<(h[1-6]|p|blockquote|details|ul|ol|div|table)\b/i.test(chunk)) {
+    return chunk;
+  }
+  const withBr = chunk.replace(/\n/g, '<br>');
+  return `<p>${withBr}</p>`;
 }
 
 export function bbToHtml(input: string): string {
   if (!input) return '';
 
   // 1. Экранируем исходный HTML, чтобы нельзя было вписать теги руками
-  let out = escapeHtml(input);
+  let escaped = escapeHtml(input);
 
-  // 2. Применяем BB-коды — они уже работают с экранированным текстом
+  // 2. Применяем простые BB-коды (они работают на экранированном тексте)
   for (const { re, repl } of TAGS) {
-    out = out.replace(re, repl);
+    escaped = escaped.replace(re, repl);
   }
 
-  // 3. Переносы строк → <p>
-  out = textToParagraphs(out);
+  // 3. Двухпроходка для сносок: разбиваем на абзацы, в каждом извлекаем
+  // [fn]…[/fn] со сквозной нумерацией, после абзаца выпускаем <p class="fn-inline">.
+  const counter = { n: 0 };
+  const out: string[] = [];
+  for (const chunk of splitParagraphs(escaped)) {
+    const { html: chunkWithSups, footnotes } = extractFootnotesFromChunk(chunk, counter);
+    out.push(wrapChunkAsParagraph(chunkWithSups));
+    for (const fn of footnotes) {
+      out.push(
+        `<p class="fn-inline" id="fn-${fn.n}"><sup>${fn.n}</sup> ${fn.text}</p>`,
+      );
+    }
+  }
 
-  return out;
+  return out.join('\n');
 }
 
-// Обратное преобразование: HTML → BB-коды (для редактирования существующих новелл/глав)
+// Обратное преобразование: HTML → BB-коды (для редактирования существующих новелл/глав).
+// Особый случай — сноски: ищем все <p class="fn-inline" id="fn-N">…</p>, забираем их
+// текст в карту по N и вырезаем из потока, а в основном тексте каждый
+// <sup class="fn-ref" data-fn-id="N">N</sup> заменяем на [fn]<текст>[/fn].
+function inlineFootnotesBack(html: string): string {
+  const defs = new Map<string, string>();
+  // Собираем определения: <p class="fn-inline" id="fn-N"><sup>N</sup> текст</p>
+  let cleaned = html.replace(
+    /<p\b[^>]*\bclass="[^"]*\bfn-inline\b[^"]*"[^>]*\bid="fn-(\d+)"[^>]*>([\s\S]*?)<\/p>/gi,
+    (_m, n: string, body: string) => {
+      // Внутри тела убираем ведущий <sup>N</sup> с пробелом
+      const text = body.replace(/^\s*<sup[^>]*>\s*\d+\s*<\/sup>\s*/i, '').trim();
+      defs.set(n, text);
+      return '';
+    },
+  );
+  // Нормализуем последствия — лишние пустые строки между абзацами
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  // Заменяем <sup class="fn-ref" data-fn-id="N">N</sup> на [fn]текст[/fn]
+  cleaned = cleaned.replace(
+    /<sup\b[^>]*\bclass="[^"]*\bfn-ref\b[^"]*"[^>]*\bdata-fn-id="(\d+)"[^>]*>[\s\S]*?<\/sup>/gi,
+    (m, n: string) => {
+      const text = defs.get(n);
+      if (text == null) return m; // не нашли пару — оставим маркер как есть
+      return `[fn]${text}[/fn]`;
+    },
+  );
+  return cleaned;
+}
+
 export function htmlToBb(html: string): string {
   if (!html) return '';
-  return html
+  // Сначала разворачиваем сноски — они структурные, должны идти до общего стрипа <p>.
+  const stage1 = inlineFootnotesBack(html);
+  return stage1
     .replace(/<strong>([\s\S]*?)<\/strong>/gi, '[b]$1[/b]')
     .replace(/<b>([\s\S]*?)<\/b>/gi, '[b]$1[/b]')
     .replace(/<em>([\s\S]*?)<\/em>/gi, '[i]$1[/i]')

@@ -199,6 +199,21 @@ export default function ReaderSettings({
             </label>
           </div>
 
+          {/* Сноски переводчика — поповер по тапу */}
+          <div className="rs-group">
+            <label className="rs-switch">
+              <input
+                type="checkbox"
+                checked={settings.footnotePopover}
+                onChange={(e) => set('footnotePopover', e.target.checked)}
+              />
+              <div>
+                <div className="rs-switch-title">Сноски всплывающим окном</div>
+                <div className="rs-switch-sub">Тап по цифре открывает карточку с пояснением. Иначе — плавно подсвечивает сноску под абзацем.</div>
+              </div>
+            </label>
+          </div>
+
           {/* Киллер #3: Таймер сна */}
           <div className="rs-group">
             <label className="rs-label">Таймер сна</label>
