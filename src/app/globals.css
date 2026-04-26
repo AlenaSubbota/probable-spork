@@ -4191,7 +4191,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .handshake-card.self {
   border-color: var(--leaf);
-  background: #F0F4E8;
+  /* color-mix вместо хардкода #F0F4E8 — на тёмной теме «своё рукопожатие»
+     не светится белым прямоугольником. */
+  background: color-mix(in srgb, var(--leaf) 12%, var(--surface));
 }
 .handshake-icon {
   font-size: 22px;
@@ -6355,9 +6357,72 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 @media (max-width: 720px) {
   .user-profile-hero {
     grid-template-columns: 72px 1fr;
+    gap: 18px;
+    padding: 22px 22px;
+  }
+  /* Перебиваем inline width/height из <UserAvatar size={100} />,
+     иначе аватар на планшете остаётся 100px и теснит остальной блок. */
+  .user-profile-hero .user-avatar {
+    width: 72px !important;
+    height: 72px !important;
+    font-size: 28px !important;
   }
   .user-profile-actions {
     grid-column: 1 / -1;
+  }
+}
+/* Узкие телефоны и Telegram WebView (≤540): полный вертикальный стек.
+   Аватар по центру, имя/мета/читает/статы — колонка под ним, кнопка
+   действия во всю ширину. Перестаёт «слипаться». */
+@media (max-width: 540px) {
+  .user-profile-hero {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 22px 18px;
+    text-align: center;
+  }
+  .user-profile-hero > div:first-child {
+    margin: 0 auto;
+  }
+  .user-profile-hero .user-avatar {
+    /* Перебиваем inline-размер из <UserAvatar size={100} />, чтобы
+       аватар не доминировал на узком экране. */
+    width: 84px !important;
+    height: 84px !important;
+    font-size: 32px !important;
+    margin: 0 auto;
+  }
+  .user-profile-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .user-profile-body h1 { font-size: 22px !important; margin-bottom: 2px !important; }
+  .user-profile-meta { justify-content: center; }
+  .user-profile-reading,
+  .user-profile-activity {
+    margin: 4px auto 0 !important;
+    max-width: 100%;
+  }
+  .user-profile-stats {
+    width: 100%;
+    justify-content: space-around;
+    margin-top: 12px !important;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    gap: 16px !important;
+  }
+  .user-profile-actions {
+    width: 100%;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px;
+  }
+  .user-profile-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -6390,9 +6455,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #5BA876;
+  /* --leaf задан в :root и в html[data-theme='dark'] — точка живая
+     на обеих темах без хардкода #5BA876. */
+  background: var(--leaf);
   border: 3px solid var(--surface);
-  box-shadow: 0 0 0 2px #5BA876;
+  box-shadow: 0 0 0 2px var(--leaf);
   animation: pulse-online 2s infinite;
 }
 @keyframes pulse-online {
@@ -6420,23 +6487,31 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: rgba(91, 168, 118, 0.12);
+  /* color-mix без хардкода — на тёмной теме плашка тоже живёт */
+  background: color-mix(in srgb, var(--leaf) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--leaf) 35%, transparent);
   border-radius: 999px;
   font-size: 13px;
-  color: #4C6A34;
+  color: var(--leaf);
   width: fit-content;
+  max-width: 100%;
   margin-bottom: 8px;
+  /* Длинное название «Несчастье, доставшееся даром» переносится, а не
+     торчит за края контейнера */
+  flex-wrap: wrap;
+  word-break: break-word;
 }
 .user-profile-reading-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #5BA876;
+  background: var(--leaf);
+  flex-shrink: 0;
   animation: pulse-online 2s infinite;
 }
 .user-profile-reading-link {
   font-weight: 600;
-  color: #4C6A34;
+  color: var(--leaf);
 }
 .user-profile-reading-link:hover { text-decoration: underline; }
 .user-profile-activity {
