@@ -41,6 +41,18 @@ export default async function BulkChaptersPage({ params }: PageProps) {
     .maybeSingle();
   const suggestedStart = (lastCh?.chapter_number ?? 0) + 1;
 
+  // Все главы — для подсказки «открыть следующие N бесплатных».
+  // Берём только номер + is_paid, этого хватает.
+  const { data: allChaps } = await supabase
+    .from('chapters')
+    .select('chapter_number, is_paid')
+    .eq('novel_id', novel.id)
+    .order('chapter_number', { ascending: true });
+  const existing = (allChaps ?? []) as Array<{
+    chapter_number: number;
+    is_paid: boolean;
+  }>;
+
   return (
     <main className="container admin-page admin-page--wide">
       <div className="admin-breadcrumbs">
@@ -56,21 +68,32 @@ export default async function BulkChaptersPage({ params }: PageProps) {
           <h1>Массовая загрузка глав · {novel.title}</h1>
           <p className="admin-head-sub">
             Вставь текст со всеми главами сразу — разберу и выложу. Помечай
-            начало каждой главы заголовком «Глава N».
+            начало каждой главы заголовком «Глава N». Можно одновременно
+            открыть несколько уже загруженных глав бесплатно — подписчикам
+            прилетит ОДНО уведомление обо всём.
           </p>
         </div>
-        <Link
-          href={`/admin/novels/${novel.firebase_id}/chapters/new`}
-          className="btn btn-ghost"
-        >
-          ← Одна глава
-        </Link>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link
+            href={`/admin/novels/${novel.firebase_id}/edit`}
+            className="btn btn-ghost"
+          >
+            ← К новелле
+          </Link>
+          <Link
+            href={`/admin/novels/${novel.firebase_id}/chapters/new`}
+            className="btn btn-ghost"
+          >
+            ＋ Одна глава
+          </Link>
+        </div>
       </header>
 
       <BulkChapterUpload
         novelId={novel.id}
         novelFirebaseId={novel.firebase_id}
         suggestedStart={suggestedStart}
+        existingChapters={existing}
       />
     </main>
   );

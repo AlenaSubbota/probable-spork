@@ -69,11 +69,32 @@ export default async function NewChapterPage({ params }: PageProps) {
         <span>Новая глава</span>
       </div>
 
-      <h1 style={{ marginBottom: 8 }}>Новая глава · {novel.title}</h1>
-      <p style={{ color: 'var(--ink-mute)', marginBottom: 24 }}>
-        Черновик сохраняется автоматически каждые 2 секунды. Можно закрыть
-        вкладку и вернуться позже.
-      </p>
+      <header
+        className="admin-head"
+        style={{ alignItems: 'flex-start', marginBottom: 8 }}
+      >
+        <div>
+          <h1>Новая глава · {novel.title}</h1>
+          <p style={{ color: 'var(--ink-mute)', margin: '8px 0 0' }}>
+            Черновик сохраняется автоматически каждые 2 секунды. Можно
+            закрыть вкладку и вернуться позже.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Link
+            href={`/admin/novels/${novel.firebase_id}/edit`}
+            className="btn btn-ghost"
+          >
+            ← К новелле
+          </Link>
+          <Link
+            href={`/admin/novels/${novel.firebase_id}/chapters/bulk`}
+            className="btn btn-ghost"
+          >
+            📚 Массовая загрузка
+          </Link>
+        </div>
+      </header>
 
       <ChapterForm
         mode="create"

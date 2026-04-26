@@ -14922,3 +14922,83 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   .thanks-inbox-item { padding: 10px 12px; gap: 10px; }
   .thanks-inbox-item-message { font-size: 13px; }
 }
+
+/* =========================================================
+   BulkChapterUpload — блок «Открыть бесплатно (диапазон)»
+   с подсказкой «следующие 5» (port из tene). Зелёный leaf-акцент,
+   отдельно от основной серой формы — чтобы переводчик не пропустил
+   возможность «открыть пачку» вместе с новыми главами.
+   ========================================================= */
+.bulk-free-block {
+  margin: 14px 0 4px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--leaf) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--leaf) 35%, var(--border));
+  border-radius: var(--radius);
+}
+.bulk-free-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.bulk-free-icon {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--leaf) 22%, var(--surface));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.bulk-free-title {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.bulk-free-sub {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+.bulk-free-hint {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px dashed color-mix(in srgb, var(--leaf) 45%, var(--border));
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.bulk-free-hint strong { color: var(--ink); }
+.bulk-free-hint-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 12px;
+  margin-left: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--leaf);
+  background: color-mix(in srgb, var(--leaf) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--leaf) 35%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  transition: background 140ms, border-color 140ms;
+}
+.bulk-free-hint-btn:hover {
+  background: color-mix(in srgb, var(--leaf) 24%, transparent);
+  border-color: var(--leaf);
+}
+
+@media (max-width: 540px) {
+  .bulk-free-block { padding: 12px 14px; }
+  .bulk-free-head { gap: 10px; }
+  .bulk-free-icon { width: 32px; height: 32px; font-size: 16px; }
+  .bulk-free-title { font-size: 14.5px; }
+  .bulk-free-sub { font-size: 12px; }
+  .bulk-free-hint { font-size: 12px; padding: 8px 10px; }
+}
