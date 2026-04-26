@@ -449,56 +449,58 @@ export default async function ChapterPage({ params }: PageProps) {
           novelTitle={novel.title}
           prevChapterNumber={prevChapter?.chapter_number ?? null}
           nextChapterNumber={nextChapter?.chapter_number ?? null}
-        />
-
-        {/* prev/next chapter переехали в sticky-панель снизу читалки
-            (ReaderBottomBar). Здесь оставляем «К новелле» только если
-            следующей главы нет — финальный аккорд после комментариев. */}
-        {!nextChapter && (
-          <nav className="reader-nav">
-            <Link
-              href={`/novel/${id}`}
-              className="btn btn-ghost"
-              style={{ flex: 1, textAlign: 'center' }}
-            >
-              К новелле
-            </Link>
-          </nav>
-        )}
-
-        <hr className="reader-divider" />
-
-        {/* «♥ Спасибо переводчику» + «📖 Закладка дня» — оба жеста
-            после прочтения, оба живут в верхней части обсуждения,
-            рядом с комментариями. */}
-        <CommentsSection
-          novelId={novel.id}
-          chapterNumber={chapter.chapter_number}
-          topSlot={
+          commentsSlot={
             <>
-              <ChapterThanks
-                novelId={novel.id}
-                chapterNumber={chapter.chapter_number}
-                hasTranslator={!!novel.translator_id}
-                translatorDisplayName={translatorDisplayName}
-                isLoggedIn={!!user}
-              />
-              <DiaryQuickEntry
-                novelId={novel.id}
-                chapterNumber={chapter.chapter_number}
-                isLoggedIn={!!user}
-              />
-              {novel.translator_id && (
-                <ThanksMessageForm
-                  translatorId={novel.translator_id}
-                  translatorDisplayName={translatorDisplayName}
-                  novelId={novel.id}
-                  chapterNumber={chapter.chapter_number}
-                  isLoggedIn={!!user}
-                  currentUserId={user?.id ?? null}
-                  translatorSlug={translatorSlugMain}
-                />
+              {!nextChapter && (
+                <nav className="reader-nav">
+                  <Link
+                    href={`/novel/${id}`}
+                    className="btn btn-ghost"
+                    style={{ flex: 1, textAlign: 'center' }}
+                  >
+                    К новелле
+                  </Link>
+                </nav>
               )}
+
+              <hr className="reader-divider" />
+
+              {/* «♥ Спасибо», «📖 Закладка дня», «💌 Сказать спасибо» —
+                  жесты после прочтения. В pages-режиме весь этот блок
+                  рендерится как ПОСЛЕДНЯЯ страница в snap-scroller'е,
+                  пользователь свайпает к нему как к финальной странице
+                  главы. В scroll-режиме — просто ниже текста. */}
+              <CommentsSection
+                novelId={novel.id}
+                chapterNumber={chapter.chapter_number}
+                topSlot={
+                  <>
+                    <ChapterThanks
+                      novelId={novel.id}
+                      chapterNumber={chapter.chapter_number}
+                      hasTranslator={!!novel.translator_id}
+                      translatorDisplayName={translatorDisplayName}
+                      isLoggedIn={!!user}
+                    />
+                    <DiaryQuickEntry
+                      novelId={novel.id}
+                      chapterNumber={chapter.chapter_number}
+                      isLoggedIn={!!user}
+                    />
+                    {novel.translator_id && (
+                      <ThanksMessageForm
+                        translatorId={novel.translator_id}
+                        translatorDisplayName={translatorDisplayName}
+                        novelId={novel.id}
+                        chapterNumber={chapter.chapter_number}
+                        isLoggedIn={!!user}
+                        currentUserId={user?.id ?? null}
+                        translatorSlug={translatorSlugMain}
+                      />
+                    )}
+                  </>
+                }
+              />
             </>
           }
         />

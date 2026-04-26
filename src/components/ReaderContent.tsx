@@ -32,6 +32,11 @@ interface Props {
   novelTitle?: string;
   prevChapterNumber?: number | null;
   nextChapterNumber?: number | null;
+  /** Что показать ПОСЛЕ текста главы: «Спасибо», «Дневник», «Письмо
+      переводчику» + комментарии. В pages-режиме — последняя snap-страница
+      в горизонтальном scroller'е (свайпом доходишь, как в книге);
+      в scroll-режиме — просто ниже текста. */
+  commentsSlot?: React.ReactNode;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -54,6 +59,7 @@ export default function ReaderContent({
   novelTitle,
   prevChapterNumber = null,
   nextChapterNumber = null,
+  commentsSlot = null,
 }: Props) {
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
@@ -521,7 +527,11 @@ export default function ReaderContent({
         // Берём именно его (а не scroller.scrollWidth, потому что spacer'ы
         // ещё не подтянулись после первого расчёта).
         const sw = Math.max(0, content.scrollWidth - 2);
-        const total = Math.max(1, Math.ceil(sw / w));
+        const textPagesCount = Math.max(1, Math.ceil(sw / w));
+        // Если есть commentsSlot — добавляем одну «обсуждение»-страницу
+        // в счёт. Это даёт читателю сигнал «ещё одна впереди» в счётчике
+        // нижней панели и в правом краю слайдера.
+        const total = textPagesCount + (commentsSlot ? 1 : 0);
         setTotalPages((prev) => (prev === total ? prev : total));
       });
     };
@@ -596,6 +606,10 @@ export default function ReaderContent({
     settings.paragraphSpacing,
     settings.textIndent,
     settings.fontFamily,
+    // commentsSlot — boolean truthy/falsy в зависимости от наличия пост-
+    // главного блока. Меняется редко, но при первом рендере с null →
+    // позже с node нужно пересчитать totalPages.
+    !!commentsSlot,
   ]);
 
   // ---- 6.55. Scroll-mode: вычисляем процент прогресса для нижней панели ----
@@ -833,17 +847,20 @@ export default function ReaderContent({
   }, [novelId, chapterNumber]);
 
   const scrollToComments = useCallback(() => {
-    const sec = document.querySelector('.comments-section');
-    if (!sec) return;
     if (settings.readMode === 'pages') {
+      // В pages-режиме комменты — это последняя snap-страница в
+      // scroller'е. Просто доводим до правого края: snap зацепится
+      // ровно на ней (не на хвосте текста). scrollWidth включает
+      // нашу .reader-pages-end.
       const sc = scrollerRef.current;
       if (sc) {
-        sc.scrollTo({ left: sc.scrollWidth, behavior: 'instant' as ScrollBehavior });
+        sc.scrollTo({ left: sc.scrollWidth, behavior: 'smooth' });
       }
-      setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-    } else {
-      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
     }
+    // В scroll-режиме — обычный scrollIntoView, ищем секцию по классу.
+    const sec = document.querySelector('.comments-section');
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [settings.readMode]);
 
   // ---- 7. Таймер сна ----
@@ -929,6 +946,19 @@ export default function ReaderContent({
               aria-hidden="true"
             />
           ))}
+          {/* Финальная snap-страница: всё пост-главное (комменты/благодарности).
+              Свайп/клик «вправо» с последней текстовой страницы доводит сюда,
+              как закрытие книги. Внутри собственный вертикальный скролл, чтобы
+              длинная нить комментов читалась без выхода из снап-цепочки. */}
+          {commentsSlot && (
+            <div
+              className="reader-pages-end"
+              style={{ width: pageWidth || '100%' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {commentsSlot}
+            </div>
+          )}
         </div>
       ) : (
         <div className="novel-content-host">
@@ -941,6 +971,11 @@ export default function ReaderContent({
           />
         </div>
       )}
+
+      {/* В scroll-режиме комменты живут под основным текстом обычным
+          вертикальным скроллом. В pages — уже отрендерены выше как
+          последняя страница, второй раз не рисуем. */}
+      {settings.readMode !== 'pages' && commentsSlot}
 
       {glossaryPopover && (
         <div

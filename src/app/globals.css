@@ -15125,3 +15125,54 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   .comments-feed-spoiler-summary { font-size: 11px; padding: 4px 10px; }
   .comments-feed-spoiler-text { font-size: 13px; padding: 8px 12px; }
 }
+
+/* =========================================================
+   Финальная snap-страница в pages-режиме: ВСЁ обсуждение главы
+   (благодарности / дневник / письмо / комментарии). Свайп вправо
+   с последней текстовой страницы доводит сюда. Внутри — собственный
+   вертикальный скролл, чтобы длинная нить комментов читалась без
+   выхода из снап-цепочки.
+   ========================================================= */
+.reader-wrapper[data-read-mode='pages'] .reader-pages-end {
+  flex: 0 0 auto;
+  /* width задаётся inline = pageWidth (как у spacer'ов). */
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  padding: 24px 22px 80px;
+  box-sizing: border-box;
+  /* Тонкий скроллбар внутри страницы — на десктопе видно, на мобиле
+     системный invisible. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-soft) transparent;
+}
+.reader-wrapper[data-read-mode='pages'] .reader-pages-end::-webkit-scrollbar {
+  width: 6px;
+}
+.reader-wrapper[data-read-mode='pages'] .reader-pages-end::-webkit-scrollbar-thumb {
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+/* Внутри финальной страницы перебиваем дефолтные отступы reader-main
+   (комменты лежат там, рассчитаны на full-width main). */
+.reader-wrapper[data-read-mode='pages'] .reader-pages-end .comments-section {
+  margin-top: 0;
+}
+.reader-wrapper[data-read-mode='pages'] .reader-pages-end .reader-divider {
+  margin: 18px 0;
+}
+.reader-wrapper[data-read-mode='pages'] .reader-pages-end .reader-nav {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+/* Mobile: меньше боковой padding, чтобы комменты дышали в узкой ширине. */
+@media (max-width: 540px) {
+  .reader-wrapper[data-read-mode='pages'] .reader-pages-end {
+    padding: 18px 14px 70px;
+  }
+}
