@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 import UserAvatar from '@/components/UserAvatar';
 import FriendshipButton from '@/components/social/FriendshipButton';
@@ -52,6 +52,21 @@ export default async function PublicUserProfile({ params }: PageProps) {
   const displayName = p.translator_display_name || p.user_name || 'Читатель';
   const isAdmin = p.is_admin === true || p.role === 'admin';
   const isTranslator = isAdmin || p.role === 'translator';
+
+  // У переводчика есть отдельная богатая страница /t/<slug> — каноническая
+  // публичная витрина с новеллами, расписанием, кошельком, стеной благ.
+  // Чтобы не было «двух разных профилей одного человека», редиректим
+  // /u/<uuid> на /t/<slug>, если slug валидный (мигр. 061 чистит мусорные).
+  // Сам себя в /u/ оставляем — там доступны reader-only действия (друзья,
+  // shared reads), а перейти на /t/ можно явной ссылкой.
+  if (
+    !isSelf &&
+    isTranslator &&
+    p.translator_slug &&
+    /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/.test(p.translator_slug)
+  ) {
+    redirect(`/t/${p.translator_slug}`);
+  }
 
   // Приватность: view сама обнуляет last_read/bookmarks если флажок false,
   // но булевый флаг тоже отдаёт — пригодится для UI.

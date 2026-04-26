@@ -19,7 +19,14 @@ export interface StarOfTheWeekData {
 export default function StarOfTheWeek({ data }: { data: StarOfTheWeekData | null }) {
   if (!data) return null;
 
-  const profileHref = data.slug ? `/t/${data.slug}` : `/u/${data.translator_id}`;
+  // Принимаем slug только если он реально ascii-safe — иначе URL
+  // получится как /t/Alena%20%E1%A5%AB%E1%AD%A1 и читатель пугается.
+  // Мигр. 061 чистит legacy-данные, но этот фронт-щит — на всякий.
+  const safeSlug =
+    data.slug && /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/.test(data.slug)
+      ? data.slug
+      : null;
+  const profileHref = safeSlug ? `/t/${safeSlug}` : `/u/${data.translator_id}`;
   const initial = data.display_name.trim().charAt(0).toUpperCase() || '?';
 
   return (
