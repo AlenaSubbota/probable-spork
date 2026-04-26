@@ -7689,6 +7689,117 @@ html[data-theme='dark'] .star-week-portrait {
   line-height: 1.6;
 }
 
+/* Поповер для добавления сноски — выезжает между тулбаром и telearea редактора */
+.bbcode-fn-popover {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bbcode-fn-label {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.bbcode-fn-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  resize: vertical;
+}
+.bbcode-fn-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+.bbcode-fn-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Сноски переводчика — единый вид по всему сайту (читалка + предпросмотр в редакторе).
+   .fn-ref — надстрочная цифра в основном потоке текста.
+   .fn-inline — отдельный абзац-определение, идущий сразу под абзацем-источником. */
+.novel-content .fn-ref {
+  font-size: 0.7em;
+  color: var(--accent);
+  cursor: pointer;
+  margin: 0 0.05em 0 0.05em;
+  vertical-align: super;
+  line-height: 0;
+  font-weight: 600;
+  user-select: none;
+}
+.novel-content .fn-ref:hover {
+  text-decoration: underline;
+}
+.novel-content .fn-inline {
+  font-size: 0.88em;
+  color: var(--ink-mute);
+  font-style: italic;
+  border-left: 2px solid color-mix(in oklab, var(--accent) 50%, transparent);
+  padding-left: 0.9rem;
+  margin: 0.4rem 0 1rem 1.5rem;
+  text-indent: 0;
+}
+.novel-content .fn-inline sup {
+  color: var(--accent);
+  margin-right: 0.25em;
+  font-size: 0.85em;
+  font-weight: 600;
+  font-style: normal;
+}
+/* Подсветка при тапе по маркеру (когда поповер выключен в настройках) */
+@keyframes fnFlash {
+  0%   { background: color-mix(in oklab, var(--accent) 22%, transparent); }
+  100% { background: transparent; }
+}
+.novel-content .fn-inline.fn-flash {
+  animation: fnFlash 1.6s ease-out;
+  border-radius: 4px;
+}
+
+/* Поповер сноски в читалке (когда настройка footnotePopover включена) */
+.fn-popover {
+  position: fixed;
+  z-index: 80;
+  max-width: 320px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.fn-popover .fn-popover-num {
+  display: inline-block;
+  margin-right: 0.4em;
+  color: var(--accent);
+  font-weight: 700;
+}
+.fn-popover-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
 /* Chapter editor — теперь full-width (no more split) */
 .chapter-form .chapter-editor {
   display: block;

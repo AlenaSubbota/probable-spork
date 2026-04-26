@@ -205,6 +205,14 @@ export default function ReaderContent({
     item: GlossaryItem;
   }>(null);
 
+  // Поповер сноски переводчика (когда настройка footnotePopover === true)
+  const [fnPopover, setFnPopover] = useState<null | {
+    x: number;
+    y: number;
+    n: string;
+    text: string;
+  }>(null);
+
   useEffect(() => {
     if (!ready) return;
     const container = contentRef.current;
@@ -310,6 +318,72 @@ export default function ReaderContent({
       document.removeEventListener('keydown', onEsc);
     };
   }, [ready, content, glossary]);
+
+  // ---- 4.6. Сноски переводчика ----
+  // Делегированный клик по .fn-ref. Поведение зависит от настройки:
+  // - off (default) — плавный скролл к <p id="fn-N"> + кратковременная подсветка
+  // - on            — открываем плавающую карточку с текстом сноски
+  useEffect(() => {
+    if (!ready) return;
+    const container = contentRef.current;
+    if (!container) return;
+
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const ref = target?.closest('.fn-ref') as HTMLElement | null;
+      if (!ref || !container.contains(ref)) return;
+
+      const n = ref.getAttribute('data-fn-id');
+      if (!n) return;
+
+      const inline = container.querySelector<HTMLElement>(`#fn-${CSS.escape(n)}`);
+      if (!inline) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (settings.footnotePopover) {
+        // Вытаскиваем текст без ведущего <sup>N</sup>
+        const clone = inline.cloneNode(true) as HTMLElement;
+        const lead = clone.querySelector('sup');
+        if (lead) lead.remove();
+        const text = clone.textContent?.trim() ?? '';
+        const rect = ref.getBoundingClientRect();
+        // Позиционируем поповер под маркером, прижимая к правому/левому краю
+        const popoverWidth = 320;
+        const margin = 8;
+        const vw = window.innerWidth;
+        const x = Math.min(
+          Math.max(margin, rect.left + rect.width / 2 - popoverWidth / 2),
+          vw - popoverWidth - margin,
+        );
+        const y = rect.bottom + 6;
+        setFnPopover({ x, y, n, text });
+      } else {
+        inline.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        inline.classList.remove('fn-flash');
+        // forced reflow, чтобы анимация перезапускалась при повторных тапах
+        void inline.offsetWidth;
+        inline.classList.add('fn-flash');
+        window.setTimeout(() => inline.classList.remove('fn-flash'), 1700);
+      }
+    };
+
+    container.addEventListener('click', onClick);
+
+    const onDocClick = () => setFnPopover(null);
+    document.addEventListener('click', onDocClick);
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFnPopover(null);
+    };
+    document.addEventListener('keydown', onEsc);
+
+    return () => {
+      container.removeEventListener('click', onClick);
+      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [ready, content, settings.footnotePopover]);
 
   // ---- 5. Отслеживание активного абзаца + сохранение прогресса ----
   useEffect(() => {
@@ -998,6 +1072,29 @@ export default function ReaderContent({
               {labelForCategory(glossaryPopover.item.category)}
             </div>
           )}
+        </div>
+      )}
+
+      {fnPopover && (
+        <div
+          className="fn-popover"
+          style={{
+            left: fnPopover.x,
+            top: fnPopover.y,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+        >
+          <button
+            type="button"
+            className="fn-popover-close"
+            onClick={() => setFnPopover(null)}
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+          <span className="fn-popover-num">{fnPopover.n}</span>
+          {fnPopover.text}
         </div>
       )}
 
