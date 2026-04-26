@@ -11021,6 +11021,20 @@ html[data-theme='dark'] .star-week-portrait {
 .reader-wrapper[data-read-mode='pages'] .novel-content img {
   break-inside: avoid;
 }
+/* Без горизонтального padding'а текст у правого края колонки подрезается:
+   при column-gap: 0 и column-width: pageWidth любой sub-pixel rounding
+   срезает 1-2px последнего слова (а пользователь видит кусок «съехавший»
+   на следующую страницу слева). 12px gutter с каждого края даёт буфер,
+   делает чтение комфортнее и поглощает любые округления. Применяется
+   только в pages-режиме — в свитке отступы делает родительский контейнер. */
+.reader-wrapper[data-read-mode='pages'] .novel-content p,
+.reader-wrapper[data-read-mode='pages'] .novel-content blockquote,
+.reader-wrapper[data-read-mode='pages'] .novel-content h1,
+.reader-wrapper[data-read-mode='pages'] .novel-content h2,
+.reader-wrapper[data-read-mode='pages'] .novel-content h3 {
+  padding-left: 12px;
+  padding-right: 12px;
+}
 /* В режиме страниц нижняя навигация (prev/next chapter) сдвигается
    ниже: индикатор страницы занимает место */
 .reader-wrapper[data-read-mode='pages'] .reader-nav {
