@@ -77,35 +77,70 @@ export default async function SiteHeader() {
           Chaptify
         </Link>
 
-        <nav className="main-nav">
+        {/* Browse-навигация: текстовые пункты для всех. Личные действия
+            переехали в .header-utilities справа (иконки-кружки), чтобы
+            не громоздить 7 текстовых ссылок в один ряд. */}
+        <nav className="main-nav" aria-label="Каталог и подборки">
           <Link href="/catalog">Каталог</Link>
           <Link href="/feed">Лента</Link>
           <Link href="/news" className="nav-with-badge">
             Новости
             {unreadNews > 0 && <span className="nav-unread">{unreadNews}</span>}
           </Link>
-          {user && <Link href="/bookmarks">Полка</Link>}
-          {user && <Link href="/friends">Друзья</Link>}
-          {user && (
-            <Link href="/messages" className="nav-with-badge">
-              Сообщения
-              {unreadDm > 0 && <span className="nav-unread">{unreadDm}</span>}
-            </Link>
-          )}
-          {user && (
-            <Link
-              href="/notifications"
-              className="nav-with-badge"
-              aria-label="Уведомления"
-              title="Уведомления"
-            >
-              🔔
-              {unreadNotif > 0 && <span className="nav-unread">{unreadNotif}</span>}
-            </Link>
-          )}
         </nav>
 
         <HeaderSearch />
+
+        {user && (
+          <nav className="header-utilities" aria-label="Личное">
+            <Link
+              href="/bookmarks"
+              className="header-util"
+              aria-label="Полка"
+              title="Полка"
+            >
+              <span className="header-util-icon" aria-hidden="true">📚</span>
+              <span className="header-util-label">Полка</span>
+            </Link>
+            <Link
+              href="/friends"
+              className="header-util"
+              aria-label="Друзья"
+              title="Друзья"
+            >
+              <span className="header-util-icon" aria-hidden="true">👥</span>
+              <span className="header-util-label">Друзья</span>
+            </Link>
+            <Link
+              href="/messages"
+              className="header-util"
+              aria-label="Сообщения"
+              title="Сообщения"
+            >
+              <span className="header-util-icon" aria-hidden="true">💬</span>
+              <span className="header-util-label">Сообщения</span>
+              {unreadDm > 0 && (
+                <span className="header-util-badge" aria-label={`${unreadDm} непрочитанных`}>
+                  {unreadDm > 99 ? '99+' : unreadDm}
+                </span>
+              )}
+            </Link>
+            <Link
+              href="/notifications"
+              className="header-util"
+              aria-label="Уведомления"
+              title="Уведомления"
+            >
+              <span className="header-util-icon" aria-hidden="true">🔔</span>
+              <span className="header-util-label">Уведомления</span>
+              {unreadNotif > 0 && (
+                <span className="header-util-badge" aria-label={`${unreadNotif} непрочитанных`}>
+                  {unreadNotif > 99 ? '99+' : unreadNotif}
+                </span>
+              )}
+            </Link>
+          </nav>
+        )}
 
         <div className="header-actions">
           <div className="header-theme-toggle">

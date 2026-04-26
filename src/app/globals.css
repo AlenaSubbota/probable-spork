@@ -608,11 +608,12 @@ html[data-theme='dark'] .logo-mark {
 }
 
 /* Скрываем мобильный гамбургер на десктопе и, наоборот, на мобиле —
-   десктопную nav + search-box. */
+   десктопную nav + search-box + header-utilities (личные иконки). */
 @media (max-width: 760px) {
   .mobile-menu-btn { display: inline-flex; }
   .main-nav { display: none; }
   .search-box { display: none; }
+  .header-utilities { display: none; }
   .header-row { gap: 10px; }
   .site-header .logo { font-size: 18px; }
   .site-header .logo-mark { width: 28px; height: 28px; font-size: 14px; }
@@ -15470,4 +15471,95 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   .chapter-list-panel-action { grid-row: 1; }
   .chapter-list-panel-stats { font-size: 11.5px; }
   .chapter-list-panel-stat { padding: 3px 9px; }
+}
+
+/* =========================================================
+   .header-utilities — компактные иконки-кружки (Полка, Друзья,
+   💬, 🔔) справа от поиска. Заменяют 4 текстовых пункта в
+   .main-nav, чтобы тот не разъезжался в полосу из 7 ссылок.
+   На широком (≥1100) — иконка + лейбл, на ≤1100 только иконка
+   (как у Discord/Linear), на мобиле всё прячется (взамен —
+   гамбургер + MobileMenu).
+   ========================================================= */
+.header-utilities {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+.header-util {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color .14s, background .14s;
+  white-space: nowrap;
+}
+.header-util:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-wash) 60%, transparent);
+}
+.header-util-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.header-util-label {
+  /* На самых широких экранах (≥1100) показываем подпись; ниже —
+     прячем, остаётся только иконка с tooltip. */
+  display: inline;
+}
+.header-util-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--rose);
+  color: var(--surface-2);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  /* Тонкая «ауру» под бэйджем, чтобы он отрывался от иконки. */
+  box-shadow: 0 0 0 2px var(--bg);
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme='dark'] .header-util-badge {
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* Промежуточный десктоп (≤1100): прячем подписи у utilities-иконок,
+   они становятся компактными кружками 38×38. main-nav остаётся
+   текстовой. */
+@media (max-width: 1100px) {
+  .header-util {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+  }
+  .header-util-label {
+    /* Не используем display:none, чтобы скрин-ридеры всё равно
+       прочитали — sr-only-стиль. */
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .header-utilities { gap: 4px; padding-left: 10px; }
 }
