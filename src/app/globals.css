@@ -15176,3 +15176,175 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
     padding: 18px 14px 70px;
   }
 }
+
+/* =========================================================
+   ChapterListPanel — список всех глав новеллы под формой массовой
+   загрузки. Тогл «🔒 / 🟢», ред., удаление одной кнопкой.
+   ========================================================= */
+.chapter-list-panel {
+  margin-top: 28px;
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.chapter-list-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.chapter-list-panel-head h3 {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  margin: 0;
+  color: var(--ink);
+}
+.chapter-list-panel-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.chapter-list-panel-stat {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chapter-list-panel-stat--free {
+  background: color-mix(in srgb, var(--leaf) 18%, transparent);
+  color: var(--leaf);
+}
+.chapter-list-panel-stat--paid {
+  background: var(--accent-wash);
+  color: var(--accent-hover);
+}
+.chapter-list-panel-count {
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+.chapter-list-panel-hint {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.chapter-list-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chapter-list-panel-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 120ms;
+}
+.chapter-list-panel-row:hover { border-color: var(--accent-soft); }
+.chapter-list-panel-num {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.chapter-list-panel-toggle {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 120ms, transform 120ms;
+}
+.chapter-list-panel-toggle:hover { filter: brightness(1.05); }
+.chapter-list-panel-toggle:active { transform: scale(0.97); }
+.chapter-list-panel-toggle:disabled { opacity: 0.5; cursor: default; }
+.chapter-list-panel-toggle.is-paid {
+  background: var(--accent-wash);
+  color: var(--accent-hover);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+}
+.chapter-list-panel-toggle.is-free {
+  background: color-mix(in srgb, var(--leaf) 16%, var(--bg-soft));
+  color: var(--leaf);
+  border-color: color-mix(in srgb, var(--leaf) 35%, var(--border));
+}
+.chapter-list-panel-action {
+  width: 36px; height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--ink-soft);
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.chapter-list-panel-action:hover {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+.chapter-list-panel-action--delete:hover {
+  color: var(--rose);
+  border-color: color-mix(in srgb, var(--rose) 60%, var(--border));
+}
+.chapter-list-panel-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chapter-list-panel-more {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+.chapter-list-panel-more:hover {
+  border-color: var(--accent-soft);
+  background: var(--bg-soft);
+}
+
+@media (max-width: 540px) {
+  .chapter-list-panel { padding: 16px 14px; }
+  .chapter-list-panel-row {
+    grid-template-columns: 1fr auto auto;
+    gap: 6px;
+    padding: 10px;
+  }
+  /* На мобиле тогл — отдельной строкой над кнопками, чтобы не лип к
+     номеру и не сжимался. */
+  .chapter-list-panel-toggle {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    width: 100%;
+  }
+  .chapter-list-panel-num { grid-row: 1; }
+  .chapter-list-panel-action { grid-row: 1; }
+  .chapter-list-panel-stats { font-size: 11.5px; }
+  .chapter-list-panel-stat { padding: 3px 9px; }
+}

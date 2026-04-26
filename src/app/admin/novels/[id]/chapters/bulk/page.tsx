@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import BulkChapterUpload from './BulkChapterUpload';
+import ChapterListPanel from '@/components/admin/ChapterListPanel';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -41,16 +42,19 @@ export default async function BulkChaptersPage({ params }: PageProps) {
     .maybeSingle();
   const suggestedStart = (lastCh?.chapter_number ?? 0) + 1;
 
-  // Все главы — для подсказки «открыть следующие N бесплатных».
-  // Берём только номер + is_paid, этого хватает.
+  // Все главы — для подсказки «открыть следующие N бесплатных» И для
+  // ChapterListPanel под формой. Берём чуть больше полей чем раньше:
+  // content_path нужен для удаления файла в storage.
   const { data: allChaps } = await supabase
     .from('chapters')
-    .select('chapter_number, is_paid')
+    .select('chapter_number, is_paid, content_path, published_at')
     .eq('novel_id', novel.id)
     .order('chapter_number', { ascending: true });
   const existing = (allChaps ?? []) as Array<{
     chapter_number: number;
     is_paid: boolean;
+    content_path: string | null;
+    published_at: string | null;
   }>;
 
   return (
@@ -93,7 +97,21 @@ export default async function BulkChaptersPage({ params }: PageProps) {
         novelId={novel.id}
         novelFirebaseId={novel.firebase_id}
         suggestedStart={suggestedStart}
-        existingChapters={existing}
+        existingChapters={existing.map((c) => ({
+          chapter_number: c.chapter_number,
+          is_paid: c.is_paid,
+        }))}
+      />
+
+      <ChapterListPanel
+        novelId={novel.id}
+        novelFirebaseId={novel.firebase_id}
+        initial={existing.map((c) => ({
+          chapter_number: c.chapter_number,
+          is_paid: c.is_paid,
+          content_path: c.content_path,
+          published_at: c.published_at,
+        }))}
       />
     </main>
   );
