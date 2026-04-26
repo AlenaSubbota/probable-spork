@@ -15,11 +15,26 @@ interface Props {
   comments: CommentFeedItem[];
 }
 
+// Снимаем BB/HTML до простого текста, чтобы превью в шторке не
+// рендерило теги. Не используем dangerouslySetInnerHTML — здесь
+// мы НЕ доверяем содержимому.
+function plainExcerpt(text: string, limit = 240): string {
+  const stripped = text
+    .replace(/\[\/?(?:b|i|s|u|spoiler|quote|url[^\]]*)\]/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (stripped.length <= limit) return stripped;
+  const slice = stripped.slice(0, limit);
+  const lastSpace = slice.lastIndexOf(' ');
+  return (lastSpace > limit / 2 ? slice.slice(0, lastSpace) : slice) + '…';
+}
+
 // Лента свежих комментариев на главной.
-// Делаем КОМПАКТНО: одна строчка «автор → новелла · глава N · время»
-// + CTA «открыть тред». Содержимое комментария на главной не
-// показываем вообще — слишком высокий риск спойлера, да и длинные
-// тексты раздувают блок.
+// Базовый layout — одна строчка «автор · новелла · глава N · время».
+// На десктопе (и при желании на мобиле) под ней раскрывается шторка с
+// текстом комментария — обёрнутая в <details> с явным предупреждением
+// «возможен спойлер». Без JS, чисто CSS-аккордеон.
 export default function CommentsFeed({ comments }: Props) {
   if (comments.length === 0) return null;
 
@@ -37,6 +52,7 @@ export default function CommentsFeed({ comments }: Props) {
           const author = c.user_name ?? 'Читатель';
           const initial = author.trim().charAt(0).toUpperCase() || '?';
           const href = `/novel/${c.novel_firebase_id}/${c.chapter_number}#c${c.id}`;
+          const excerpt = plainExcerpt(c.text);
           return (
             <li key={c.id} className="comments-feed-compact-item">
               <Link href={href} className="comments-feed-compact-link">
@@ -63,6 +79,18 @@ export default function CommentsFeed({ comments }: Props) {
                   →
                 </span>
               </Link>
+
+              {excerpt && (
+                <details className="comments-feed-spoiler">
+                  <summary className="comments-feed-spoiler-summary">
+                    <span aria-hidden="true">⚠</span>
+                    <span>Показать комментарий — возможен спойлер</span>
+                  </summary>
+                  <blockquote className="comments-feed-spoiler-text">
+                    «{excerpt}»
+                  </blockquote>
+                </details>
+              )}
             </li>
           );
         })}

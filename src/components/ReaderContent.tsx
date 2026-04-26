@@ -697,7 +697,17 @@ export default function ReaderContent({
   const flipBusyRef = useRef(false);
   const onContentClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (settings.readMode !== 'pages') return;
+      // КРИТИЧНО: если пользователь только что выделил текст (для цитаты),
+      // mouseup попадает в этот хэндлер. В pages-режиме клик в левом 33%
+      // экрана = перелистывание назад → текст «съезжает», выделение
+      // теряется. Проверяем selection ДО любой логики и выходим.
+      const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+      if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
+        return;
+      }
+
+      // В scroll-режиме тоже работаем — тап по центру скрывает/показывает
+      // нижнюю панель (UI-immersive mode для скролла, как в pages).
       const target = e.target as HTMLElement;
       if (
         target.closest(
@@ -706,6 +716,15 @@ export default function ReaderContent({
       ) {
         return;
       }
+
+      if (settings.readMode !== 'pages') {
+        // В скролл-режиме нет «зон перелистывания» — любой пустой клик
+        // переключает immersive-режим (скрывает/показывает нижнюю
+        // sticky-панель прогресса/настроек).
+        setUiHidden((v) => !v);
+        return;
+      }
+
       const scroller = scrollerRef.current;
       if (!scroller) return;
       const w = scroller.clientWidth;
