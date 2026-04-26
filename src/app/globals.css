@@ -157,51 +157,86 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: sticky;
   top: 0;
   z-index: 20;
-  /* Используем --bg через color-mix чтобы получить полупрозрачность,
-     иначе на тёмной теме шапка оставалась светлой. */
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px);
+  /* «Дорого-богато»: тёплый кофейный градиент в фон вместо плоского --bg.
+     На светлой — едва заметный кремовый отсвет, на тёмной — графитовый
+     с золотым кантом. Backdrop-blur даёт ощущение «стекла». */
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--surface) 92%, transparent) 0%,
+      color-mix(in srgb, var(--bg) 88%, transparent) 100%);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  backdrop-filter: saturate(160%) blur(12px);
   border-bottom: 1px solid var(--border);
-  /* iOS: учитываем notch — внутренний padding-top сдвигает row,
-     но сам липкий верхний край остаётся прилеплен к 0. */
+  /* Тонкая золотая «искра» по нижней грани — премиум-акцент. */
+  box-shadow:
+    0 1px 0 0 color-mix(in srgb, var(--gold) 22%, transparent),
+    0 8px 24px -16px rgba(140, 90, 60, 0.18);
   padding-top: env(safe-area-inset-top, 0);
+}
+html[data-theme='dark'] .site-header {
+  box-shadow:
+    0 1px 0 0 color-mix(in srgb, var(--gold) 30%, transparent),
+    0 8px 24px -12px rgba(0, 0, 0, 0.6);
 }
 
 .header-row {
   display: flex;
   align-items: center;
-  gap: 24px;
-  height: 64px;
+  gap: 28px;
+  height: 72px;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-family: var(--font-serif);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  color: var(--accent);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--ink);
+  /* Текст логотипа — gradient-fill «кофе с золотом». */
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 60%, var(--gold) 110%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: filter .15s;
 }
+.logo:hover { filter: brightness(1.1); }
 
 .logo-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--rose) 100%);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 30% 30%,
+      color-mix(in srgb, var(--gold) 60%, var(--accent)) 0%,
+      var(--accent) 60%,
+      var(--accent-hover) 100%);
   display: grid;
   place-items: center;
-  color: #FBF7F0;
+  color: var(--surface-2);
+  -webkit-text-fill-color: var(--surface-2);
   font-family: var(--font-serif);
-  font-weight: 700;
-  font-size: 18px;
+  font-weight: 800;
+  font-size: 19px;
+  /* Премиум-тень: золотое сияние с одной стороны + контурная под собой. */
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--gold) 50%, transparent),
+    0 6px 18px -4px rgba(140, 90, 60, 0.45),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 28%, transparent);
+}
+html[data-theme='dark'] .logo-mark {
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--gold) 60%, transparent),
+    0 6px 20px -2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 color-mix(in srgb, var(--gold) 30%, transparent);
 }
 
 .main-nav {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 26px;
   font-size: 14px;
   font-weight: 500;
   color: var(--ink-soft);
@@ -209,34 +244,62 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   row-gap: 6px;
 }
 
+.main-nav a {
+  position: relative;
+  padding: 4px 0;
+  transition: color .15s;
+}
+.main-nav a::after {
+  /* Тонкая золотая полоска под пунктом-актив/hover — без вульгарного
+     полного подчёркивания. */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -2px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+  opacity: 0;
+  transform: scaleX(0.4);
+  transform-origin: left center;
+  transition: opacity .18s, transform .18s;
+}
 .main-nav a.active,
 .main-nav a:hover {
   color: var(--accent);
+}
+.main-nav a.active::after,
+.main-nav a:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .search-box {
   flex: 1 1 240px;
   min-width: 200px;
-  max-width: 420px;
+  max-width: 460px;
   position: relative;
   margin-left: auto;
 }
 
 .search-box input {
   width: 100%;
-  height: 40px;
-  padding: 0 14px 0 40px;
-  background: var(--surface);
+  height: 42px;
+  padding: 0 16px 0 42px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--ink);
   font-size: 14px;
   outline: none;
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .15s, box-shadow .15s, background .15s;
 }
+.search-box input:hover { background: var(--surface); }
 .search-box input:focus {
-  border-color: var(--accent-soft);
-  box-shadow: 0 0 0 3px rgba(140, 90, 60, 0.1);
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--gold) 50%, var(--accent-soft));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--gold) 15%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 .search-box::before {
   content: "";
@@ -5084,9 +5147,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: 10px;
   border: 1px solid var(--border);
 }
-.moment--positive { background: #F0F4E8; border-color: #CEDABE; }
-.moment--warning  { background: #FBEDE5; border-color: #E8C5B2; }
-.moment--neutral  { background: var(--bg-soft); }
+/* «Моменты недели»: positive=светло-leaf, warning=нежно-rose, neutral=
+   bg-soft. Через color-mix живут в обеих темах: на тёмной — заглушённые
+   мшисто-зелёные / приглушённо-розовые подложки. */
+.moment--positive {
+  background: color-mix(in srgb, var(--leaf) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--leaf) 35%, var(--border));
+}
+.moment--warning {
+  background: color-mix(in srgb, var(--rose) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--rose) 35%, var(--border));
+}
+.moment--neutral { background: var(--bg-soft); }
 .moment-icon {
   font-size: 22px;
   line-height: 1;
@@ -5181,9 +5253,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 /* Heat levels: 5 уровней интенсивности */
 .heat-0 { background: transparent; }
-.heat-1 { background: #F6EFE3; }
-.heat-2 { background: #EEDFC6; }
-.heat-3 { background: #D9BFA6; }
+/* Хардкоды #F6EFE3/#EEDFC6/#D9BFA6 на тёмной теме давали бежевые ячейки
+   поверх графитового фона — выглядело как пятна. color-mix с --accent
+   и --surface даёт градацию в обеих темах: на dark — тёмно-кофейные
+   тёплые тоны, на light — те же кремы. */
+.heat-1 { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.heat-2 { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+.heat-3 { background: color-mix(in srgb, var(--accent) 38%, var(--surface)); color: var(--ink); }
 .heat-4 {
   background: var(--accent);
   color: var(--surface-2);
@@ -7280,22 +7356,24 @@ html[data-theme='dark'] .star-week-portrait {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid var(--border, #e6e0d4);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--paper, #fff);
+  /* paper нигде не определён → дефолт #fff заливал в тёмной теме
+     белый прямоугольник. Через --surface уходит и на dark. */
+  background: var(--surface);
 }
 .linked-account-icon {
   flex-shrink: 0;
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: var(--paper-warm, #f5f0e6);
+  background: var(--bg-soft);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 16px;
-  color: var(--ink, #2a2a2a);
+  color: var(--ink);
 }
 .linked-account-body {
   flex: 1;
@@ -7304,6 +7382,7 @@ html[data-theme='dark'] .star-week-portrait {
 .linked-account-title {
   font-weight: 600;
   font-size: 14px;
+  color: var(--ink);
 }
 .linked-account-sub {
   font-size: 12px;
@@ -7316,18 +7395,23 @@ html[data-theme='dark'] .star-week-portrait {
   color: var(--ink-mute);
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--paper-warm, #f5f0e6);
+  background: var(--bg-soft);
 }
 
-/* Плашка «подпишись на бота для уведомлений» */
+/* Плашка «подпишись на бота для уведомлений» — все хардкоды зелёных
+   #e5f5ea/#d9ecdf/#b6d3c0/#2a5a3e/#47694e заменены на color-mix(--leaf).
+   В тёмной теме плашка тёплая «зелёный графит», читается без слепящего
+   светлого пятна. */
 .bot-notify-banner {
   display: flex;
   align-items: flex-start;
   gap: 14px;
   margin-top: 14px;
   padding: 14px 18px;
-  background: linear-gradient(135deg, #e5f5ea 0%, #d9ecdf 100%);
-  border: 1px solid #b6d3c0;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--leaf) 16%, var(--surface)) 0%,
+    color-mix(in srgb, var(--leaf) 8%, var(--surface)) 100%);
+  border: 1px solid color-mix(in srgb, var(--leaf) 35%, var(--border));
   border-radius: 10px;
 }
 .bot-notify-banner-icon {
@@ -7342,19 +7426,20 @@ html[data-theme='dark'] .star-week-portrait {
   font-family: var(--font-serif);
   font-weight: 600;
   font-size: 14.5px;
-  color: #2a5a3e;
+  color: var(--leaf);
   margin-bottom: 4px;
 }
 .bot-notify-banner-sub {
   font-size: 13px;
   line-height: 1.45;
-  color: #47694e;
+  color: var(--ink-soft);
 }
 .bot-notify-banner-sub code {
-  background: rgba(0,0,0,0.06);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
   font-size: 12px;
+  color: var(--ink);
 }
 
 /* Контейнер для Telegram widget внутри row */
@@ -8644,38 +8729,53 @@ html[data-theme='dark'] .star-week-portrait {
 
 /* ---------- Homepage: Comments feed (компактная лента) ---------- */
 
+/* Десктоп: 2-колоночный grid с карточками. Раньше был вертикальный
+   список с прозрачными hover-плашками — на широком экране 1240 px
+   каждая строка тянулась во всю длину и выглядела пустой. На мобиле
+   всё ещё одна колонка (см. медиа-запрос ниже). */
 .comments-feed-compact {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 10px;
+}
+.comments-feed-compact-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color .14s, transform .14s;
+}
+.comments-feed-compact-item:hover {
+  border-color: var(--accent-soft);
+  transform: translateY(-1px);
 }
 .comments-feed-compact-link {
   display: grid;
-  grid-template-columns: 32px 1fr auto;
+  grid-template-columns: 36px 1fr auto;
   gap: 12px;
   align-items: center;
-  padding: 10px 14px;
-  border-radius: 10px;
+  padding: 12px 14px;
+  border-radius: 0;
   color: inherit;
   transition: background .12s;
 }
 .comments-feed-compact-link:hover {
-  background: var(--accent-wash);
+  background: color-mix(in srgb, var(--accent-wash) 50%, var(--surface));
 }
 .comments-feed-compact-avatar {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent), var(--rose));
-  color: #fff;
+  color: var(--surface-2);
   display: grid;
   place-items: center;
   font-family: var(--font-serif);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 .comments-feed-compact-body { min-width: 0; }
@@ -8720,10 +8820,30 @@ html[data-theme='dark'] .star-week-portrait {
   color: var(--accent);
   transform: translateX(3px);
 }
+/* Мобила: одна колонка, карточки чуть тоньше — в Telegram WebView
+   2-колонка не помещается. На промежутке 540-760 авто-fill сам решит. */
 @media (max-width: 540px) {
-  .comments-feed-compact-link { padding: 9px 10px; gap: 10px; }
+  .comments-feed-compact { grid-template-columns: 1fr; gap: 8px; }
+  .comments-feed-compact-link { padding: 10px 12px; gap: 10px; }
   .comments-feed-compact-line { font-size: 12.5px; gap: 5px; }
   .comments-feed-compact-novel { font-size: 12.5px; }
+  .comments-feed-compact-avatar { width: 32px; height: 32px; font-size: 13px; }
+}
+
+/* Спойлер-шторка переехала с margin-left: 50px на flow-внутри карточки. */
+.comments-feed-compact-item .comments-feed-spoiler {
+  margin: 0;
+  padding: 0 14px 12px 62px; /* 62 = 14padding + 36avatar + 12gap */
+  border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  padding-top: 10px;
+}
+.comments-feed-compact-item .comments-feed-spoiler-summary {
+  margin-top: 0;
+}
+@media (max-width: 540px) {
+  .comments-feed-compact-item .comments-feed-spoiler {
+    padding-left: 54px; /* avatar 32 + gap 10 + padding 12 */
+  }
 }
 
 /* ---------- Homepage: Novel Poll ---------- */
@@ -11785,15 +11905,18 @@ html[data-theme='dark'] .star-week-portrait {
 .novel-credits {
   margin: 24px 0 28px;
   padding: 16px 20px;
-  background: var(--paper-warm, #faf6ee);
+  /* paper-warm нигде не определён → на тёмной теме оставался #faf6ee
+     светлой плашкой посреди графита. Через color-mix живёт в обеих
+     темах. */
+  background: color-mix(in srgb, var(--gold) 8%, var(--surface));
   border-radius: 12px;
-  border: 1px solid var(--border, #e6e0d4);
+  border: 1px solid var(--border);
 }
 .novel-credits-head {
   margin: 0 0 12px;
   font-family: var(--font-serif);
   font-size: 15px;
-  color: var(--ink, #2a2a2a);
+  color: var(--ink);
   letter-spacing: .01em;
 }
 .novel-credits-groups {
@@ -11823,16 +11946,16 @@ html[data-theme='dark'] .star-week-portrait {
   align-items: center;
   gap: 6px;
   padding: 3px 10px 3px 4px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border, #e6e0d4);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  color: var(--ink, #2a2a2a);
+  color: var(--ink);
   text-decoration: none;
   transition: border-color .12s, background .12s;
 }
 .novel-credit-person:hover {
-  border-color: var(--accent-soft, #e0c8c0);
-  background: #fff;
+  border-color: var(--accent-soft);
+  background: var(--surface-2);
 }
 .novel-credit-avatar {
   width: 22px;
