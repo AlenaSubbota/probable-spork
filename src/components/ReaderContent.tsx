@@ -500,7 +500,7 @@ export default function ReaderContent({
         paragraphs[lastActiveId].classList.remove('focus-active');
       }
     };
-  }, [ready, content, saveProgress, settings.focusMode, settings.readMode]);
+  }, [ready, content, saveProgress, settings.readMode]);
 
   // ---- 6. Восстановление позиции при заходе в главу ----
   useEffect(() => {
