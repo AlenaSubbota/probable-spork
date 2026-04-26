@@ -133,7 +133,7 @@ export default function ThanksInbox({ initial }: Props) {
                   )}
                   <span className="thanks-inbox-item-sep" aria-hidden="true">·</span>
                   <time className="thanks-inbox-item-time">
-                    {timeAgo(new Date(t.created_at))}
+                    {timeAgo(t.created_at)}
                   </time>
                 </div>
                 <blockquote className="thanks-inbox-item-message">

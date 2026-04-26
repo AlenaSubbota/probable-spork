@@ -13872,6 +13872,27 @@ html[data-theme='dark'] .novel-team-card-deco { opacity: 0.10; }
   transition: border-color 160ms, transform 160ms, box-shadow 160ms;
   box-shadow: var(--shadow-sm);
 }
+/* Overlay-Link накрывает всю карточку для клика «открыть команду».
+   Actions поднимаются над ним через z-index (см. ниже). */
+.teams-index-card-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+.teams-index-card-banner,
+.teams-index-card-body {
+  position: relative;
+  z-index: 0;
+}
+.teams-index-card-actions {
+  position: relative;
+  z-index: 2;
+}
+.teams-index-card-actions > * {
+  position: relative;
+  z-index: 2;
+}
 .teams-index-card:hover {
   border-color: var(--accent-soft);
   transform: translateY(-2px);

@@ -72,7 +72,7 @@ export default function ThanksWall({ thanks }: Props) {
                     )}
                     <span className="thanks-wall-card-sep" aria-hidden="true">·</span>
                     <time className="thanks-wall-card-time">
-                      {timeAgo(new Date(t.created_at))}
+                      {timeAgo(t.created_at)}
                     </time>
                   </div>
                 </div>

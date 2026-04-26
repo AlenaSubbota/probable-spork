@@ -63,12 +63,16 @@ export default async function TeamsIndexPage() {
       ) : (
         <div className="teams-index-grid">
           {teams.map((t) => (
-            <Link
-              key={t.id}
-              href={`/team/${t.slug}`}
-              className="teams-index-card"
-              aria-label={`Команда ${t.name}`}
-            >
+            // Карточка-обёртка — НЕ <Link>, чтобы внутри спокойно жили
+            // две независимые ссылки (Next 16 запрещает вложенные <Link>).
+            // Основной клик-таргет — overlay-Link, поверх него поднимаются
+            // только actions с z-index.
+            <article key={t.id} className="teams-index-card">
+              <Link
+                href={`/team/${t.slug}`}
+                className="teams-index-card-overlay"
+                aria-label={`Открыть команду ${t.name}`}
+              />
               <div
                 className="teams-index-card-banner"
                 style={
@@ -105,17 +109,11 @@ export default async function TeamsIndexPage() {
                 <Link
                   href={`/catalog?team=${t.slug}`}
                   className="teams-index-card-filter"
-                  // Клик по «фильтру» НЕ должен переходить на /team — внешний
-                  // Link оборачивает всё, поэтому подавляем родительский
-                  // переход через onClick stopPropagation? В RSC это инлайн,
-                  // тут проще сделать просто другую ссылку — Next корректно
-                  // отрабатывает вложенный <a> через stopPropagation в браузере.
-                  onClick={(e) => e.stopPropagation()}
                 >
                   В каталоге
                 </Link>
               </div>
-            </Link>
+            </article>
           ))}
         </div>
       )}
