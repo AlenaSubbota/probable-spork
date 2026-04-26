@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import {
   loadSettings,
@@ -50,6 +50,34 @@ function labelForCategory(cat: string): string {
   return CATEGORY_LABELS[cat] ?? cat;
 }
 
+// Главы из tene приходят с «легаси»-сносками: <p>[N] определение</p> без
+// каких-либо классов (или с ушедшими в небытие tailwind-классами под
+// дизайн tene). chaptify рендерит их через .fn-inline в globals.css —
+// добавляем этот класс рантаймом, не трогая HTML в storage. Это
+// гарантирует, что одна и та же глава корректно отображается и на tene
+// (со своей разметкой), и на chaptify (со своими классами).
+//
+// Идемпотентно: если на абзаце уже стоит .fn-inline (например, добавили
+// через chaptify-админку BB-тегом [fn] или прогнали migrate-footnotes.mjs),
+// ничего не меняем.
+function injectLegacyFootnoteClasses(html: string): string {
+  if (!html) return '';
+  return html.replace(
+    /<p\b([^>]*)>(\s*(?:<[^>]+>\s*)*\[\d+\][\s\S]*?)<\/p>/gi,
+    (match, attrs: string, body: string) => {
+      if (/\bclass\s*=\s*["'][^"']*\bfn-inline\b/.test(attrs)) return match;
+      if (/\bclass\s*=\s*["']/.test(attrs)) {
+        const next = attrs.replace(
+          /(\bclass\s*=\s*["'])/,
+          (_m, p1) => `${p1}fn-inline `,
+        );
+        return `<p${next}>${body}</p>`;
+      }
+      return `<p class="fn-inline"${attrs}>${body}</p>`;
+    },
+  );
+}
+
 export default function ReaderContent({
   content,
   novelId,
@@ -89,6 +117,11 @@ export default function ReaderContent({
 
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [uiHidden, setUiHidden] = useState(false);
+
+  const processedContent = useMemo(
+    () => injectLegacyFootnoteClasses(content),
+    [content],
+  );
 
   // ---- 1. Загрузка настроек ----
   useEffect(() => {
@@ -1010,7 +1043,7 @@ export default function ReaderContent({
             ref={contentRef}
             className="novel-content reader-pages-content"
             style={bodyStyle}
-            dangerouslySetInnerHTML={{ __html: content }}
+            dangerouslySetInnerHTML={{ __html: processedContent }}
           />
           {Array.from({ length: Math.max(0, totalPages - 1) }).map((_, i) => (
             <div
@@ -1041,7 +1074,7 @@ export default function ReaderContent({
             className="novel-content"
             style={bodyStyle}
             onClick={onContentClick}
-            dangerouslySetInnerHTML={{ __html: content }}
+            dangerouslySetInnerHTML={{ __html: processedContent }}
           />
         </div>
       )}
