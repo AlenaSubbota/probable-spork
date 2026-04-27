@@ -136,26 +136,91 @@ function inlineFootnotesBack(html: string): string {
   return cleaned;
 }
 
+// Нормализация Word-овского / Google-Docs-овского HTML, прежде чем сводить
+// к нашему набору тегов. Word и mammoth выдают курсив через
+// <span style="font-style:italic">, центрирование — через <p align="center">,
+// <p class="center"> (mammoth) или <center>. Обычный htmlToBb эти варианты
+// не знает и роняет в plain text. Здесь мы приводим всё к каноничному виду:
+// <em>, <strong>, <p style="text-align:center">.
+function normalizeRichHtml(html: string): string {
+  let s = html;
+
+  // Word/Outlook условные комментарии и xml-теги, которые обычно мешают
+  s = s.replace(/<!--[\s\S]*?-->/g, '');
+  s = s.replace(/<\/?o:p\b[^>]*>/gi, '');
+  s = s.replace(/<\/?xml\b[\s\S]*?>/gi, '');
+  s = s.replace(/<\/?w:[a-z]+\b[^>]*>/gi, '');
+  s = s.replace(/<\/?st1:[a-z]+\b[^>]*>/gi, '');
+
+  // <b>/<i>-стили внутри <span>: разворачиваем в <strong>/<em>.
+  s = s.replace(
+    /<span\b[^>]*\bstyle="[^"]*\bfont-style\s*:\s*italic[^"]*"[^>]*>([\s\S]*?)<\/span>/gi,
+    '<em>$1</em>',
+  );
+  s = s.replace(
+    /<span\b[^>]*\bstyle="[^"]*\bfont-weight\s*:\s*(?:bold|[6-9]00)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi,
+    '<strong>$1</strong>',
+  );
+
+  // <center>x</center> → <p style="text-align:center">x</p>
+  s = s.replace(
+    /<center\b[^>]*>([\s\S]*?)<\/center>/gi,
+    '<p style="text-align:center">$1</p>',
+  );
+
+  // <p align="center">x</p> → <p style="text-align:center">x</p>
+  s = s.replace(
+    /<p\b([^>]*?)\salign\s*=\s*["']?center["']?([^>]*)>/gi,
+    '<p$1$2 style="text-align:center">',
+  );
+
+  // <p class="center"> (от mammoth) или class содержит токен 'center' —
+  // считаем за центрирование. Не путаем с 'centered' / 'centerline' — \b.
+  s = s.replace(
+    /<p\b([^>]*?)\bclass\s*=\s*"([^"]*\bcenter\b[^"]*)"([^>]*)>/gi,
+    (_m, pre, _cls, post) => `<p${pre}${post} style="text-align:center">`,
+  );
+
+  // <div> ведёт себя как <p> — упростим до <p>, чтобы существующий стрип сработал.
+  s = s.replace(/<div\b[^>]*>/gi, '<p>').replace(/<\/div>/gi, '</p>');
+
+  // Снимаем оставшиеся <span> — содержимое сохраняем.
+  s = s.replace(/<\/?span\b[^>]*>/gi, '');
+
+  // Убираем пустые абзацы (Word любит их вставлять)
+  s = s.replace(/<p\b[^>]*>\s*(?:&nbsp;| |\s)*<\/p>/gi, '\n\n');
+
+  return s;
+}
+
 export function htmlToBb(html: string): string {
   if (!html) return '';
+  // 0. Нормализуем «грязный» Word/Google-Docs HTML до канона.
+  const stage0 = normalizeRichHtml(html);
   // Сначала разворачиваем сноски — они структурные, должны идти до общего стрипа <p>.
-  const stage1 = inlineFootnotesBack(html);
+  const stage1 = inlineFootnotesBack(stage0);
   return stage1
-    .replace(/<strong>([\s\S]*?)<\/strong>/gi, '[b]$1[/b]')
-    .replace(/<b>([\s\S]*?)<\/b>/gi, '[b]$1[/b]')
-    .replace(/<em>([\s\S]*?)<\/em>/gi, '[i]$1[/i]')
-    .replace(/<i>([\s\S]*?)<\/i>/gi, '[i]$1[/i]')
-    .replace(/<u>([\s\S]*?)<\/u>/gi, '[u]$1[/u]')
-    .replace(/<s>([\s\S]*?)<\/s>/gi, '[s]$1[/s]')
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '[b]$1[/b]')
+    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '[b]$1[/b]')
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '[i]$1[/i]')
+    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '[i]$1[/i]')
+    .replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, '[u]$1[/u]')
+    .replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, '[s]$1[/s]')
+    .replace(/<strike[^>]*>([\s\S]*?)<\/strike>/gi, '[s]$1[/s]')
     .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '[quote]$1[/quote]')
-    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '[h]$1[/h]')
+    .replace(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi, '[h]$1[/h]')
     .replace(/<details[^>]*>[\s\S]*?<\/summary>([\s\S]*?)<\/details>/gi, '[spoiler]$1[/spoiler]')
-    .replace(/<p[^>]*style=[^>]*text-align:\s*center[^>]*>([\s\S]*?)<\/p>/gi, '[center]$1[/center]')
+    .replace(
+      /<p[^>]*style=[^>]*text-align:\s*center[^>]*>([\s\S]*?)<\/p>/gi,
+      '[center]$1[/center]',
+    )
     .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
+    .replace(/ /g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
