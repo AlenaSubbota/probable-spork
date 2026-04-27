@@ -791,18 +791,22 @@ export default function ReaderContent({
   // iOS поднимает клавиатуру → ужимается visual viewport → ResizeObserver
   // на scroller'е стрелял (см. эффект calc), пересчитывал totalPages, DOM
   // обновлялся, и scroll-snap утаскивал пользователя на последнюю текстовую
-  // страницу. Лечим тремя слоями:
-  //   - inputFocusedRef = true → calc/RO выше его проверяют и игнорят ресайзы
-  //   - scroll-snap-type = none → snap не цепляется при любых случайных
-  //     изменениях scrollLeft со стороны iOS
-  //   - watcher на scroll: пока флаг активен, любое изменение scrollLeft
-  //     откатываем к savedLeft (страховка на случай, если iOS всё же дёрнет)
+  // страницу. Дополнительно iOS не понимает «выше клавиатуры» (visualViewport
+  // ≠ layout viewport), и сам не скроллит input в видимую часть → input
+  // остаётся за клавиатурой, юзер видит только её (тёмная полоска снизу).
+  // Лечим четырьмя слоями:
+  //   - inputFocusedRef = true → calc/RO игнорят ресайзы
+  //   - scroll-snap-type = none → snap не цепляется
+  //   - watcher на scroll scroller'а: возвращаем savedLeft если iOS дёрнет
+  //   - visualViewport.onresize → ручной scrollIntoView для input'а внутри
+  //     reader-pages-end, чтобы он точно был выше верха клавиатуры
   useEffect(() => {
     if (!ready || settings.readMode !== 'pages') return;
     const scroller = scrollerRef.current;
     if (!scroller) return;
 
     let savedLeft = 0;
+    let activeInput: HTMLElement | null = null;
 
     const isEditable = (el: EventTarget | null): boolean => {
       if (!(el instanceof HTMLElement)) return false;
@@ -819,27 +823,62 @@ export default function ReaderContent({
       requestAnimationFrame(() => { restoring = false; });
     };
 
+    // Скроллит активный input в видимую часть НАД клавиатурой. Виртуальная
+    // клавиатура iOS не учитывается в layout-viewport, поэтому
+    // element.scrollIntoView() сам ничего не сделает — нужен явный расчёт
+    // через visualViewport.height.
+    const ensureInputVisible = () => {
+      const input = activeInput;
+      if (!input) return;
+      const pagesEnd = input.closest<HTMLElement>('.reader-pages-end');
+      if (!pagesEnd) return;
+      const vv = window.visualViewport;
+      // visualViewport.height — высота над клавиатурой; если API нет, fallback на innerHeight.
+      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const inputRect = input.getBoundingClientRect();
+      const headroom = 24; // запас сверху над клавиатурой
+      // Сколько input выходит за нижнюю границу видимой области:
+      const overflowBottom = inputRect.bottom + headroom - visibleBottom;
+      if (overflowBottom > 0) {
+        pagesEnd.scrollTop += overflowBottom;
+      }
+    };
+
+    const onVvResize = () => {
+      // visualViewport триггерится при появлении/исчезновении клавиатуры
+      // и поворотах. Вызываем дважды (сразу + через rAF) — на iOS первый
+      // вызов часто пропускает свежую высоту до layout-pass.
+      ensureInputVisible();
+      requestAnimationFrame(ensureInputVisible);
+    };
+
     const onFocusIn = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
+      activeInput = e.target as HTMLElement;
       savedLeft = scroller.scrollLeft;
       inputFocusedRef.current = true;
       scroller.style.scrollSnapType = 'none';
       scroller.addEventListener('scroll', onScroll, { passive: true });
+      window.visualViewport?.addEventListener('resize', onVvResize);
+      // На случай если клавиатура уже открыта (фокус перешёл с другого инпута):
+      // делаем первый scrollIntoView сразу, и ещё один после анимации клавиатуры.
+      ensureInputVisible();
+      window.setTimeout(ensureInputVisible, 320);
     };
     const onFocusOut = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
-      // Если фокус перешёл на ДРУГОЙ редактор (например, юзер перешёл из
-      // textarea в textarea-цитаты) — оставляем флаг включённым.
+      // Если фокус перешёл на ДРУГОЙ редактор (textarea → input) —
+      // флаг оставляем, savedLeft и activeInput обновятся в onFocusIn.
       const next = e.relatedTarget as HTMLElement | null;
       if (next && isEditable(next)) {
         savedLeft = scroller.scrollLeft;
         return;
       }
+      activeInput = null;
       inputFocusedRef.current = false;
       scroller.removeEventListener('scroll', onScroll);
+      window.visualViewport?.removeEventListener('resize', onVvResize);
       scroller.style.scrollSnapType = '';
-      // Закидываем пользователя обратно на ту страницу, где он был
-      // ДО появления клавиатуры (правый край = обсуждение).
       if (Math.abs(scroller.scrollLeft - savedLeft) > 4) {
         requestAnimationFrame(() => {
           scroller.scrollTo({ left: savedLeft, behavior: 'instant' as ScrollBehavior });
@@ -853,6 +892,7 @@ export default function ReaderContent({
       scroller.removeEventListener('focusin', onFocusIn);
       scroller.removeEventListener('focusout', onFocusOut);
       scroller.removeEventListener('scroll', onScroll);
+      window.visualViewport?.removeEventListener('resize', onVvResize);
       scroller.style.scrollSnapType = '';
       inputFocusedRef.current = false;
     };

@@ -13009,16 +13009,6 @@ html[data-theme='dark'] .reader-bottom-bar {
   opacity: 0;
   pointer-events: none;
 }
-/* Pages-режим: пока внутри страницы обсуждения сфокусирован любой
-   input/textarea, прячем нижнюю sticky-панель. Иначе iOS позиционирует её
-   относительно visual viewport (поверх клавиатуры), и в тёмной теме её
-   полупрозрачная backdrop-blur surface выглядит как «чёрная полоска»,
-   закрывающая текстарею. На blur — возвращаем (через transition). */
-.reader-wrapper[data-read-mode='pages']:has(.reader-pages-end :focus) .reader-bottom-bar {
-  transform: translateY(110%);
-  opacity: 0;
-  pointer-events: none;
-}
 .reader-bottom-bar-inner {
   max-width: 1240px;
   margin: 0 auto;
