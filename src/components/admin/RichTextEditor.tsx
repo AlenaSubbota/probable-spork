@@ -12,6 +12,9 @@ interface Props {
   onChange: (html: string) => void;
   placeholder?: string;
   minHeight?: number;
+  // Если контент перерастает maxHeight — внутренний скролл, не растим
+  // окно бесконечно. По умолчанию 600px.
+  maxHeight?: number;
   hint?: string;
 }
 
@@ -70,7 +73,8 @@ export default function RichTextEditor({
   value,
   onChange,
   placeholder,
-  minHeight = 480,
+  minHeight = 320,
+  maxHeight = 600,
   hint,
 }: Props) {
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -390,6 +394,7 @@ export default function RichTextEditor({
         data-placeholder={placeholder ?? 'Пиши обычным текстом. Жирный/курсив/центр — кнопки выше или Ctrl+B/I/U.'}
         style={{
           minHeight,
+          maxHeight,
           padding: '14px 18px',
           border: '1px solid var(--border, #ccc)',
           borderRadius: 8,
