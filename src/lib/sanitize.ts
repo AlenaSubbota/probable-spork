@@ -42,6 +42,21 @@ const RENAME_TAG: Record<string, string> = {
   H6: 'H3',
 };
 
+// Inline-теги, которые НЕ должны оборачивать блочные элементы (<p>, <h3>,
+// <blockquote>). Google Docs, например, при copy-paste оборачивает весь
+// фрагмент в <b id="docs-internal-guid-...">, превращая весь текст в
+// жирный + ломая block-структуру (наш splitter ходит по top-level
+// children и не находит абзацы внутри <strong>).
+const INLINE_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE', 'SPAN', 'FONT']);
+const BLOCK_TAGS = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'UL', 'OL', 'TABLE', 'PRE']);
+
+function hasBlockChildren(el: Element): boolean {
+  for (const child of Array.from(el.children)) {
+    if (BLOCK_TAGS.has(child.tagName)) return true;
+  }
+  return false;
+}
+
 // Какие атрибуты разрешены на каком теге. Всё остальное — снимаем.
 const ALLOWED_ATTRS: Record<string, string[]> = {
   P: ['style', 'class', 'id'],
@@ -66,7 +81,7 @@ export function cleanHtml(input: string): string {
 
   // Пре-стрип Word/Office-мусора, который ломает DOMParser или
   // тащит лишние сотни КБ.
-  let pre = input
+  const pre = input
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<\/?(?:o|w|m|st1|xml|v):[a-z][^>]*>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -80,7 +95,7 @@ export function cleanHtml(input: string): string {
   // Финальная нормализация: убрать пустые абзацы и лишние <br>.
   let out = doc.body.innerHTML;
   out = out
-    .replace(/<p[^>]*>\s*(?:&nbsp;| |\s)*<\/p>/gi, '')
+    .replace(/<p[^>]*>\s*(?:&nbsp;| |\s)*<\/p>/gi, '')
     .replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>')
     .replace(/\s{2,}/g, ' ')
     .trim();
@@ -98,6 +113,16 @@ function cleanNode(node: Node, doc: Document): void {
     if (child.nodeType !== Node.ELEMENT_NODE) continue;
 
     let el = child as HTMLElement;
+
+    // Inline-тег, оборачивающий блочные элементы (Google Docs
+    // <b id="docs-internal-guid"> вокруг всего фрагмента) — раздеваем
+    // ПЕРЕД любой обработкой стилей. Иначе весь скопированный текст
+    // станет одним <strong>, и splitter не найдёт абзацы.
+    if (INLINE_TAGS.has(el.tagName) && hasBlockChildren(el)) {
+      cleanNode(el, doc);
+      unwrap(el);
+      continue;
+    }
 
     // <span style="font-style:italic"> → <em>
     // <span style="font-weight:bold"> → <strong>
@@ -151,12 +176,16 @@ function cleanNode(node: Node, doc: Document): void {
       }
     }
 
-    // <p class="center"> или class содержит токен 'center' — считаем за центрирование
+    // <p class="center"> или class содержит токен 'center' — считаем за центрирование.
+    // Также обработаем <p style="text-align:center"> со ВСЕМИ другими стилями
+    // (Google Docs выдаёт `style="text-align:center;line-height:1.38;..."`),
+    // на этом этапе сохраним только text-align:center до того как sanitizeAttrs
+    // снесёт style целиком.
     if (el.tagName === 'P') {
       const cls = el.getAttribute('class') ?? '';
       if (/\bcenter\b/i.test(cls) && !/\bfn-inline\b/.test(cls)) {
         const prev = el.getAttribute('style') ?? '';
-        if (!/text-align/i.test(prev)) {
+        if (!/text-align\s*:\s*center/i.test(prev)) {
           el.setAttribute(
             'style',
             prev ? `${prev};text-align:center` : 'text-align:center',
