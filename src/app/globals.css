@@ -10945,13 +10945,77 @@ html[data-theme='dark'] .star-week-portrait {
 /* Outer snap-scroller для pages-режима. Flex-items (страница-контент +
    spacer'ы) имеют scroll-snap-align: start — реальный CSS-снап, никаких
    JS-доводок, листание страниц как у настоящей книги. */
+/* ============================================================
+   PAGES-режим: tene-style fixed-overlay архитектура.
+   ----------------------------------------------------------------
+   Раньше .reader-page был обычным block min-height: 100vh, scroller
+   имел calc-высоту, а ReaderBottomBar — position: fixed. На iOS это
+   создавало две проблемы:
+   1) fixed-элементы привязаны к visual viewport → bottom-bar
+      «прилипал» к верху клавиатуры (видимая «полоса»).
+   2) body мог скроллиться вертикально, и iOS auto-scrollIntoView
+      тащил его, открывая SimilarByReaders снизу.
+
+   Решение по образцу tene (<div className="fixed inset-0 ...">):
+   - body.reader-pages-mode .reader-page → fixed-overlay на весь viewport,
+     overflow: hidden (body сам не скроллится, что лежит ниже — клипится).
+   - flex-цепочка: reader-header (shrink) → reader-main (flex 1) →
+     reader-wrapper (flex 1) → scroller (flex 1) + bottom-bar (absolute).
+   - bottom-bar теперь absolute, привязан к LAYOUT bottom reader-page'а
+     (= низ layout viewport на iOS) — при клавиатуре остаётся ПОД ней,
+     не плавает над, никаких полос.
+
+   Класс ставится через JS (useEffect), а не CSS :has() — для
+   совместимости с in-app WebView, где :has() нестабилен.
+   ============================================================ */
+body.reader-pages-mode .reader-page {
+  position: fixed;
+  inset: 0;
+  height: 100svh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body.reader-pages-mode .reader-page .reader-header {
+  flex-shrink: 0;
+  /* без site-header reader-header под notch'ем — компенсируем */
+  padding-top: env(safe-area-inset-top, 0);
+}
+body.reader-pages-mode .reader-page main.reader-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* в pages-режиме bottom-bar лежит INSIDE wrapper'а absolute'ом —
+     резервировать padding не нужно, оно создаёт лишнюю «дыру» снизу */
+  padding-bottom: 0;
+}
+body.reader-pages-mode .reader-wrapper[data-read-mode='pages'] {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+body.reader-pages-mode .reader-wrapper[data-read-mode='pages'] .reader-bottom-bar {
+  position: absolute;
+}
+
+/* В pages-режиме прячем глобальную site-header — reader-header сверху
+   и bottom-bar снизу дают всю навигацию. */
+body.reader-pages-mode > .site-header {
+  display: none;
+}
+
 .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
   display: flex;
   align-items: stretch;
-  /* svh — стабильная высота на iOS даже при сворачивании адресной строки.
-     Бюджет вычитаем явно: reader-header (52/44px) + bottom-bar (~80/70px)
-     + safe-area-top (env, под notch) + safe-area-bottom (env, под home indicator). */
-  height: calc(100svh - 52px - 80px - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
+  /* В pages-режиме flex 1 заполняет всё доступное место от header'а до
+     низа wrapper'а (где absolute bottom-bar). Никаких calc(100svh - X). */
+  flex: 1;
+  min-height: 0;
+  height: auto;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -10963,55 +11027,6 @@ html[data-theme='dark'] .star-week-portrait {
 .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller::-webkit-scrollbar {
   display: none;
 }
-@media (max-width: 760px) {
-  .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
-    height: calc(100svh - 44px - 70px - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
-  }
-}
-
-/* В pages-режиме прячем глобальную site-header — reader-header сверху и
-   sticky-bottom-bar снизу дают всё нужное. Класс reader-pages-mode ставит
-   ReaderContent через JS (см. useEffect), потому что :has() нестабильно
-   работает в Telegram-WebView и старых WebKit'ах. */
-body.reader-pages-mode > .site-header {
-  display: none;
-}
-/* Без site-header reader-header переезжает под notch — компенсируем
-   safe-area-inset-top. */
-body.reader-pages-mode .reader-page .reader-header {
-  padding-top: env(safe-area-inset-top, 0);
-}
-/* Когда поднимается клавиатура (visualViewport ужался > 100px): прячем
-   ReaderBottomBar. Иначе на iOS position: fixed «прилипает» к верху
-   клавиатуры полупрозрачной полосой. Visibility: hidden оставляет место
-   в layout (никаких reflow → totalPages не пересчитывается → snap не
-   срывает пользователя на текстовую страницу). */
-body.reader-keyboard-up .reader-bottom-bar {
-  visibility: hidden;
-  pointer-events: none;
-}
-/* Когда клавиатура поднята в pages-режиме, лочим body от вертикального
-   скролла (иначе iOS auto-scrollIntoView для input'а тащит body вверх,
-   и пользователь видит SimilarByReaders, который лежит ниже reader-main).
-   Плюс растягиваем scroller на всю высоту от header'а до низа layout
-   viewport — больше нет «дыры» между низом scroller'а и (невидимой)
-   bottom-bar'ой. iOS-клавиатура просто наезжает на нижнюю часть
-   scroller'а сверху (фон reader-pages-end = --surface, всё одного цвета). */
-body.reader-keyboard-up.reader-pages-mode {
-  overflow: hidden;
-}
-body.reader-keyboard-up.reader-pages-mode .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
-  height: calc(100svh - 52px - env(safe-area-inset-top, 0));
-}
-@media (max-width: 760px) {
-  body.reader-keyboard-up.reader-pages-mode .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
-    height: calc(100svh - 44px - env(safe-area-inset-top, 0));
-  }
-}
-
-/* (правила скрытия site-header и компенсации notch'а перенесены выше
-   как body.reader-pages-mode — без :has() для совместимости с in-app
-   WebView, где :has() ещё нестабилен) */
 
 /* Content-страница: ОДНА на главу, но визуально содержит все страницы
    через multi-column. Width = pageWidth ставит JS, а multi-column
@@ -11026,8 +11041,16 @@ body.reader-keyboard-up.reader-pages-mode .reader-wrapper[data-read-mode='pages'
   height: 100%;
   column-gap: 0;
   column-fill: auto;
-  padding: 2px 0 6px;       /* минимальный вертикальный запас, чтобы текст не «прилипал» к краям scroller'а */
+  /* Снизу запас под absolute bottom-bar (она лежит поверх последних ~80px
+     scroller'а). Multi-column перекомпонует текст так, чтобы строки не
+     уходили под панель. Сверху минимум — текст не прилипает к header'у. */
+  padding: 4px 0 calc(80px + env(safe-area-inset-bottom, 0));
   overflow: visible;        /* колонки рисуются вправо за пределы width */
+}
+@media (max-width: 760px) {
+  .reader-wrapper[data-read-mode='pages'] .reader-pages-content {
+    padding: 4px 0 calc(70px + env(safe-area-inset-bottom, 0));
+  }
 }
 /* Spacer — невидимый flex-item той же ширины, что и content-страница.
    Его задача: дать scroll-snap ещё одну точку фиксации на каждый pageWidth.
