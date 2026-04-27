@@ -63,3 +63,28 @@
 body.reader-pages-mode > .site-footer {
   display: none;
 }
+
+/* (4) «Созвучие читателей» — переехал в commentsSlot, и теперь
+   сетка живёт внутри .reader-main (max-width: 760px) или
+   .reader-pages-end (width: pageWidth, обычно ~700px). Дефолт
+   .novel-grid использует grid-template-columns: repeat(6, 1fr)
+   на viewport > 1100px (см. globals.css). Карточки имеют
+   intrinsic min-width (картинка обложки + текст), и `1fr` без
+   minmax(0, ...) деградирует до min-content → сетка
+   распирает родителя и «выезжает за основной блок главы».
+   Раньше блок жил в .container (1240px), где 6 колонок были к
+   месту; теперь контейнер уже, нужно меньше колонок и явный
+   minmax(0, 1fr) чтобы сетка не игнорировала ширину родителя.
+   3 колонки на 700px = ~210px на карточку — нормально читается. */
+.reader-main .novel-grid,
+.reader-pages-end .novel-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+/* На совсем узких экранах (ridiculous case: pages-mode на iPhone
+   SE) сжимаем до 2 колонок, чтобы карточки не схлопнулись в кашу. */
+@media (max-width: 380px) {
+  .reader-main .novel-grid,
+  .reader-pages-end .novel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
