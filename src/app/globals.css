@@ -13217,6 +13217,13 @@ html[data-theme='dark'] .rbb-btn-edge .rbb-btn-sub {
 @media (max-width: 540px) {
   .reader-page main.reader-main { padding-bottom: 132px; }
 }
+/* В pages-режиме scroller сам уже учитывает bottom-bar в своём calc()-
+   height (100svh - header - bottom-bar - safe-areas), и резерв на main'е
+   избыточен — рисует только видимый «коричневый» --bg фон ниже scroller'а
+   (это та самая «полоса» из жалобы). Обнуляем для pages. */
+body.reader-pages-mode .reader-page main.reader-main {
+  padding-bottom: 0;
+}
 
 /* Иммерсив (центр-тап в pages-режиме): is-hidden ставится из ReaderContent
    через prop visible={!uiHidden}, поэтому отдельных CSS-завязок на
