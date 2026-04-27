@@ -1337,7 +1337,19 @@ export default function ReaderContent({
         onOpenSettings={() => setSettingsOpen(true)}
         onJumpToComments={scrollToComments}
         commentCount={commentCount}
-        visible={!uiHidden}
+        // На последней странице (обсуждение) bottom-bar не нужна:
+        // там свои кнопки next-chapter / комменты / textarea, а
+        // фиксированная панель снизу только мешает (на iOS лезет
+        // над клавиатурой полупрозрачной полосой). Прячем её ровно
+        // на этой странице — на текстовых остаётся как было.
+        visible={
+          !uiHidden &&
+          !(
+            settings.readMode === 'pages' &&
+            commentsSlot != null &&
+            currentPage >= totalPages - 1
+          )
+        }
       />
 
       <ReaderSettingsPanel
