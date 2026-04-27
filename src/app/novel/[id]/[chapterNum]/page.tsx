@@ -3,6 +3,12 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ReaderContent from '@/components/ReaderContent';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
+import CommentsSection from '@/components/CommentsSection';
+import ChapterThanks from '@/components/reader/ChapterThanks';
+import DiaryQuickEntry from '@/components/diary/DiaryQuickEntry';
+import ThanksMessageForm from '@/components/thanks/ThanksMessageForm';
+import SimilarByReaders from '@/components/SimilarByReaders';
+import { fetchTranslators } from '@/lib/translator';
 
 interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
@@ -356,6 +362,48 @@ export default async function ChapterPage({ params }: PageProps) {
   const prevChapter = prevRow;
   const nextChapter = nextRow;
 
+  // Данные для пост-главного блока (живёт внутри commentsSlot ReaderContent
+  // как финальная snap-страница). Раньше это был отдельный роут /discussion;
+  // вернули inline, чтобы читатель не уходил из читалки. Прогресс на этой
+  // странице уже скрывается в ReaderContent (visible-условие учитывает
+  // commentsSlot != null && currentPage === last).
+  let translatorDisplayName: string | null = null;
+  let translatorSlugMain: string | null = null;
+  if (novel.translator_id) {
+    const { data: tProfile } = await supabase
+      .from('profiles')
+      .select('translator_display_name, user_name, translator_slug')
+      .eq('id', novel.translator_id)
+      .maybeSingle();
+    const tp = tProfile as {
+      translator_display_name?: string | null;
+      user_name?: string | null;
+      translator_slug?: string | null;
+    } | null;
+    translatorDisplayName =
+      tp?.translator_display_name || tp?.user_name || null;
+    translatorSlugMain = tp?.translator_slug || tp?.user_name || null;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let similarByReaders: any[] = [];
+  let similarTranslatorMap: Map<string, { slug: string; name: string }> = new Map();
+  try {
+    const { data: similar } = await supabase.rpc('get_similar_novels_by_readers', {
+      p_novel_id: novel.id,
+      p_limit: 6,
+    });
+    if (Array.isArray(similar) && similar.length > 0) {
+      similarByReaders = similar;
+      const ids = (similar as Array<{ translator_id?: string | null }>)
+        .map((n) => n.translator_id)
+        .filter((v): v is string => !!v);
+      similarTranslatorMap = await fetchTranslators(supabase, ids);
+    }
+  } catch {
+    // RPC ещё не накачена — тихо пропускаем
+  }
+
   return (
     <div className="reader-page">
       <header className="reader-header">
@@ -401,14 +449,12 @@ export default async function ChapterPage({ params }: PageProps) {
           prevChapterNumber={prevChapter?.chapter_number ?? null}
           nextChapterNumber={nextChapter?.chapter_number ?? null}
           commentsSlot={
-            // Минимальный commentsSlot: только nav к следующей главе и
-            // кнопка перехода в самостоятельную страницу обсуждения
-            // (/discussion). Тяжёлые компоненты (CommentsSection,
-            // ChapterThanks, DiaryQuickEntry, ThanksMessageForm,
-            // SimilarByReaders) переехали в отдельный роут — ушло
-            // «page in page», коричневые полосы над клавиатурой,
-            // overflow-конфликты, кривая сетка рекомендаций. Читалка
-            // снова занимается только текстом.
+            // Финальная страница «обсуждение»: nav к следующей главе,
+            // благодарности (heart + сообщение на стену переводчика),
+            // быстрая запись в дневник, комменты и «созвучие читателей».
+            // ReaderContent рендерит этот узел как последнюю snap-страницу
+            // (pages mode) или вертикально под текстом (scroll mode),
+            // прогресс на ней не показывается.
             <>
               <nav className="reader-nav">
                 {nextChapter ? (
@@ -430,22 +476,46 @@ export default async function ChapterPage({ params }: PageProps) {
                 )}
               </nav>
 
-              <div style={{ marginTop: 14 }}>
-                <Link
-                  href={`/novel/${id}/${chapter.chapter_number}/discussion`}
-                  className="btn btn-ghost"
-                  style={{
-                    width: '100%',
-                    textAlign: 'center',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}
-                >
-                  💬 Обсудить главу
-                </Link>
-              </div>
+              <CommentsSection
+                novelId={novel.id}
+                chapterNumber={chapter.chapter_number}
+                topSlot={
+                  <>
+                    <ChapterThanks
+                      novelId={novel.id}
+                      chapterNumber={chapter.chapter_number}
+                      hasTranslator={!!novel.translator_id}
+                      translatorDisplayName={translatorDisplayName}
+                      isLoggedIn={!!user}
+                    />
+                    <DiaryQuickEntry
+                      novelId={novel.id}
+                      chapterNumber={chapter.chapter_number}
+                      isLoggedIn={!!user}
+                    />
+                    {novel.translator_id && (
+                      <ThanksMessageForm
+                        translatorId={novel.translator_id}
+                        translatorDisplayName={translatorDisplayName}
+                        novelId={novel.id}
+                        chapterNumber={chapter.chapter_number}
+                        isLoggedIn={!!user}
+                        currentUserId={user?.id ?? null}
+                        translatorSlug={translatorSlugMain}
+                      />
+                    )}
+                  </>
+                }
+              />
+
+              {similarByReaders.length > 0 && (
+                <div style={{ marginTop: 40 }}>
+                  <SimilarByReaders
+                    novels={similarByReaders}
+                    translators={similarTranslatorMap}
+                  />
+                </div>
+              )}
             </>
           }
         />
