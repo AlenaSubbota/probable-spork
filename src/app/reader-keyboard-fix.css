@@ -1,41 +1,50 @@
 /* =========================================================
-   Фиксы поведения читалки при поднятой клавиатуре на iOS.
-   body.reader-keyboard-up ставит ReaderContent.tsx через
-   visualViewport-детект (vv.height < window.innerHeight - 100).
+   Фиксы поведения читалки при поднятой клавиатуре на мобильных.
+   body.reader-keyboard-up ставится двумя путями:
+   - ReaderContent.tsx через visualViewport.resize (работает в
+     обычном Safari);
+   - ReaderKeyboardDetector.tsx через focusin/focusout (работает
+     везде, включая Telegram WebApp, где visualViewport
+     недостаточно надёжный).
+
+   Оборачиваем правила в @media (pointer: coarse), чтобы на
+   десктопе фокус на input не вызывал прятание тулбара/padding'а.
+   На тач-девайсах любой фокус = поднимающаяся клавиатура.
    ========================================================= */
+@media (pointer: coarse) {
+  /* (1) ОСНОВНАЯ «коричневая полоса» — это padding-bottom у
+     .reader-pages-end (24px 22px 80px на десктопе, 18px 14px 70px
+     на мобиле). Этот резерв нужен был чтобы контент не уезжал под
+     fixed bottom-bar. Но в pages-режиме на странице обсуждения
+     bottom-bar и так прячется (см. ReaderBottomBar visible-prop в
+     ReaderContent), а padding продолжает рисоваться background'ом
+     var(--surface) (#29241E в тёмной теме — тёплый коричневый,
+     #FBF7F0 в светлой). Когда iOS поднимает клавиатуру, ниже
+     textarea остаётся именно эта 70-80px полоса коричневого фона —
+     её и видит пользователь. Урезаем до 12px пока клавиатура
+     поднята: textarea вплотную к keyboard top, полосы нет.
+     PR #66 уже делал это, но PR #67 откатил CSS вместе с фиксом. */
+  body.reader-keyboard-up
+    .reader-wrapper[data-read-mode='pages']
+    .reader-pages-end {
+    padding-bottom: 12px;
+  }
 
-/* (1) ОСНОВНАЯ «коричневая полоса» — это padding-bottom у
-   .reader-pages-end (24px 22px 80px на десктопе, 18px 14px 70px
-   на мобиле). Этот резерв нужен был чтобы контент не уезжал под
-   fixed bottom-bar. Но в pages-режиме на странице обсуждения
-   bottom-bar и так прячется (см. ReaderBottomBar visible-prop в
-   ReaderContent), а padding продолжает рисоваться background'ом
-   var(--surface) (#29241E в тёмной теме — тёплый коричневый,
-   #FBF7F0 в светлой). Когда iOS поднимает клавиатуру, ниже
-   textarea остаётся именно эта 70-80px полоса коричневого фона —
-   её и видит пользователь. Урезаем до 12px пока клавиатура
-   поднята: textarea вплотную к keyboard top, полосы нет.
-   PR #66 уже делал это, но PR #67 откатил CSS вместе с фиксом. */
-body.reader-keyboard-up
-  .reader-wrapper[data-read-mode='pages']
-  .reader-pages-end {
-  padding-bottom: 12px;
-}
-
-/* (2) ВТОРОЙ источник тёплого фона — .comment-toolbar (BB-кнопки
-   B/I/U/S/спойлер/цитата) над textarea. Её фон — var(--bg-soft),
-   в тёмной теме #211D18 (тоже коричневый). На iOS при подъёме
-   клавиатуры фокусированная textarea подымается, и узкие кнопки
-   тулбара читаются как «брусок неизвестно откуда». В рабочем
-   tene никакого тулбара над инпутом нет — простой textarea +
-   кнопка отправки. Воспроизводим: пока клавиатура поднята —
-   прячем тулбар целиком и возвращаем textarea округлый верх.
-   На десктопе visualViewport не ужимается → класс не ставится
-   → тулбар работает как раньше, со всеми BB-кнопками и Ctrl+B/I. */
-body.reader-keyboard-up .comment-toolbar {
-  display: none;
-}
-body.reader-keyboard-up .comment-toolbar-wrap .form-textarea {
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
+  /* (2) ВТОРОЙ источник тёплого фона — .comment-toolbar (BB-кнопки
+     B/I/U/S/спойлер/цитата) над textarea. Её фон — var(--bg-soft),
+     в тёмной теме #211D18 (тоже коричневый). На iOS при подъёме
+     клавиатуры фокусированная textarea подымается, и узкие кнопки
+     тулбара читаются как «брусок неизвестно откуда». В рабочем
+     tene никакого тулбара над инпутом нет — простой textarea +
+     кнопка отправки. Воспроизводим: пока клавиатура поднята —
+     прячем тулбар целиком и возвращаем textarea округлый верх.
+     На десктопе @media (pointer: coarse) не матчится → правило
+     не применяется → тулбар работает как раньше. */
+  body.reader-keyboard-up .comment-toolbar {
+    display: none;
+  }
+  body.reader-keyboard-up .comment-toolbar-wrap .form-textarea {
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
 }
