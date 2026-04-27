@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import ChapterStats from './ChapterStats';
 import DraftBanner from './DraftBanner';
-import BBCodeEditor from './BBCodeEditor';
-import { bbToHtml, htmlToBb } from '@/lib/bbcode';
+import RichTextEditor from './RichTextEditor';
+import { cleanHtml, materializeFootnotes } from '@/lib/sanitize';
+import { bbToHtml } from '@/lib/bbcode';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface GlossaryItem {
@@ -41,6 +42,17 @@ interface Props {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+// Если в драфте лежит legacy BB-код (старая версия редактора),
+// конвертируем в HTML на load. Эвристика: содержит [/ или [b] / [i] /
+// [center] и не выглядит как HTML.
+function normalizeStoredContent(raw: string): string {
+  if (!raw) return '';
+  const looksLikeBb = /\[\/?(?:b|i|u|s|h|center|quote|spoiler|fn)\b/i.test(raw);
+  const looksLikeHtml = /<\w+[^>]*>/.test(raw);
+  if (looksLikeBb && !looksLikeHtml) return bbToHtml(raw);
+  return raw;
+}
+
 export default function ChapterForm({
   novelId,
   novelFirebaseId,
@@ -55,12 +67,11 @@ export default function ChapterForm({
   const [chapterNumber, setChapterNumber] = useState<number>(
     initial?.chapter_number ?? suggestedChapterNumber ?? 1
   );
-  // В форме храним BB-коды. Если пришёл HTML из storage при edit — конвертируем.
-  const [content, setContent] = useState<string>(() => {
-    const raw = initial?.content ?? '';
-    if (!raw) return '';
-    return /<\w+/.test(raw) ? htmlToBb(raw) : raw;
-  });
+  // Контент — HTML. На initial mount либо берём готовый HTML из storage,
+  // либо конвертируем legacy BB через bbToHtml.
+  const [content, setContent] = useState<string>(
+    () => normalizeStoredContent(initial?.content ?? ''),
+  );
   const [isPaid, setIsPaid] = useState<boolean>(initial?.is_paid ?? false);
   const [priceCoins, setPriceCoins] = useState<number>(
     initial?.price_coins ?? 10
@@ -70,7 +81,6 @@ export default function ChapterForm({
   //   'now'       — published_at = now()  (сразу видно читателям)
   //   'scheduled' — published_at = заданное будущее время
   //   'draft'     — published_at = null   (видит только переводчик/админ)
-  // При редактировании определяем стартовое состояние по initial.published_at.
   const initialStatus: 'now' | 'scheduled' | 'draft' = (() => {
     const pa = initial?.published_at;
     if (pa === null || pa === undefined || pa === '') {
@@ -84,7 +94,6 @@ export default function ChapterForm({
     initialStatus
   );
   const [scheduledAt, setScheduledAt] = useState<string>(() => {
-    // datetime-local ждёт формат YYYY-MM-DDTHH:mm (без таймзоны)
     const pa = initial?.published_at;
     if (!pa) return '';
     const d = new Date(pa);
@@ -162,7 +171,7 @@ export default function ChapterForm({
   const restoreDraft = () => {
     if (!draft) return;
     if (draft.chapter_number != null) setChapterNumber(draft.chapter_number);
-    setContent(draft.content ?? '');
+    setContent(normalizeStoredContent(draft.content ?? ''));
     setIsPaid(!!draft.is_paid);
     if (draft.price_coins != null) setPriceCoins(draft.price_coins);
     setDraftUpdatedAt(draft.updated_at);
@@ -187,26 +196,28 @@ export default function ChapterForm({
     setDraftOffered(false);
   };
 
-  // HTML-версия контента для стат, превью и сохранения
-  const contentHtml = useMemo(() => bbToHtml(content), [content]);
+  // Plain-text версия для glossary-подсчёта.
+  const plainText = useMemo(
+    () => content.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' '),
+    [content],
+  );
 
   // ---- Glossary highlight (killer #1) ----
-  // Подсвечиваем совпадения в HTML-превью.
   const sortedGlossary = useMemo(
     () => [...glossary].sort((a, b) => b.term_original.length - a.term_original.length),
     [glossary]
   );
 
   const glossaryHitsCount = useMemo(() => {
-    if (!content) return 0;
+    if (!plainText) return 0;
     let total = 0;
     for (const g of sortedGlossary) {
       const escaped = g.term_original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const matches = content.match(new RegExp(escaped, 'gi'));
+      const matches = plainText.match(new RegExp(escaped, 'gi'));
       if (matches) total += matches.length;
     }
     return total;
-  }, [content, sortedGlossary]);
+  }, [plainText, sortedGlossary]);
 
   // ---- Отправка ----
   const handleSubmit = async (e: React.FormEvent) => {
@@ -216,7 +227,7 @@ export default function ChapterForm({
       setError('Номер главы должен быть ≥ 1.');
       return;
     }
-    if (!content.trim()) {
+    if (!content.replace(/<[^>]+>/g, '').trim()) {
       setError('Текст главы пустой.');
       return;
     }
@@ -230,9 +241,12 @@ export default function ChapterForm({
       return;
     }
 
-    // 1. Сохраняем текст в storage (BB → HTML на лету)
+    // 1. Финализируем HTML: пронумеровываем сноски + чистим структуру.
+    const withFootnotes = materializeFootnotes(content);
+    const finalHtml = cleanHtml(withFootnotes);
+
     const filename = `${novelFirebaseId}/${chapterNumber}.html`;
-    const blob = new Blob([contentHtml], { type: 'text/html; charset=utf-8' });
+    const blob = new Blob([finalHtml], { type: 'text/html; charset=utf-8' });
 
     const { error: uploadErr } = await supabase.storage
       .from('chapter_content')
@@ -250,8 +264,6 @@ export default function ChapterForm({
 
     const nowIso = new Date().toISOString();
 
-    // Вычисляем published_at по выбранному режиму публикации.
-    // Для 'scheduled' валидируем что время в будущем; иначе трактуем как 'now'.
     let publishedAt: string | null;
     if (publishStatus === 'draft') {
       publishedAt = null;
@@ -268,8 +280,6 @@ export default function ChapterForm({
         return;
       }
       if (scheduledMs <= Date.now() + 30_000) {
-        // если выбрали "запланировать" но время в прошлом / ближайшей минуте
-        // — публикуем сразу, это явно не то что хотел переводчик
         publishedAt = nowIso;
       } else {
         publishedAt = new Date(scheduledMs).toISOString();
@@ -295,9 +305,6 @@ export default function ChapterForm({
         setSubmitting(false);
         return;
       }
-      // Обновляем latest_chapter_published_at в novels только если
-      // глава реально ушла в эфир. Черновики и scheduled не поднимают
-      // дату «последней главы» в ленте.
       if (isPublishingNow) {
         await supabase
           .from('novels')
@@ -305,7 +312,6 @@ export default function ChapterForm({
           .eq('id', novelId);
       }
 
-      // Убираем черновик
       await supabase
         .from('chapter_drafts')
         .delete()
@@ -488,18 +494,17 @@ export default function ChapterForm({
             Совпадений с глоссарием в тексте: <strong>{glossaryHitsCount}</strong>
           </div>
         )}
-        <BBCodeEditor
+        <RichTextEditor
           value={content}
           onChange={setContent}
-          rows={20}
           minHeight={480}
-          placeholder="Абзацы разделяй пустой строкой. Для выделения — кнопки выше или BB-коды."
-          hint="Кнопки расставят теги автоматически. Не нужно ничего знать про HTML — пиши как обычный текст."
+          placeholder="Пиши обычным текстом. Для выделения — кнопки выше или Ctrl+B/I/U. Можно вставлять из Word и Google Docs."
+          hint="Жирный, курсив, центрирование сразу видны. Сноски — кнопка ⓘ. Загрузить .docx — кнопка 📄."
         />
       </div>
 
       <aside className="chapter-sidebar">
-        <ChapterStats content={contentHtml} />
+        <ChapterStats content={content} />
 
         {glossary.length > 0 && (
           <div className="chapter-stats">
@@ -549,4 +554,3 @@ export default function ChapterForm({
     </form>
   );
 }
-
