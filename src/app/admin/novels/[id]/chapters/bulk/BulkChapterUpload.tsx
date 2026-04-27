@@ -1,9 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import BBCodeEditor from '@/components/admin/BBCodeEditor';
+import RichTextEditor from '@/components/admin/RichTextEditor';
+import DraftBanner from '@/components/admin/DraftBanner';
+import { cleanHtml, materializeFootnotes } from '@/lib/sanitize';
 import { bbToHtml } from '@/lib/bbcode';
 
 interface ExistingChapter {
@@ -11,48 +13,88 @@ interface ExistingChapter {
   is_paid: boolean;
 }
 
+interface BulkDraft {
+  content: string | null;
+  updated_at: string;
+}
+
 interface Props {
   novelId: number;
   novelFirebaseId: string;
   suggestedStart: number;    // следующий незанятый номер
   existingChapters: ExistingChapter[];
+  // Черновик массовой загрузки. В таблице chapter_drafts резервируем
+  // chapter_number = 0 под bulk-форму конкретного юзера на конкретную
+  // новеллу.
+  draft?: BulkDraft | null;
 }
 
-// Распознаём заголовки «Глава 12» или «Chapter 12» в начале строки / абзаца
-const CHAPTER_HEADER_RE = /^\s*\[?(?:Глава|Chapter|Chapter\.?)\s+(\d+)[^\n]*$/gim;
+const BULK_DRAFT_CHAPTER_NUMBER = 0;
 
-// Парсит BB-текст на части по заголовкам «Глава N»
+// Если в драфте лежит legacy BB-код, конвертируем в HTML на load.
+function normalizeStoredContent(raw: string): string {
+  if (!raw) return '';
+  const looksLikeBb = /\[\/?(?:b|i|u|s|h|center|quote|spoiler|fn)\b/i.test(raw);
+  const looksLikeHtml = /<\w+[^>]*>/.test(raw);
+  if (looksLikeBb && !looksLikeHtml) return bbToHtml(raw);
+  return raw;
+}
+
+// Парсит HTML на части по заголовкам «Глава N» / «Chapter N».
+// Заголовок может быть в любом блочном теге (<p>, <h3>) с любым
+// форматированием (strong, em, center). Возвращаем HTML каждой главы.
 function splitIntoChapters(
-  bbText: string,
-  startFallback: number
-): Array<{ number: number; bb: string }> {
-  const text = bbText.replace(/\r\n/g, '\n');
-  const matches = [...text.matchAll(CHAPTER_HEADER_RE)];
-
-  if (matches.length === 0) {
-    const trimmed = text.trim();
-    if (!trimmed) return [];
-    return [{ number: startFallback, bb: trimmed }];
+  html: string,
+  startFallback: number,
+): Array<{ number: number; html: string }> {
+  if (typeof window === 'undefined') return [];
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  const blocks = Array.from(doc.body.children) as HTMLElement[];
+  if (blocks.length === 0) {
+    const txt = doc.body.textContent?.trim() ?? '';
+    return txt ? [{ number: startFallback, html: html.trim() }] : [];
   }
 
-  const parts: Array<{ number: number; bb: string }> = [];
-  for (let i = 0; i < matches.length; i++) {
-    const cur = matches[i];
-    const nxt = matches[i + 1];
-    const from = (cur.index ?? 0) + cur[0].length;
-    const to = nxt ? nxt.index ?? text.length : text.length;
-    const chunk = text.slice(from, to).replace(/^\s+/, '').replace(/\s+$/, '');
-    if (!chunk) continue;
-    const num = parseInt(cur[1], 10);
-    if (!isNaN(num)) parts.push({ number: num, bb: chunk });
+  const headingRe = /^[ \t ]*(?:Глава|Chapter)\s*\.?\s*(\d+)\b/i;
+
+  const sections: Array<{ number: number; blocks: HTMLElement[] }> = [];
+  let current: { number: number; blocks: HTMLElement[] } | null = null;
+  const unattached: HTMLElement[] = []; // блоки до первого заголовка
+
+  for (const block of blocks) {
+    const text = (block.textContent ?? '').trim();
+    const m = headingRe.exec(text);
+    if (m) {
+      if (current && current.blocks.length > 0) sections.push(current);
+      current = { number: parseInt(m[1], 10), blocks: [] };
+    } else if (current) {
+      current.blocks.push(block);
+    } else {
+      unattached.push(block);
+    }
   }
-  return parts;
+  if (current && current.blocks.length > 0) sections.push(current);
+
+  // Если заголовков не нашлось — весь текст одной главой по startFallback.
+  if (sections.length === 0) {
+    if (unattached.length === 0) return [];
+    return [
+      {
+        number: startFallback,
+        html: unattached.map((b) => b.outerHTML).join(''),
+      },
+    ];
+  }
+
+  return sections.map((s) => ({
+    number: s.number,
+    html: s.blocks.map((b) => b.outerHTML).join(''),
+  }));
 }
 
-// Парсит «100-104» / «105» / «100 - 110» в [start, end]. Возвращает null,
-// если не парсится. Один номер «105» = диапазон 105..105.
+// Парсит «100-104» / «105» / «100 - 110» / «100—104» / «100–104»
 function parseFreeRange(s: string): { start: number; end: number } | null {
-  const clean = s.trim();
+  const clean = s.trim().replace(/[—–]/g, '-');
   if (!clean) return null;
   if (clean.includes('-')) {
     const [a, b] = clean.split('-').map((p) => parseInt(p.trim(), 10));
@@ -64,15 +106,18 @@ function parseFreeRange(s: string): { start: number; end: number } | null {
   return { start: single, end: single };
 }
 
+type DraftState = 'idle' | 'saving' | 'saved' | 'error';
+
 export default function BulkChapterUpload({
   novelId,
   novelFirebaseId,
   suggestedStart,
   existingChapters,
+  draft,
 }: Props) {
   const router = useRouter();
 
-  const [bbContent, setBbContent] = useState('');
+  const [content, setContent] = useState('');
   const [startFrom, setStartFrom] = useState(suggestedStart);
   const [paidFrom, setPaidFrom] = useState<number | ''>('');
   const [defaultPaid, setDefaultPaid] = useState(false);
@@ -81,9 +126,77 @@ export default function BulkChapterUpload({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Подсказка «открыть следующие N глав бесплатно». Берём 5 последних
-  // бесплатных, считаем границу, предлагаем диапазон следующих 5
-  // платных. Если ни одной бесплатной — предлагаем «1-5».
+  // Черновик
+  const [draftOffered, setDraftOffered] = useState<boolean>(
+    !!draft && (draft.content?.length ?? 0) > 0,
+  );
+  const [draftState, setDraftState] = useState<DraftState>('idle');
+  const saveDraftTimerRef = useRef<number | null>(null);
+
+  const saveDraft = useCallback(
+    async (nextContent: string) => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      setDraftState('saving');
+      const { error: upErr } = await supabase
+        .from('chapter_drafts')
+        .upsert(
+          {
+            user_id: user.id,
+            novel_id: novelId,
+            chapter_number: BULK_DRAFT_CHAPTER_NUMBER,
+            content: nextContent,
+            is_paid: false,
+            price_coins: 10,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,novel_id,chapter_number' },
+        );
+      if (upErr) setDraftState('error');
+      else setDraftState('saved');
+    },
+    [novelId],
+  );
+
+  // Автосейв через 2 секунды после последней правки. Не сохраняем
+  // пока пользователь не предпринял действия (содержимое != восстановленное).
+  useEffect(() => {
+    if (draftOffered) return; // ждём решения по предложенному драфту
+    if (!content.trim()) return;
+    if (saveDraftTimerRef.current) window.clearTimeout(saveDraftTimerRef.current);
+    saveDraftTimerRef.current = window.setTimeout(() => {
+      saveDraft(content);
+    }, 2000);
+    return () => {
+      if (saveDraftTimerRef.current) window.clearTimeout(saveDraftTimerRef.current);
+    };
+  }, [content, draftOffered, saveDraft]);
+
+  const restoreDraft = () => {
+    if (!draft?.content) {
+      setDraftOffered(false);
+      return;
+    }
+    setContent(normalizeStoredContent(draft.content));
+    setDraftOffered(false);
+  };
+
+  const discardDraft = async () => {
+    setDraftOffered(false);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase
+      .from('chapter_drafts')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('novel_id', novelId)
+      .eq('chapter_number', BULK_DRAFT_CHAPTER_NUMBER);
+  };
+
+  // Подсказка «открыть следующие N глав бесплатно».
   const freeSuggestion = useMemo(() => {
     if (existingChapters.length === 0) return null;
     const lastFree = [...existingChapters]
@@ -94,8 +207,6 @@ export default function BulkChapterUpload({
       lastFree.length > 0
         ? lastFree[lastFree.length - 1].chapter_number
         : 0;
-    // Сколько ещё платных есть впереди? Не предлагаем диапазон шире, чем
-    // реально существует — иначе UPDATE ничего не поймает.
     const paidAhead = existingChapters
       .filter((c) => c.is_paid && c.chapter_number > lastFreeNum)
       .sort((a, b) => a.chapter_number - b.chapter_number)
@@ -110,13 +221,12 @@ export default function BulkChapterUpload({
     return { suggested, currentFreeList };
   }, [existingChapters]);
 
-  // Предпросмотр разбиения новых глав
+  // Предпросмотр разбиения
   const preview = useMemo(() => {
-    if (!bbContent.trim()) return [];
-    return splitIntoChapters(bbContent, startFrom);
-  }, [bbContent, startFrom]);
+    if (!content.trim()) return [];
+    return splitIntoChapters(content, startFrom);
+  }, [content, startFrom]);
 
-  // Парсим free-range один раз для UI и сабмита
   const parsedFree = useMemo(() => parseFreeRange(freeRange), [freeRange]);
 
   const hasContent = preview.length > 0;
@@ -138,7 +248,6 @@ export default function BulkChapterUpload({
       return;
     }
 
-    // Подтверждение действия
     let confirmMsg = '';
     if (hasContent && hasFree) {
       confirmMsg =
@@ -160,13 +269,17 @@ export default function BulkChapterUpload({
     setProgress('Начинаем…');
 
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Нужна авторизация.');
+      setBusy(false);
+      return;
+    }
+
     const paidFromNum =
       typeof paidFrom === 'number' && paidFrom > 0 ? paidFrom : null;
 
     try {
-      // 1) Загружаем файлы новых глав в storage по очереди.
-      //    DB-операции делаем в одном RPC ниже для атомарности
-      //    + единого уведомления.
       const chaptersForRpc: Array<{
         num: number;
         content_path: string;
@@ -177,7 +290,7 @@ export default function BulkChapterUpload({
         const p = preview[i];
         setProgress(`Загружаем файл главы ${p.number} (${i + 1}/${preview.length})…`);
 
-        const html = bbToHtml(p.bb);
+        const html = cleanHtml(materializeFootnotes(p.html));
         const filename = `${novelFirebaseId}/${p.number}.html`;
         const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
 
@@ -200,8 +313,6 @@ export default function BulkChapterUpload({
         });
       }
 
-      // 2) Один RPC: записать всё в БД + одно уведомление подписчикам
-      //    (мигр. 062). Триггер per-row нотификаций при этом не сработает.
       setProgress('Публикуем и шлём уведомление…');
       const { data, error: rpcErr } = await supabase.rpc(
         'bulk_publish_chapters',
@@ -221,17 +332,21 @@ export default function BulkChapterUpload({
       };
 
       const summary: string[] = [];
-      if ((result.new_count ?? 0) > 0) {
-        summary.push(`${result.new_count} новых глав`);
-      }
-      if ((result.freed_count ?? 0) > 0) {
-        summary.push(`${result.freed_count} открыто бесплатно`);
-      }
-      if ((result.notified_users ?? 0) > 0) {
-        summary.push(`${result.notified_users} читателей уведомлены`);
-      }
+      if ((result.new_count ?? 0) > 0) summary.push(`${result.new_count} новых глав`);
+      if ((result.freed_count ?? 0) > 0) summary.push(`${result.freed_count} открыто бесплатно`);
+      if ((result.notified_users ?? 0) > 0) summary.push(`${result.notified_users} читателей уведомлены`);
+
       setProgress(summary.length > 0 ? `Готово: ${summary.join(' · ')}` : 'Готово.');
-      setBbContent('');
+
+      // Удаляем bulk-черновик
+      await supabase
+        .from('chapter_drafts')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('novel_id', novelId)
+        .eq('chapter_number', BULK_DRAFT_CHAPTER_NUMBER);
+
+      setContent('');
       setFreeRange('');
       router.refresh();
       setTimeout(
@@ -248,20 +363,33 @@ export default function BulkChapterUpload({
 
   return (
     <form onSubmit={handleSubmit} className="bulk-upload">
+      {draftOffered && draft && (
+        <DraftBanner
+          updatedAt={draft.updated_at}
+          onRestore={restoreDraft}
+          onDiscard={discardDraft}
+        />
+      )}
+
       <div className="bulk-instruct">
         <strong>Как подготовить текст</strong>
         <ul>
           <li>Вставь весь текст — одну или сразу все главы.</li>
           <li>
             Начало каждой главы пометь строкой <code>Глава 1</code>,{' '}
-            <code>Глава 2</code> и т.д. на отдельной строке.
+            <code>Глава 2</code> и т.д. на отдельной строке. Заголовок
+            может быть жирным, по центру или из <code>.docx</code> — это нормально.
           </li>
-          <li>Абзацы разделяй пустой строкой. Жирный/курсив — кнопками или BB-кодами.</li>
+          <li>Абзацы разделяй пустой строкой. Жирный/курсив/центр — кнопками тулбара.</li>
           <li>Если текст без заголовков — он загрузится как одна глава с номером из поля справа.</li>
           <li>
             Если хочешь только открыть несколько уже загруженных глав
             бесплатно — оставь поле текста пустым и заполни только
             «Открыть бесплатно».
+          </li>
+          <li>
+            Текст автосохраняется как черновик. Если случайно закроешь
+            страницу — я предложу его восстановить при следующем визите.
           </li>
         </ul>
       </div>
@@ -311,10 +439,18 @@ export default function BulkChapterUpload({
             </div>
           </label>
         </div>
+        <div
+          className="chapter-form-save-state"
+          style={{ alignSelf: 'end', marginLeft: 'auto', fontSize: 13 }}
+        >
+          {draftState === 'saving' && 'Сохраняем черновик…'}
+          {draftState === 'saved' && '✓ Черновик сохранён'}
+          {draftState === 'error' && (
+            <span style={{ color: 'var(--rose)' }}>Не удалось сохранить черновик</span>
+          )}
+        </div>
       </div>
 
-      {/* Открыть существующие главы бесплатно — отдельный блок,
-          с подсказкой «следующие 5» по аналогии с tene. */}
       <div className="bulk-free-block">
         <div className="bulk-free-head">
           <span className="bulk-free-icon" aria-hidden="true">🎁</span>
@@ -355,12 +491,12 @@ export default function BulkChapterUpload({
 
       <div className="form-field">
         <label>Текст всех глав сразу</label>
-        <BBCodeEditor
-          value={bbContent}
-          onChange={setBbContent}
+        <RichTextEditor
+          value={content}
+          onChange={setContent}
           minHeight={480}
-          placeholder={`Глава 1\n\nТекст первой главы…\n\nГлава 2\n\nТекст второй главы…`}
-          hint="Я разберу текст по заголовкам «Глава N» автоматически. Предпросмотр разбиения — справа. Поле можно оставить пустым, если только открываешь бесплатные."
+          placeholder="Глава 1 / Текст первой главы… / Глава 2 / Текст второй главы…"
+          hint="Я разберу текст по заголовкам «Глава N» автоматически — даже если они жирные, по центру или импортированы из .docx. Поле можно оставить пустым, если только открываешь бесплатные."
         />
       </div>
 
@@ -381,7 +517,7 @@ export default function BulkChapterUpload({
                 paidFrom !== '' && paidFrom !== null
                   ? p.number >= Number(paidFrom)
                   : defaultPaid;
-              const wordCount = countWords(p.bb);
+              const wordCount = countWords(p.html);
               return (
                 <li key={p.number} className="bulk-preview-row">
                   <span className="bulk-preview-num">Глава {p.number}</span>
@@ -431,9 +567,10 @@ export default function BulkChapterUpload({
   );
 }
 
-function countWords(bb: string): number {
-  const plain = bb
-    .replace(/\[[^\]]+\]/g, ' ')
+function countWords(html: string): number {
+  const plain = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
     .match(/[\p{L}'-]+/gu);
   return plain ? plain.length : 0;
 }
