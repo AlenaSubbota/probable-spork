@@ -24,8 +24,8 @@ export interface CommentToolbarRef {
 // Выделил текст в textarea → нажал «B» → выделение оборачивается
 // в [b]…[/b]. Без выделения — вставляется маркер [b][/b] и курсор
 // встаёт между тегами.
-// Preview раскрывается по клику на «Просмотр» — показывает как
-// комментарий будет выглядеть после публикации.
+// Preview раскрывается по клику на 👁 — показывает как комментарий
+// будет выглядеть после публикации.
 const CommentToolbar = forwardRef<CommentToolbarRef, Props>(function CommentToolbar(
   { value, onChange, placeholder, rows = 3, maxLength = 2000, disabled, id, autoFocus },
   ref,
@@ -125,14 +125,19 @@ const CommentToolbar = forwardRef<CommentToolbarRef, Props>(function CommentTool
         >
           🔗
         </button>
+        {/* Preview toggle: 👁 в режиме редактирования, ✏️ в режиме
+            предпросмотра. Эмодзи вместо текста «Просмотр»/«Текст» —
+            кнопка визуально такого же размера как остальные BB-кнопки,
+            не выпрыгивает из тулбара. */}
         <button
           type="button"
           className={`comment-toolbar-btn comment-toolbar-btn--toggle${showPreview ? ' is-active' : ''}`}
           onClick={() => setShowPreview((v) => !v)}
           disabled={disabled}
-          title="Предпросмотр"
+          title={showPreview ? 'Вернуться к тексту' : 'Предпросмотр'}
+          aria-label={showPreview ? 'Вернуться к тексту' : 'Предпросмотр'}
         >
-          {showPreview ? 'Текст' : 'Просмотр'}
+          {showPreview ? '✏️' : '👁'}
         </button>
       </div>
 
