@@ -192,9 +192,7 @@ export default function ReaderContent({
     }, 600);
   }, []);
 
-  // ---- 3. Горячие клавиши (A+/A-/F = focus) ----
-  // F работает только в scroll-режиме — фокус-режим отключён в pages
-  // (см. toolbar ниже).
+  // ---- 3. Горячие клавиши (A+/A-) ----
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -208,10 +206,6 @@ export default function ReaderContent({
           ...settings,
           fontSize: Math.max(13, settings.fontSize - 1),
         });
-      } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
-        if (settings.readMode !== 'pages') {
-          updateSettings({ ...settings, focusMode: !settings.focusMode });
-        }
       }
     };
     window.addEventListener('keydown', handler);
@@ -508,10 +502,6 @@ export default function ReaderContent({
 
     const applyActive = (bestIdx: number) => {
       if (bestIdx === lastActiveId) return;
-      if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
-        paragraphs[lastActiveId].classList.remove('focus-active');
-      }
-      paragraphs[bestIdx]?.classList.add('focus-active');
       lastActiveId = bestIdx;
     };
 
@@ -532,9 +522,17 @@ export default function ReaderContent({
 
     return () => {
       scrollTarget.removeEventListener('scroll', onAnyScroll);
-      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
-      if (lastActiveId >= 0 && paragraphs[lastActiveId]) {
-        paragraphs[lastActiveId].classList.remove('focus-active');
+      // На размонтировании или смене readMode сразу сбрасываем
+      // отложенный save и пишем прогресс синхронно: иначе при
+      // переключении «свиток ↔ страницы» 1.5-секундный debounce
+      // съедает последнее положение, и новый режим восстанавливает
+      // позицию из state'а до последнего скролла.
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      if (lastActiveId >= 0) {
+        saveProgress(lastActiveId);
       }
     };
   }, [ready, content, saveProgress, settings.readMode]);
@@ -1163,13 +1161,12 @@ export default function ReaderContent({
 
   return (
     <div
-      className={`reader-wrapper${settings.focusMode ? ' focus-mode' : ''}${uiHidden ? ' ui-hidden' : ''}`}
+      className={`reader-wrapper${uiHidden ? ' ui-hidden' : ''}`}
       data-theme={settings.theme ?? 'light'}
       data-read-mode={settings.readMode ?? 'scroll'}
     >
       {/* Старый верхний reader-toolbar убран — управление переехало в
-          sticky-панель снизу (ReaderBottomBar), как в tene. Фокус-режим
-          теперь только в Settings (плюс F-горячка ниже). */}
+          sticky-панель снизу (ReaderBottomBar), как в tene. */}
 
       {novelFirebaseId && (
         <ChapterTOC

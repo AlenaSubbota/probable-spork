@@ -48,7 +48,6 @@ export interface ReaderSettings {
   textAlign:       TextAlign;
   textIndent:      number;   // em
   paragraphSpacing: number;  // em
-  focusMode:       boolean;
   theme:           ReaderTheme;
   readMode:        ReadMode;
   // Сноски переводчика: по умолчанию выключено — текст сноски и так
@@ -65,7 +64,6 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   textAlign: 'justify',
   textIndent: 1.5,
   paragraphSpacing: 0.8,
-  focusMode: false,
   theme: 'light',
   readMode: 'scroll',
   footnotePopover: false,

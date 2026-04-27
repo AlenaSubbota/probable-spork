@@ -106,20 +106,21 @@ export default async function ChapterPage({ params }: PageProps) {
               Эта глава платная. Войди, чтобы купить её или открыть
               по подписке переводчика.
             </p>
-            <Link
-              href={`/login?next=${redirectTo}`}
-              className="btn btn-primary"
-              style={{ width: '100%', maxWidth: 260 }}
-            >
-              Войти
-            </Link>
-            <Link
-              href={`/novel/${id}`}
-              className="paywall-back"
-              style={{ marginTop: 14 }}
-            >
-              ← Назад к списку глав
-            </Link>
+            <div className="paywall-actions">
+              <Link
+                href={`/login?next=${redirectTo}`}
+                className="btn btn-primary"
+                style={{ width: '100%', maxWidth: 260 }}
+              >
+                Войти
+              </Link>
+              <Link
+                href={`/novel/${id}`}
+                className="paywall-back"
+              >
+                ← Назад к списку глав
+              </Link>
+            </div>
           </div>
         </main>
       </div>

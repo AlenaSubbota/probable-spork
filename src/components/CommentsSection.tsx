@@ -432,7 +432,7 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
           </div>
         </form>
       ) : (
-        <div className="empty-state" style={{ padding: 20 }}>
+        <div className="empty-state" style={{ padding: '20px 20px 24px', marginBottom: 18 }}>
           <Link href="/login" className="more">Войти</Link>, чтобы комментировать.
         </div>
       )}

@@ -169,7 +169,25 @@ export default function SettingsForm({
         <section className="settings-block">
           <h2>Страница переводчика</h2>
           <p style={{ color: 'var(--ink-mute)', fontSize: 13.5, marginTop: -8, marginBottom: 14 }}>
-            Это видно на твоей публичной странице <code>/t/slug</code>.
+            {values.user_name?.trim() ? (
+              <>
+                Это видно на твоей публичной странице{' '}
+                <a
+                  href={`/t/${encodeURIComponent(values.user_name.trim())}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  /t/{values.user_name.trim()}
+                </a>
+                . Адрес собирается из «Отображаемого имени» сверху —
+                после изменения сохрани форму, чтобы ссылка обновилась.
+              </>
+            ) : (
+              <>
+                Сначала задай <strong>отображаемое имя</strong> в блоке выше — оно станет адресом твоей публичной страницы (<code>/t/имя</code>).
+              </>
+            )}
           </p>
 
           <div className="form-field">

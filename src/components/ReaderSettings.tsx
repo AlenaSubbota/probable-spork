@@ -184,21 +184,6 @@ export default function ReaderSettings({
 
           <div className="rs-divider" />
 
-          {/* Киллер #1: Фокус-режим */}
-          <div className="rs-group">
-            <label className="rs-switch">
-              <input
-                type="checkbox"
-                checked={settings.focusMode}
-                onChange={(e) => set('focusMode', e.target.checked)}
-              />
-              <div>
-                <div className="rs-switch-title">Фокус-режим</div>
-                <div className="rs-switch-sub">Затемняет всё, кроме абзаца, который ты читаешь</div>
-              </div>
-            </label>
-          </div>
-
           {/* Сноски переводчика — поповер по тапу */}
           <div className="rs-group">
             <label className="rs-switch">
