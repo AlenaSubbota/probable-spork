@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { bbToHtml } from '@/lib/bbcode';
+import { docxToBb, htmlClipboardToBb } from '@/lib/docx';
 
 interface Props {
   value: string;               // BB-код (сохраняется как есть)
@@ -34,7 +35,10 @@ export default function BBCodeEditor({
   hint,
 }: Props) {
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Поповер для сноски: подцеплен к кнопке ⓘ. Сноска вставляется
   // в позицию курсора как [fn]пояснение[/fn]. Запоминаем место курсора
@@ -129,6 +133,86 @@ export default function BBCodeEditor({
     }
   };
 
+  // Перехватываем вставку из Word/Google Docs/Pages: если в clipboard есть
+  // text/html — конвертируем его в BB, чтобы курсив и центрирование не
+  // пропали (textarea сам по себе принимает только plain text).
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const html = e.clipboardData.getData('text/html');
+    if (!html) return; // обычный plain-text paste — пусть браузер сам
+    const bb = htmlClipboardToBb(html);
+    if (!bb) return;
+    e.preventDefault();
+    const ta = taRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const next = value.slice(0, start) + bb + value.slice(end);
+    onChange(next);
+    setTimeout(() => {
+      ta.focus();
+      const pos = start + bb.length;
+      ta.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
+  const triggerDocxUpload = () => {
+    setImportError(null);
+    fileInputRef.current?.click();
+  };
+
+  const onDocxSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Сбрасываем input сразу, чтобы тот же файл можно было выбрать повторно
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const bb = await docxToBb(file);
+      if (!bb.trim()) {
+        setImportError('В документе не нашлось текста.');
+        return;
+      }
+      const ta = taRef.current;
+      if (!value.trim()) {
+        onChange(bb);
+        setTimeout(() => {
+          ta?.focus();
+          ta?.setSelectionRange(bb.length, bb.length);
+        }, 0);
+        return;
+      }
+      const replace = window.confirm(
+        'В редакторе уже есть текст. Заменить его содержимым файла?\n\n' +
+          'OK — заменить, Отмена — вставить в позицию курсора.',
+      );
+      if (replace) {
+        onChange(bb);
+        setTimeout(() => {
+          ta?.focus();
+          ta?.setSelectionRange(bb.length, bb.length);
+        }, 0);
+      } else if (ta) {
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const next = value.slice(0, start) + bb + value.slice(end);
+        onChange(next);
+        setTimeout(() => {
+          ta.focus();
+          const pos = start + bb.length;
+          ta.setSelectionRange(pos, pos);
+        }, 0);
+      } else {
+        onChange(value + '\n\n' + bb);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setImportError(`Не удалось прочитать .docx: ${msg}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="bbcode-editor">
       <div className="bbcode-toolbar">
@@ -151,6 +235,22 @@ export default function BBCodeEditor({
         >
           ⓘ
         </button>
+        <button
+          type="button"
+          className="bbcode-btn"
+          onClick={triggerDocxUpload}
+          title="Загрузить .docx — курсив и центрирование сохранятся"
+          disabled={importing}
+        >
+          {importing ? '…' : '📄 .docx'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={onDocxSelected}
+          style={{ display: 'none' }}
+        />
         <span style={{ flex: 1 }} />
         <button
           type="button"
@@ -161,6 +261,12 @@ export default function BBCodeEditor({
           Предпросмотр
         </button>
       </div>
+
+      {importError && (
+        <div className="form-hint" style={{ color: 'var(--rose)' }}>
+          {importError}
+        </div>
+      )}
 
       {fnOpen && (
         <div className="bbcode-fn-popover">
@@ -201,6 +307,7 @@ export default function BBCodeEditor({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           placeholder={placeholder ?? 'Пиши обычным текстом. Для выделения — кнопки выше или BB-коды: [b]жирный[/b]'}
         />
         {showPreview && (
