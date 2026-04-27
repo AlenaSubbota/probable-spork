@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import BulkChapterUpload from './BulkChapterUpload';
+import BulkUploadHelp from '@/components/admin/BulkUploadHelp';
 import ChapterListPanel from '@/components/admin/ChapterListPanel';
 
 interface PageProps {
@@ -111,6 +112,11 @@ export default async function BulkChaptersPage({ params }: PageProps) {
           </Link>
         </div>
       </header>
+
+      {/* Расширенная справка — свернута по умолчанию, разворачивается
+          одним кликом. Полное «как этим пользоваться, что увидят
+          подписчики, как решать частые проблемы». */}
+      <BulkUploadHelp />
 
       <BulkChapterUpload
         novelId={novel.id}
