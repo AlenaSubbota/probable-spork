@@ -67,7 +67,7 @@ export default function NovelCard({
   const excerpt = textExcerpt(description, 200);
   const hasTooltip = !!(excerpt || (genres && genres.length > 0));
   const novelHref = `/novel/${id}`;
-  // Собираем список обложек: главная (coverUrl) + дополнительные.
+
   // Превращаем path'ы в полные URL'ы через getCoverUrl.
   const allCovers = [
     coverUrl,

@@ -43,21 +43,21 @@ export default async function SiteHeader() {
       const { data: count } = await supabase.rpc('unread_dm_count');
       if (typeof count === 'number') unreadDm = count;
     } catch {
-      // миграция 006 ещё не накачена
+      
     }
     // Непрочитанные уведомления (RPC из миграции 007)
     try {
       const { data: count } = await supabase.rpc('unread_notifications_count');
       if (typeof count === 'number') unreadNotif = count;
     } catch {
-      // миграция 007 ещё не накачена
+      
     }
     // Непрочитанные новости (RPC из миграции 009)
     try {
       const { data: count } = await supabase.rpc('unread_news_count');
       if (typeof count === 'number') unreadNews = count;
     } catch {
-      // миграция 009 ещё не накачена
+     
     }
   }
 

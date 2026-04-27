@@ -128,7 +128,7 @@ export default function UserMenu({
               <div className="user-menu-sep" />
               <Link href="/translator/apply" className="user-menu-item" onClick={() => setOpen(false)}>
                 <span className="user-menu-icon" aria-hidden="true">🪶</span>
-                <span>Собрать команду для перевода</span>
+                <span>Создать команду</span>
               </Link>
             </>
           )}

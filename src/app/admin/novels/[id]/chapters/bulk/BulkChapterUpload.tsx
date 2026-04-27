@@ -28,31 +28,6 @@ interface Props {
   // новеллу.
   draft?: BulkDraft | null;
 }
-
-const BULK_DRAFT_CHAPTER_NUMBER = 0;
-
-// Если в драфте лежит legacy BB-код, конвертируем в HTML на load.
-function normalizeStoredContent(raw: string): string {
-  if (!raw) return '';
-  const looksLikeBb = /\[\/?(?:b|i|u|s|h|center|quote|spoiler|fn)\b/i.test(raw);
-  const looksLikeHtml = /<\w+[^>]*>/.test(raw);
-  if (looksLikeBb && !looksLikeHtml) return bbToHtml(raw);
-  return raw;
-}
-
-// Парсит HTML на части по заголовкам «Глава N» / «Chapter N».
-// Заголовок может быть в любом блочном теге (<p>, <h3>) с любым
-// форматированием (strong, em, center). Возвращаем HTML каждой главы.
-function splitIntoChapters(
-  html: string,
-  startFallback: number,
-): Array<{ number: number; html: string }> {
-  if (typeof window === 'undefined') return [];
-  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
-  const blocks = Array.from(doc.body.children) as HTMLElement[];
-  if (blocks.length === 0) {
-    const txt = doc.body.textContent?.trim() ?? '';
-    return txt ? [{ number: startFallback, html: html.trim() }] : [];
   }
 
   const headingRe = /^[ \t ]*(?:Глава|Chapter)\s*\.?\s*(\d+)\b/i;
@@ -92,7 +67,6 @@ function splitIntoChapters(
   }));
 }
 
-// Парсит «100-104» / «105» / «100 - 110» / «100—104» / «100–104»
 function parseFreeRange(s: string): { start: number; end: number } | null {
   const clean = s.trim().replace(/[—–]/g, '-');
   if (!clean) return null;
@@ -495,8 +469,6 @@ export default function BulkChapterUpload({
           value={content}
           onChange={setContent}
           minHeight={480}
-          placeholder="Глава 1 / Текст первой главы… / Глава 2 / Текст второй главы…"
-          hint="Я разберу текст по заголовкам «Глава N» автоматически — даже если они жирные, по центру или импортированы из .docx. Поле можно оставить пустым, если только открываешь бесплатные."
         />
       </div>
 
