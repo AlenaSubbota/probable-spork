@@ -8,6 +8,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+const BULK_DRAFT_CHAPTER_NUMBER = 0;
+
 export default async function BulkChaptersPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
@@ -43,8 +45,7 @@ export default async function BulkChaptersPage({ params }: PageProps) {
   const suggestedStart = (lastCh?.chapter_number ?? 0) + 1;
 
   // Все главы — для подсказки «открыть следующие N бесплатных» И для
-  // ChapterListPanel под формой. Берём чуть больше полей чем раньше:
-  // content_path нужен для удаления файла в storage.
+  // ChapterListPanel под формой.
   const { data: allChaps } = await supabase
     .from('chapters')
     .select('chapter_number, is_paid, content_path, published_at')
@@ -56,6 +57,24 @@ export default async function BulkChaptersPage({ params }: PageProps) {
     content_path: string | null;
     published_at: string | null;
   }>;
+
+  // Bulk-черновик: одна запись в chapter_drafts на (user, novel) с
+  // зарезервированным chapter_number = 0. Если есть текст — предложим
+  // восстановить через DraftBanner внутри формы.
+  const { data: bulkDraftRow } = await supabase
+    .from('chapter_drafts')
+    .select('content, updated_at')
+    .eq('user_id', user.id)
+    .eq('novel_id', novel.id)
+    .eq('chapter_number', BULK_DRAFT_CHAPTER_NUMBER)
+    .maybeSingle();
+  const bulkDraft =
+    bulkDraftRow && (bulkDraftRow.content?.length ?? 0) > 0
+      ? {
+          content: bulkDraftRow.content as string,
+          updated_at: bulkDraftRow.updated_at as string,
+        }
+      : null;
 
   return (
     <main className="container admin-page admin-page--wide">
@@ -101,6 +120,7 @@ export default async function BulkChaptersPage({ params }: PageProps) {
           chapter_number: c.chapter_number,
           is_paid: c.is_paid,
         }))}
+        draft={bulkDraft}
       />
 
       <ChapterListPanel
