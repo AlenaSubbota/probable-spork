@@ -5,6 +5,7 @@ import "./reader-keyboard-fix.css";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import HeaderRefreshOnVisibility from "@/components/HeaderRefreshOnVisibility";
+import ReaderKeyboardDetector from "@/components/ReaderKeyboardDetector";
 
 // UI-шрифт: Manrope — тёплый, современный grotesk с хорошей кириллицей
 // и мягким округлением. Лучше вписывается в «бумажную» палитру сайта,
@@ -64,6 +65,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <SiteHeader />
         <HeaderRefreshOnVisibility />
+        <ReaderKeyboardDetector />
         <div className="flex-1">{children}</div>
         <SiteFooter />
       </body>
