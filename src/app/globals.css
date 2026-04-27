@@ -15516,6 +15516,15 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   }
 }
 
+/* Когда поднимается клавиатура — resv-padding-bottom 70/80px внутри
+   reader-pages-end рисует видимую полосу --surface цвета между нижней
+   формой ввода и верхом клавиатуры (это та самая «коричневая полоса»
+   на iPhone). Резерв нужен только чтобы content не пряталась под
+   absolute bottom-bar'ом, а при клавиатуре bar и так под ней. Убираем. */
+body.reader-keyboard-up.reader-pages-mode .reader-wrapper[data-read-mode='pages'] .reader-pages-end {
+  padding-bottom: 12px;
+}
+
 /* =========================================================
    ChapterListPanel — список всех глав новеллы под формой массовой
    загрузки. Тогл «🔒 / 🟢», ред., удаление одной кнопкой.
