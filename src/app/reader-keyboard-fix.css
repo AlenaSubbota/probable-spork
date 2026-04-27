@@ -48,3 +48,18 @@
     border-top-right-radius: 10px;
   }
 }
+
+/* (3) ТРЕТИЙ источник полосы — глобальный <SiteFooter /> из
+   layout.tsx. У него margin-top: 60px + padding: 28px 0 48px +
+   border-top, фон body — var(--bg) (тёмно-коричневый в тёмной
+   теме). В pages-режиме body может скроллиться вертикально (помимо
+   горизонтального snap'а внутри reader-pages-scroller), и footer
+   при определённых таймингах оказывается видимым прямо под
+   контентом обсуждения / рекомендациями. На скрине выглядит как
+   ещё одна тёмная полоса. SiteHeader в pages-режиме уже прячется
+   (правило body.reader-pages-mode > .site-header в globals.css),
+   делаем симметрично с footer'ом. На обычных страницах сайта footer
+   остаётся как был. */
+body.reader-pages-mode > .site-footer {
+  display: none;
+}
