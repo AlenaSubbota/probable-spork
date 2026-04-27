@@ -65,6 +65,34 @@ const EDITOR_STYLES = `
 }
 `;
 
+// Браузер при Ctrl+A → Backspace часто оставляет в editor пустой
+// <p><br></p> внутри активного <strong>/<em> (потому что курсор был
+// в форматированном фрагменте). Любой следующий paste / ввод подцепит
+// этот формат и весь текст станет жирным/курсивом.
+//
+// Этот helper определяет «визуально пусто» (нет текста, только теги
+// и/или br) и сбрасывает редактор до пустого состояния, чтобы новый
+// paste начался с чистого <p>.
+function isVisuallyEmpty(editor: HTMLElement): boolean {
+  return !editor.innerText.replace(/ /g, '').trim();
+}
+
+function resetEditorToEmpty(editor: HTMLElement) {
+  editor.innerHTML = '';
+  editor.focus();
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  // На случай, если у Selection-state ещё «висит» активное bold/italic,
+  // которое execCommand унаследует — сбросим явно. removeFormat
+  // безопасен на пустом range.
+  document.execCommand('removeFormat');
+}
+
 // WYSIWYG-редактор главы. contentEditable div — пользователь видит
 // форматирование сразу, без отдельного предпросмотра. Хранит и отдаёт
 // HTML; чистка через cleanHtml() происходит при paste и при сабмите
@@ -203,6 +231,17 @@ export default function RichTextEditor({
   // в кашу.
   const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    // Если редактор «визуально пуст» (после Ctrl+A → Backspace там
+    // мог остаться <p><br></p> внутри <strong>) — сбрасываем DOM до
+    // пустого состояния, чтобы новый paste начался с чистого корня
+    // и не унаследовал жирный/курсив от предыдущего текста.
+    if (isVisuallyEmpty(editor)) {
+      resetEditorToEmpty(editor);
+    }
+
     const html = e.clipboardData.getData('text/html');
     const plain = e.clipboardData.getData('text/plain');
 
@@ -244,7 +283,7 @@ export default function RichTextEditor({
         return;
       }
       const editor = editorRef.current;
-      const isEmpty = !editor || !editor.innerText.trim();
+      const isEmpty = !editor || isVisuallyEmpty(editor);
       if (isEmpty) {
         if (editor) {
           editor.innerHTML = html;
