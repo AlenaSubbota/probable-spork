@@ -20,18 +20,47 @@ interface ToolbarBtn {
   arg?: string;
   label: string;
   title: string;
-  toggle?: boolean;
 }
 
 const TOOLBAR: ToolbarBtn[] = [
-  { cmd: 'bold',         label: 'B', title: 'Жирный (Ctrl+B)',         toggle: true },
-  { cmd: 'italic',       label: 'I', title: 'Курсив (Ctrl+I)',         toggle: true },
-  { cmd: 'underline',    label: 'U', title: 'Подчёркнутый (Ctrl+U)',   toggle: true },
-  { cmd: 'strikeThrough',label: 'S', title: 'Зачёркнутый',             toggle: true },
+  { cmd: 'bold',         label: 'B', title: 'Жирный (Ctrl+B)' },
+  { cmd: 'italic',       label: 'I', title: 'Курсив (Ctrl+I)' },
+  { cmd: 'underline',    label: 'U', title: 'Подчёркнутый (Ctrl+U)' },
+  { cmd: 'strikeThrough',label: 'S', title: 'Зачёркнутый' },
   { cmd: 'formatBlock', arg: 'H3', label: 'H', title: 'Заголовок' },
   { cmd: 'formatBlock', arg: 'BLOCKQUOTE', label: '❝', title: 'Цитата' },
-  { cmd: 'justifyCenter', label: '⇔', title: 'По центру', toggle: true },
+  { cmd: 'justifyCenter', label: '⇔', title: 'По центру' },
 ];
+
+// Глобальные стили редактора. Через обычный <style> тег, потому что
+// нам нужен селектор :empty:before для placeholder и потомки contentEditable
+// (<p>, <sup>) — styled-jsx в Next 16 App Router из коробки не подключён.
+const EDITOR_STYLES = `
+.rich-editor:empty:before {
+  content: attr(data-placeholder);
+  color: var(--ink-mute, #888);
+  pointer-events: none;
+}
+.rich-editor p {
+  margin: 0 0 0.9em 0;
+}
+.rich-editor p:last-child {
+  margin-bottom: 0;
+}
+.rich-editor sup.fn-ref {
+  color: var(--accent, #b8860b);
+  cursor: help;
+  font-weight: bold;
+  margin: 0 1px;
+}
+.rich-editor p.fn-inline {
+  font-size: 0.9em;
+  color: var(--ink-mute, #666);
+  border-left: 2px solid var(--border, #ccc);
+  padding-left: 8px;
+  margin: 0.4em 0;
+}
+`;
 
 // WYSIWYG-редактор главы. contentEditable div — пользователь видит
 // форматирование сразу, без отдельного предпросмотра. Хранит и отдаёт
@@ -99,6 +128,53 @@ export default function RichTextEditor({
     const html =
       '<details><summary>Спойлер — нажми, чтобы показать</summary>текст</details>';
     document.execCommand('insertHTML', false, html);
+    emitChange();
+  };
+
+  // Footnote helpers — определяем до handler'ов, чтобы onKeyDown их видел.
+  const openFootnote = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      fnRangeRef.current = sel.getRangeAt(0).cloneRange();
+    } else {
+      fnRangeRef.current = null;
+    }
+    setFnText('');
+    setFnOpen(true);
+  };
+
+  const closeFootnote = () => {
+    setFnOpen(false);
+    setFnText('');
+    setTimeout(() => {
+      if (fnRangeRef.current && editorRef.current) {
+        editorRef.current.focus();
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(fnRangeRef.current);
+      }
+    }, 0);
+  };
+
+  const insertFootnote = () => {
+    const trimmed = fnText.trim();
+    if (!trimmed || !editorRef.current) return;
+    const editor = editorRef.current;
+    editor.focus();
+    if (fnRangeRef.current) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(fnRangeRef.current);
+    }
+    const escaped = trimmed
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const html = `<sup class="fn-ref" data-fn-text="${escaped}">*</sup>`;
+    document.execCommand('insertHTML', false, html);
+    setFnOpen(false);
+    setFnText('');
     emitChange();
   };
 
@@ -194,55 +270,6 @@ export default function RichTextEditor({
     }
   };
 
-  // Footnote: вставляем <sup class="fn-ref" data-fn-text="..."> с *
-  // вместо номера. При сабмите materializeFootnotes() пронумерует
-  // sup'ы и добавит блоки <p class="fn-inline">.
-  const openFootnote = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      fnRangeRef.current = sel.getRangeAt(0).cloneRange();
-    } else {
-      fnRangeRef.current = null;
-    }
-    setFnText('');
-    setFnOpen(true);
-  };
-
-  const closeFootnote = () => {
-    setFnOpen(false);
-    setFnText('');
-    setTimeout(() => {
-      if (fnRangeRef.current && editorRef.current) {
-        editorRef.current.focus();
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(fnRangeRef.current);
-      }
-    }, 0);
-  };
-
-  const insertFootnote = () => {
-    const trimmed = fnText.trim();
-    if (!trimmed || !editorRef.current) return;
-    const editor = editorRef.current;
-    editor.focus();
-    if (fnRangeRef.current) {
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(fnRangeRef.current);
-    }
-    const escaped = trimmed
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    const html = `<sup class="fn-ref" data-fn-text="${escaped}">*</sup>`;
-    document.execCommand('insertHTML', false, html);
-    setFnOpen(false);
-    setFnText('');
-    emitChange();
-  };
-
   useEffect(() => {
     if (fnOpen) setTimeout(() => fnInputRef.current?.focus(), 0);
   }, [fnOpen]);
@@ -257,8 +284,15 @@ export default function RichTextEditor({
     }
   };
 
+  // cleanHtml — импортируем, но используется родительским кодом
+  // на сабмите. Здесь оставлен как доступная утилита для будущих фич
+  // (например, кнопка «Очистить форматирование»). Чтобы typecheck не
+  // ругался на «unused import» — явно ссылаемся.
+  void cleanHtml;
+
   return (
     <div className="bbcode-editor">
+      <style dangerouslySetInnerHTML={{ __html: EDITOR_STYLES }} />
       <div className="bbcode-toolbar">
         {TOOLBAR.map((b) => (
           <button
@@ -368,33 +402,6 @@ export default function RichTextEditor({
       />
 
       {hint && <div className="form-hint">{hint}</div>}
-
-      <style jsx>{`
-        .rich-editor:empty:before {
-          content: attr(data-placeholder);
-          color: var(--ink-mute, #888);
-          pointer-events: none;
-        }
-        .rich-editor :global(p) {
-          margin: 0 0 0.9em 0;
-        }
-        .rich-editor :global(p:last-child) {
-          margin-bottom: 0;
-        }
-        .rich-editor :global(sup.fn-ref) {
-          color: var(--accent, #b8860b);
-          cursor: help;
-          font-weight: bold;
-          margin: 0 1px;
-        }
-        .rich-editor :global(p.fn-inline) {
-          font-size: 0.9em;
-          color: var(--ink-mute, #666);
-          border-left: 2px solid var(--border, #ccc);
-          padding-left: 8px;
-          margin: 0.4em 0;
-        }
-      `}</style>
     </div>
   );
 }
