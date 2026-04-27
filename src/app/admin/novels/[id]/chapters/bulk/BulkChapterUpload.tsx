@@ -18,16 +18,27 @@ interface Props {
   existingChapters: ExistingChapter[];
 }
 
-// Распознаём заголовки «Глава 12» или «Chapter 12» в начале строки / абзаца
-const CHAPTER_HEADER_RE = /^\s*\[?(?:Глава|Chapter|Chapter\.?)\s+(\d+)[^\n]*$/gim;
-
-// Парсит BB-текст на части по заголовкам «Глава N»
+// Парсит BB-текст на части по заголовкам «Глава N» / «Chapter N».
+// Терпит BB-обёртки вокруг заголовка: [h]Глава 2[/h], [b]Глава 2[/b],
+// [center][b]Глава 2[/b][/center] и т.п. — Word/.docx импорт обычно
+// заворачивает заголовки в bold/center/heading.
 function splitIntoChapters(
   bbText: string,
   startFallback: number
 ): Array<{ number: number; bb: string }> {
   const text = bbText.replace(/\r\n/g, '\n');
-  const matches = [...text.matchAll(CHAPTER_HEADER_RE)];
+  // Локальный regex — чтобы lastIndex не утёк между вызовами и matchAll
+  // всегда стартовал с начала строки.
+  // Структура:
+  //   ^[ \t ]*           — отступ (включая NBSP из Word)
+  //   (?:\[[^\]\n]+\][ \t ]*)*  — любое количество BB-открывашек
+  //   (?:Глава|Chapter)       — само слово
+  //   \s*\.?\s*               — опциональная точка/пробелы
+  //   (\d+)                   — номер
+  //   [^\n]*$                 — хвост строки (закрывающие BB-теги, точки, тире)
+  const headerRe =
+    /^[ \t ]*(?:\[[^\]\n]+\][ \t ]*)*(?:Глава|Chapter)\s*\.?\s*(\d+)[^\n]*$/gim;
+  const matches = [...text.matchAll(headerRe)];
 
   if (matches.length === 0) {
     const trimmed = text.trim();
@@ -49,10 +60,10 @@ function splitIntoChapters(
   return parts;
 }
 
-// Парсит «100-104» / «105» / «100 - 110» в [start, end]. Возвращает null,
-// если не парсится. Один номер «105» = диапазон 105..105.
+// Парсит «100-104» / «105» / «100 - 110» / «100—104» (em-dash) /
+// «100–104» (en-dash) в [start, end]. Возвращает null, если не парсится.
 function parseFreeRange(s: string): { start: number; end: number } | null {
-  const clean = s.trim();
+  const clean = s.trim().replace(/[—–]/g, '-');
   if (!clean) return null;
   if (clean.includes('-')) {
     const [a, b] = clean.split('-').map((p) => parseInt(p.trim(), 10));
@@ -254,7 +265,8 @@ export default function BulkChapterUpload({
           <li>Вставь весь текст — одну или сразу все главы.</li>
           <li>
             Начало каждой главы пометь строкой <code>Глава 1</code>,{' '}
-            <code>Глава 2</code> и т.д. на отдельной строке.
+            <code>Глава 2</code> и т.д. на отдельной строке. Заголовок
+            может быть жирным, по центру или из <code>.docx</code> — это нормально.
           </li>
           <li>Абзацы разделяй пустой строкой. Жирный/курсив — кнопками или BB-кодами.</li>
           <li>Если текст без заголовков — он загрузится как одна глава с номером из поля справа.</li>
@@ -360,7 +372,7 @@ export default function BulkChapterUpload({
           onChange={setBbContent}
           minHeight={480}
           placeholder={`Глава 1\n\nТекст первой главы…\n\nГлава 2\n\nТекст второй главы…`}
-          hint="Я разберу текст по заголовкам «Глава N» автоматически. Предпросмотр разбиения — справа. Поле можно оставить пустым, если только открываешь бесплатные."
+          hint="Я разберу текст по заголовкам «Глава N» автоматически — даже если они жирные, по центру или импортированы из .docx. Предпросмотр разбиения — справа. Поле можно оставить пустым, если только открываешь бесплатные."
         />
       </div>
 
