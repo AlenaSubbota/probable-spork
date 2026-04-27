@@ -1,0 +1,27 @@
+/* Та самая «коричневая полоса» над клавиатурой на iPhone — это
+   .comment-toolbar (BB-кодовые кнопки B/I/U/S/спойлер/цитата).
+   Её фон — var(--bg-soft) (#211D18 в тёмной теме, тёплый
+   коричневый), и на iOS она оказывается ровно над всплывающей
+   клавиатурой: iOS поднимает focused textarea, а тулбар висит
+   ВЫШЕ textarea (border-radius 10px 10px 0 0 в .comment-toolbar-wrap
+   флекс-колонке). Узкие кнопки B/I/U/S читаются как «брусок» —
+   пользователь не понимает, что это форматирование, и жалуется на
+   «полосу неизвестно откуда». В рабочем tene-варианте никакого
+   тулбара над инпутом нет — простой textarea + кнопка отправки.
+   Воспроизводим то же самое на мобиле: при поднятой клавиатуре
+   (есть body.reader-keyboard-up из visualViewport-детекта в
+   ReaderContent.tsx) прячем тулбар целиком и возвращаем textarea
+   округлый верх, чтобы форма выглядела цельной. На десктопе
+   visualViewport не ужимается → класс не ставится → тулбар
+   работает как раньше, со всеми BB-кнопками и Ctrl+B/I шорткатами.
+
+   Правило живёт в отдельном файле, а не в globals.css, чтобы не
+   править громоздкий 370-КБ globals.css ради 4 строк (разный
+   pipeline для патчей такого размера). */
+body.reader-keyboard-up .comment-toolbar {
+  display: none;
+}
+body.reader-keyboard-up .comment-toolbar-wrap .form-textarea {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
