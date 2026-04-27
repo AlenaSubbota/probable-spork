@@ -10990,6 +10990,15 @@ body.reader-keyboard-up .reader-bottom-bar {
   visibility: hidden;
   pointer-events: none;
 }
+/* Когда bottom-bar становится visibility: hidden, под ней проступает
+   фон .reader-page (var(--bg) — самый тёмный в теме). reader-pages-end
+   на discussion-странице рисуется на var(--surface) — слегка светлее.
+   Контраст между ними и есть «чёрная полоса» поверх клавиатуры на iOS.
+   Перекрашиваем фон reader-page в --surface на время клавиатуры — гэп
+   совпадает по цвету с обсуждением, полоска визуально исчезает. */
+body.reader-keyboard-up.reader-pages-mode .reader-page {
+  background: var(--surface);
+}
 
 /* (правила скрытия site-header и компенсации notch'а перенесены выше
    как body.reader-pages-mode — без :has() для совместимости с in-app
