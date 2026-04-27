@@ -1,13 +1,11 @@
 // -----------------------------------------------------------
 // Импорт глав из .docx-файлов и из rich-text-буфера обмена
-// (Word, Google Docs, Pages). Возвращаем уже BB-код, чтобы
-// дальше форма работала по своему обычному пути BB → HTML.
-//
-// Что важно сохранить: курсив, жирный, центрирование. Всё это
-// — основные инструменты переводчика в Word.
+// (Word, Google Docs, Pages). Возвращаем чистый HTML — он
+// сразу годится и для contentEditable-редактора, и для
+// сохранения в storage.
 // -----------------------------------------------------------
 
-import { htmlToBb } from './bbcode';
+import { cleanHtml } from './sanitize';
 
 // Типы из mammoth достаточно «свободные», подгружается динамически,
 // чтобы не утяжелять основной бандл администраторской формой.
@@ -34,7 +32,8 @@ function loadMammoth(): Promise<MammothModule> {
 // Mammoth по умолчанию игнорирует выравнивание абзацев (это известное
 // ограничение). Чиним руками: в transformDocument помечаем абзацы
 // с alignment='center' классом-стилем 'Centered', а потом styleMap
-// превращает их в <p class="center">. Дальше htmlToBb это понимает.
+// превращает их в <p class="center">. Дальше cleanHtml превращает
+// это в <p style="text-align:center">.
 const STYLE_MAP = [
   "p[style-name='Centered'] => p.center:fresh",
   "p[style-name='Center'] => p.center:fresh",
@@ -52,7 +51,7 @@ function transformParagraph(
   return paragraph;
 }
 
-export async function docxToBb(file: File | Blob): Promise<string> {
+export async function docxToHtml(file: File | Blob): Promise<string> {
   const mammoth = await loadMammoth();
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.convertToHtml(
@@ -62,14 +61,15 @@ export async function docxToBb(file: File | Blob): Promise<string> {
       styleMap: STYLE_MAP,
     },
   );
-  return htmlToBb(result.value);
+  return cleanHtml(result.value);
 }
 
-// Для onPaste: clipboard выдаёт html-фрагмент (без <html>/<body>).
-// Прогоняем через тот же htmlToBb. Возвращаем null, если bb пустой —
-// тогда вызывающий код может откатиться к стандартному paste plain-text.
-export function htmlClipboardToBb(html: string): string | null {
+// Для onPaste из Word/Google Docs: clipboard выдаёт html-фрагмент
+// (без <html>/<body>). Прогоняем через cleanHtml, чтобы убрать
+// MsoNormal-классы, span'ы с inline-шрифтами, цвета, размеры —
+// в редактор попадает только разрешённый набор тегов.
+export function htmlClipboardToHtml(html: string): string | null {
   if (!html || !html.trim()) return null;
-  const bb = htmlToBb(html).trim();
-  return bb || null;
+  const cleaned = cleanHtml(html).trim();
+  return cleaned || null;
 }
