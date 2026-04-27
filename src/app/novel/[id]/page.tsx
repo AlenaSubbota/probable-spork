@@ -855,12 +855,24 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             )}
 
             <div className="actions-row">
-              <Link
-                href={`/novel/${novel.firebase_id}/${firstChapterNumber}`}
-                className="btn btn-primary"
-              >
-                Читать с 1-й главы
-              </Link>
+              {/* Если читатель уже что-то открывал в этой новелле — кнопка
+                  становится «Продолжить с N главы» и ведёт ровно туда.
+                  Иначе обычное «Читать с 1-й главы». */}
+              {myHistory?.currentChapter ? (
+                <Link
+                  href={`/novel/${novel.firebase_id}/${myHistory.currentChapter}`}
+                  className="btn btn-primary"
+                >
+                  Продолжить с {myHistory.currentChapter}-й главы
+                </Link>
+              ) : (
+                <Link
+                  href={`/novel/${novel.firebase_id}/${firstChapterNumber}`}
+                  className="btn btn-primary"
+                >
+                  Читать с 1-й главы
+                </Link>
+              )}
               {user && (
                 <BookmarkButton
                   novelFirebaseId={novel.firebase_id}

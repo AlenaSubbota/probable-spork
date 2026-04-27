@@ -772,6 +772,51 @@ export default function ReaderContent({
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [ready, settings.readMode]);
 
+  // ---- 6.57. iOS keyboard / input focus в reader-pages-end ----
+  // Когда пользователь тапает по textarea/input на странице обсуждения,
+  // iOS поднимает клавиатуру → визуальный viewport ужимается → ResizeObserver
+  // на scroller'е перенакатывает calc → scroll-snap `x mandatory` цепляется
+  // и кидает scrollLeft на ближайший snap-target (часто это последняя текстовая
+  // страница, не обсуждение). Текстарея визуально пропадает.
+  // Лечим: пока внутри scroller'а сфокусирован поле ввода, выключаем snap.
+  useEffect(() => {
+    if (!ready || settings.readMode !== 'pages') return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    let savedLeft = 0;
+
+    const isEditable = (el: EventTarget | null): boolean => {
+      if (!(el instanceof HTMLElement)) return false;
+      return !!el.closest('input, textarea, select, [contenteditable="true"]');
+    };
+
+    const onFocusIn = (e: FocusEvent) => {
+      if (!isEditable(e.target)) return;
+      savedLeft = scroller.scrollLeft;
+      scroller.style.scrollSnapType = 'none';
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      if (!isEditable(e.target)) return;
+      // Возвращаем snap. Если за время фокуса позиция уехала
+      // (iOS пытался scroll-into-view), мягко возвращаем к сохранённой.
+      scroller.style.scrollSnapType = '';
+      if (Math.abs(scroller.scrollLeft - savedLeft) > 4) {
+        requestAnimationFrame(() => {
+          scroller.scrollTo({ left: savedLeft, behavior: 'instant' as ScrollBehavior });
+        });
+      }
+    };
+
+    scroller.addEventListener('focusin', onFocusIn);
+    scroller.addEventListener('focusout', onFocusOut);
+    return () => {
+      scroller.removeEventListener('focusin', onFocusIn);
+      scroller.removeEventListener('focusout', onFocusOut);
+      scroller.style.scrollSnapType = '';
+    };
+  }, [ready, settings.readMode]);
+
   // ---- 6.6. Keyboard nav в pages-режиме ----
   useEffect(() => {
     if (!ready) return;
@@ -1045,7 +1090,17 @@ export default function ReaderContent({
             style={bodyStyle}
             dangerouslySetInnerHTML={{ __html: processedContent }}
           />
-          {Array.from({ length: Math.max(0, totalPages - 1) }).map((_, i) => (
+          {/* spacer'ы дают snap-targets для колонок 2..N (одна на каждый
+              текстовый «лист» помимо первого, который рендерит сама content-page).
+              reader-pages-end ниже — это уже отдельный snap-target для обсуждения,
+              поэтому ВЫЧИТАЕМ его из счёта, иначе перед обсуждением выскакивала
+              пустая страница (off-by-one на количестве spacer'ов). */}
+          {Array.from({
+            length: Math.max(
+              0,
+              totalPages - 1 - (commentsSlot ? 1 : 0),
+            ),
+          }).map((_, i) => (
             <div
               key={`pm-spacer-${i}`}
               className="reader-pages-spacer"
