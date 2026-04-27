@@ -109,6 +109,13 @@ export default function ReaderContent({
   // iOS/Android уносят scrollLeft overflow-контейнера при блокировке экрана —
   // запоминаем последнюю позицию и восстанавливаем при возврате на вкладку.
   const savedScrollRef = useRef<{ top: number; left: number }>({ top: 0, left: 0 });
+  // На странице обсуждения пользователь тапает по textarea — iOS поднимает
+  // клавиатуру, layout вокруг ужимается, ResizeObserver срабатывает и
+  // пересчитывает количество страниц / spacer'ов → DOM перетряхивается → snap
+  // утаскивает scrollLeft на ближайший snap-target (обычно последняя текстовая
+  // страница). Решение: пока внутри scroller'а сфокусирован input — флаг true,
+  // и calc/RO-эффект полностью игнорирует ресайзы.
+  const inputFocusedRef = useRef<boolean>(false);
 
   const [pageWidth, setPageWidth] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
@@ -653,9 +660,13 @@ export default function ReaderContent({
     // 3. Reflow при изменении ширины ИЛИ высоты контейнера. Высота
     //    меняется когда iOS Safari прячет адресную строку или когда
     //    клавиатура выезжает — multi-column перетекает, totalPages меняется.
+    //    ВАЖНО: пока в фокусе input/textarea (страница обсуждения), ВООБЩЕ
+    //    игнорируем ресайзы — иначе iOS-клавиатура триггерит recalc → DOM
+    //    перетряхивается → snap утаскивает пользователя с обсуждения.
     let lastWidth = scroller.clientWidth;
     let lastHeight = scroller.clientHeight;
     const ro = new ResizeObserver((entries) => {
+      if (inputFocusedRef.current) return;
       for (const e of entries) {
         const w = Math.round(e.contentRect.width);
         const h = Math.round(e.contentRect.height);
@@ -670,7 +681,10 @@ export default function ReaderContent({
 
     // 4. Картинки внутри главы: каждая загруженная меняет column flow.
     const imgs = content.querySelectorAll('img');
-    const onImg = () => calc();
+    const onImg = () => {
+      if (inputFocusedRef.current) return;
+      calc();
+    };
     imgs.forEach((img) => {
       if (img.complete) return;
       img.addEventListener('load', onImg);
@@ -774,11 +788,15 @@ export default function ReaderContent({
 
   // ---- 6.57. iOS keyboard / input focus в reader-pages-end ----
   // Когда пользователь тапает по textarea/input на странице обсуждения,
-  // iOS поднимает клавиатуру → визуальный viewport ужимается → ResizeObserver
-  // на scroller'е перенакатывает calc → scroll-snap `x mandatory` цепляется
-  // и кидает scrollLeft на ближайший snap-target (часто это последняя текстовая
-  // страница, не обсуждение). Текстарея визуально пропадает.
-  // Лечим: пока внутри scroller'а сфокусирован поле ввода, выключаем snap.
+  // iOS поднимает клавиатуру → ужимается visual viewport → ResizeObserver
+  // на scroller'е стрелял (см. эффект calc), пересчитывал totalPages, DOM
+  // обновлялся, и scroll-snap утаскивал пользователя на последнюю текстовую
+  // страницу. Лечим тремя слоями:
+  //   - inputFocusedRef = true → calc/RO выше его проверяют и игнорят ресайзы
+  //   - scroll-snap-type = none → snap не цепляется при любых случайных
+  //     изменениях scrollLeft со стороны iOS
+  //   - watcher на scroll: пока флаг активен, любое изменение scrollLeft
+  //     откатываем к savedLeft (страховка на случай, если iOS всё же дёрнет)
   useEffect(() => {
     if (!ready || settings.readMode !== 'pages') return;
     const scroller = scrollerRef.current;
@@ -791,16 +809,37 @@ export default function ReaderContent({
       return !!el.closest('input, textarea, select, [contenteditable="true"]');
     };
 
+    let restoring = false;
+    const onScroll = () => {
+      if (!inputFocusedRef.current) return;
+      if (restoring) return;
+      if (Math.abs(scroller.scrollLeft - savedLeft) < 2) return;
+      restoring = true;
+      scroller.scrollTo({ left: savedLeft, behavior: 'instant' as ScrollBehavior });
+      requestAnimationFrame(() => { restoring = false; });
+    };
+
     const onFocusIn = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
       savedLeft = scroller.scrollLeft;
+      inputFocusedRef.current = true;
       scroller.style.scrollSnapType = 'none';
+      scroller.addEventListener('scroll', onScroll, { passive: true });
     };
     const onFocusOut = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
-      // Возвращаем snap. Если за время фокуса позиция уехала
-      // (iOS пытался scroll-into-view), мягко возвращаем к сохранённой.
+      // Если фокус перешёл на ДРУГОЙ редактор (например, юзер перешёл из
+      // textarea в textarea-цитаты) — оставляем флаг включённым.
+      const next = e.relatedTarget as HTMLElement | null;
+      if (next && isEditable(next)) {
+        savedLeft = scroller.scrollLeft;
+        return;
+      }
+      inputFocusedRef.current = false;
+      scroller.removeEventListener('scroll', onScroll);
       scroller.style.scrollSnapType = '';
+      // Закидываем пользователя обратно на ту страницу, где он был
+      // ДО появления клавиатуры (правый край = обсуждение).
       if (Math.abs(scroller.scrollLeft - savedLeft) > 4) {
         requestAnimationFrame(() => {
           scroller.scrollTo({ left: savedLeft, behavior: 'instant' as ScrollBehavior });
@@ -813,7 +852,9 @@ export default function ReaderContent({
     return () => {
       scroller.removeEventListener('focusin', onFocusIn);
       scroller.removeEventListener('focusout', onFocusOut);
+      scroller.removeEventListener('scroll', onScroll);
       scroller.style.scrollSnapType = '';
+      inputFocusedRef.current = false;
     };
   }, [ready, settings.readMode]);
 
