@@ -1,103 +1,104 @@
 /* =========================================================
-   Фиксы поведения читалки при поднятой клавиатуре на мобильных.
-   body.reader-keyboard-up ставится двумя путями:
-   - ReaderContent.tsx через visualViewport.resize (работает в
-     обычном Safari);
-   - ReaderKeyboardDetector.tsx через focusin/focusout (работает
-     везде, включая Telegram WebApp, где visualViewport
-     недостаточно надёжный).
+   Фиксы поведения читалки:
+   - дребезг тулбара (бб-коды то появляются то исчезают);
+   - две вертикальные scroll-области (page-in-page);
+   - footer и grid overflow на странице главы.
 
-   Оборачиваем правила в @media (pointer: coarse), чтобы на
-   десктопе фокус на input не вызывал прятание тулбара/padding'а.
-   На тач-девайсах любой фокус = поднимающаяся клавиатура.
+   Архитектурное решение: используем CSS :focus-within вместо
+   JS-класса body.reader-keyboard-up — он работает без событий и
+   без таймингов, всегда даёт правильное состояние. JS-детектор
+   из ReaderKeyboardDetector.tsx остаётся только для совместимости
+   со старыми правилами (если где-то осталось .reader-keyboard-up),
+   но новые правила на него не полагаются.
+
+   На десктопе фокус на input не = клавиатура, поэтому правила,
+   которые должны срабатывать ТОЛЬКО при настоящей клавиатуре,
+   обёрнуты в @media (pointer: coarse).
    ========================================================= */
-@media (pointer: coarse) {
-  /* (1) ОСНОВНАЯ «коричневая полоса» — это padding-bottom у
-     .reader-pages-end (24px 22px 80px на десктопе, 18px 14px 70px
-     на мобиле). Этот резерв нужен был чтобы контент не уезжал под
-     fixed bottom-bar. Но в pages-режиме на странице обсуждения
-     bottom-bar и так прячется (см. ReaderBottomBar visible-prop в
-     ReaderContent), а padding продолжает рисоваться background'ом
-     var(--surface) (#29241E в тёмной теме — тёплый коричневый,
-     #FBF7F0 в светлой). Когда iOS поднимает клавиатуру, ниже
-     textarea остаётся именно эта 70-80px полоса коричневого фона —
-     её и видит пользователь. Урезаем до 12px пока клавиатура
-     поднята: textarea вплотную к keyboard top, полосы нет.
-     PR #66 уже делал это, но PR #67 откатил CSS вместе с фиксом. */
-  body.reader-keyboard-up
-    .reader-wrapper[data-read-mode='pages']
-    .reader-pages-end {
-    padding-bottom: 12px;
-  }
 
-  /* (2) ВТОРОЙ источник тёплого фона — .comment-toolbar (BB-кнопки
-     B/I/U/S/спойлер/цитата) над textarea. Её фон — var(--bg-soft),
-     в тёмной теме #211D18 (тоже коричневый). На iOS при подъёме
-     клавиатуры фокусированная textarea подымается, и узкие кнопки
-     тулбара читаются как «брусок неизвестно откуда». В рабочем
-     tene никакого тулбара над инпутом нет — простой textarea +
-     кнопка отправки. Воспроизводим: пока клавиатура поднята —
-     прячем тулбар целиком и возвращаем textarea округлый верх.
-     На десктопе @media (pointer: coarse) не матчится → правило
-     не применяется → тулбар работает как раньше. */
-  body.reader-keyboard-up .comment-toolbar {
+/* ---- (1) Тулбар форматирования (.comment-toolbar) ----
+   Узкие кнопки B/I/U/S/спойлер/цитата с фоном var(--bg-soft)
+   (#211D18 в тёмной теме — тёплый коричневый) на iOS оказываются
+   ровно над клавиатурой, читаются как «коричневая полоса». В рабочем
+   tene никакого тулбара над инпутом нет — просто textarea + кнопка
+   отправки. Воспроизводим: пока внутри обёртки textarea сфокусирован,
+   прячем тулбар и возвращаем textarea округлый верх.
+
+   :focus-within срабатывает на родителе пока любой descendant
+   в фокусе, и пропадает когда фокус ушёл. Без JS-таймингов и без
+   зависимости от события focusin/focusout. */
+@media (pointer: coarse) {
+  .comment-toolbar-wrap:focus-within > .comment-toolbar {
     display: none;
   }
-  body.reader-keyboard-up .comment-toolbar-wrap .form-textarea {
+  .comment-toolbar-wrap:focus-within > .form-textarea {
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
   }
 }
 
-/* (3) ТРЕТИЙ источник полосы — глобальный <SiteFooter /> из
-   layout.tsx. Подтверждено DevTools-скрином пользователя: <footer
-   class="site-footer"> с margin-top: 60px + padding: 28px 0 48px +
-   border-top рисует тёплую полосу прямо под рекомендациями.
+/* ---- (2) Padding-bottom у .reader-pages-end ----
+   80px / 70px коричневого фона var(--surface) под textarea при
+   поднятой клавиатуре. Тоже через :focus-within: пока внутри
+   reader-pages-end что-то сфокусировано, ужимаем до 12px. */
+@media (pointer: coarse) {
+  .reader-wrapper[data-read-mode='pages'] .reader-pages-end:focus-within {
+    padding-bottom: 12px;
+  }
+}
 
-   Раньше прятали только в pages-режиме (body.reader-pages-mode), но
-   пользовательница увидела полосу и в scroll-режиме на десктопе
-   (когда промотать главу до конца). Прячем footer на ЛЮБОЙ странице
-   читалки — и в pages, и в scroll. Используем :has(.reader-page)
-   чтобы поймать обе ситуации без модификации компонентов.
-
-   :has() поддерживается в Safari 15.4+ / Chrome 105+ / iOS 15.4+ —
-   у пользовательницы Telegram WebApp на iPhone, который заведомо
-   свежее. На древних WebView правило просто не сработает, footer
-   останется как был — это не сломает страницу, только вернёт
-   старое поведение для < 1% устройств.
-
-   Дополнительная польза: убирает body-скролл вертикальный (footer
-   тянул body выше viewport), и горизонтальные snap-свайпы внутри
-   reader-pages-scroller перестанут уходить в body-скролл. Должно
-   побочно починить «свайп с последней страницы возвращает к тексту»
-   из жалобы. */
+/* ---- (3) Footer на странице главы ----
+   <SiteFooter /> рендерится в layout.tsx как direct child body,
+   ниже всего контента. На странице читалки он создаёт лишнюю
+   вертикальную полосу под рекомендациями (margin-top: 60px +
+   padding 28px 0 48px + border-top). Прячем footer на любой
+   странице с .reader-page (через :has — Safari 15.4+ / Chrome 105+).
+   Для старых WebView без :has оставляем fallback на pages-mode
+   через явный body-класс (его ставит ReaderContent в useEffect). */
 body:has(.reader-page) > .site-footer {
   display: none;
 }
-/* Fallback для pages-mode на старых WebView (без :has): прячем
-   симметрично существующему правилу для site-header в globals.css. */
 body.reader-pages-mode > .site-footer {
   display: none;
 }
 
-/* (4) «Созвучие читателей» — переехал в commentsSlot, и теперь
-   сетка живёт внутри .reader-main (max-width: 760px) или
-   .reader-pages-end (width: pageWidth, обычно ~700px). Дефолт
-   .novel-grid использует grid-template-columns: repeat(6, 1fr)
-   на viewport > 1100px (см. globals.css). Карточки имеют
-   intrinsic min-width (картинка обложки + текст), и `1fr` без
-   minmax(0, ...) деградирует до min-content → сетка
-   распирает родителя и «выезжает за основной блок главы».
-   Раньше блок жил в .container (1240px), где 6 колонок были к
-   месту; теперь контейнер уже, нужно меньше колонок и явный
-   minmax(0, 1fr) чтобы сетка не игнорировала ширину родителя.
-   3 колонки на 700px = ~210px на карточку — нормально читается. */
+/* ---- (4) Лочим body-скролл в pages-режиме («page in page» fix) ----
+   Корень жалобы «можно скроллить отдельно читалку и отдельно сайт» —
+   две вертикальные overflow-области одновременно:
+   - body (естественный документ-скролл);
+   - .reader-pages-end внутри scroller'а (overflow-y: auto для
+     длинного списка комментов).
+   Палец иногда уезжает в body-скролл, иногда — в reader-pages-end.
+   В рабочем tene этой проблемы нет, потому что тамошняя читалка
+   ВЕСЬ экран занимает фиксированным оверлеем (position: fixed
+   inset-0). Воспроизводим эффект через body { overflow: hidden }:
+   body больше не скроллится, остаётся только внутренний скролл
+   reader-pages-end — пользователь видит ОДНУ ось скролла.
+
+   Применяем только в pages-режиме (когда снап нужен горизонтально
+   и весь экран целиком должен жить как «книга»). В scroll-режиме
+   body-скролл нужен — текст главы и комменты идут единой лентой. */
+body.reader-pages-mode {
+  overflow: hidden;
+  height: 100svh;
+}
+body.reader-pages-mode .reader-page {
+  height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
+}
+
+/* ---- (5) Grid рекомендаций «Созвучие читателей» ----
+   После переезда блока в commentsSlot он живёт внутри .reader-main
+   (max-width: 760px) или .reader-pages-end (~700px). Дефолт
+   .novel-grid использует repeat(6, 1fr) на viewport > 1100px,
+   intrinsic min-width карточек ломает grid и блок «выезжает за
+   основной блок главы». Переопределяем на 3 колонки + minmax(0, 1fr)
+   внутри читалки — карточки укладываются в родителя. */
 .reader-main .novel-grid,
 .reader-pages-end .novel-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-/* На совсем узких экранах (ridiculous case: pages-mode на iPhone
-   SE) сжимаем до 2 колонок, чтобы карточки не схлопнулись в кашу. */
 @media (max-width: 380px) {
   .reader-main .novel-grid,
   .reader-pages-end .novel-grid {
