@@ -509,23 +509,27 @@ export default async function ChapterPage({ params }: PageProps) {
                   </>
                 }
               />
+
+              {/* «Созвучие читателей» — на последней снап-странице, как
+                  в tene. Раньше блок жил снаружи .reader-main и в pages-
+                  режиме «висел» внизу body на каждой странице главы —
+                  стоило вертикально скроллить body, и пользователь видел
+                  рекомендации поверх любой страницы текста. Перенесли
+                  внутрь commentsSlot: в pages-режиме это финальный
+                  snap-target (.reader-pages-end), в scroll-режиме —
+                  просто ниже комментариев. Сетка из 6 обложек ужимается
+                  на ширине pageWidth (на мобиле .novel-grid и так 3
+                  колонки до 540px), читается так же. */}
+              {similarByReaders.length > 0 && (
+                <SimilarByReaders
+                  novels={similarByReaders}
+                  translators={similarTranslatorMap}
+                />
+              )}
             </>
           }
         />
       </main>
-
-      {/* «Созвучие читателей» — выносим за пределы .reader-main (max-width
-          760), чтобы сетка из 4-6 обложек дышала по полной ширине
-          .container, как на странице новеллы. Внутри узкой колонки
-          цифры/обложки слипались и не помещались. */}
-      {similarByReaders.length > 0 && (
-        <section className="container reader-similar-out">
-          <SimilarByReaders
-            novels={similarByReaders}
-            translators={similarTranslatorMap}
-          />
-        </section>
-      )}
     </div>
   );
 }
