@@ -2,13 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ReaderContent from '@/components/ReaderContent';
-import CommentsSection from '@/components/CommentsSection';
-import ChapterThanks from '@/components/reader/ChapterThanks';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
-import DiaryQuickEntry from '@/components/diary/DiaryQuickEntry';
-import ThanksMessageForm from '@/components/thanks/ThanksMessageForm';
-import SimilarByReaders from '@/components/SimilarByReaders';
-import { fetchTranslators } from '@/lib/translator';
 
 interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
@@ -362,49 +356,6 @@ export default async function ChapterPage({ params }: PageProps) {
   const prevChapter = prevRow;
   const nextChapter = nextRow;
 
-  // Имя + slug переводчика для пост-главных блоков (ChapterThanks,
-  // ThanksMessageForm). slug нужен для ссылки на стену благодарностей.
-  let translatorDisplayName: string | null = null;
-  let translatorSlugMain: string | null = null;
-  if (novel.translator_id) {
-    const { data: tProfile } = await supabase
-      .from('profiles')
-      .select('translator_display_name, user_name, translator_slug')
-      .eq('id', novel.translator_id)
-      .maybeSingle();
-    const tp = tProfile as {
-      translator_display_name?: string | null;
-      user_name?: string | null;
-      translator_slug?: string | null;
-    } | null;
-    translatorDisplayName =
-      tp?.translator_display_name || tp?.user_name || null;
-    translatorSlugMain = tp?.translator_slug || tp?.user_name || null;
-  }
-
-  // Похожие новеллы в конце главы — чтобы читатель после дочитанной
-  // главы не застрял в пустоте, а плавно перешёл к следующей книге.
-  // RPC `get_similar_novels_by_readers` из tene работает по таблице
-  // `novel_ratings` (кто ставил 4+ этой же ставил 4+ вот этим).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let similarByReaders: any[] = [];
-  let similarTranslatorMap: Map<string, { slug: string; name: string }> = new Map();
-  try {
-    const { data } = await supabase.rpc('get_similar_novels_by_readers', {
-      p_novel_id: novel.id,
-      p_limit: 6,
-    });
-    if (Array.isArray(data) && data.length > 0) {
-      similarByReaders = data;
-      const ids = (data as Array<{ translator_id?: string | null }>)
-        .map((n) => n.translator_id)
-        .filter((v): v is string => !!v);
-      similarTranslatorMap = await fetchTranslators(supabase, ids);
-    }
-  } catch {
-    // RPC ещё не накачена — тихо пропускаем блок
-  }
-
   return (
     <div className="reader-page">
       <header className="reader-header">
@@ -450,6 +401,14 @@ export default async function ChapterPage({ params }: PageProps) {
           prevChapterNumber={prevChapter?.chapter_number ?? null}
           nextChapterNumber={nextChapter?.chapter_number ?? null}
           commentsSlot={
+            // Минимальный commentsSlot: только nav к следующей главе и
+            // кнопка перехода в самостоятельную страницу обсуждения
+            // (/discussion). Тяжёлые компоненты (CommentsSection,
+            // ChapterThanks, DiaryQuickEntry, ThanksMessageForm,
+            // SimilarByReaders) переехали в отдельный роут — ушло
+            // «page in page», коричневые полосы над клавиатурой,
+            // overflow-конфликты, кривая сетка рекомендаций. Читалка
+            // снова занимается только текстом.
             <>
               <nav className="reader-nav">
                 {nextChapter ? (
@@ -471,61 +430,22 @@ export default async function ChapterPage({ params }: PageProps) {
                 )}
               </nav>
 
-              <hr className="reader-divider" />
-
-              {/* «♥ Спасибо», «📖 Закладка дня», «💌 Сказать спасибо» —
-                  жесты после прочтения. В pages-режиме весь этот блок
-                  рендерится как ПОСЛЕДНЯЯ страница в snap-scroller'е,
-                  пользователь свайпает к нему как к финальной странице
-                  главы. В scroll-режиме — просто ниже текста. */}
-              <CommentsSection
-                novelId={novel.id}
-                chapterNumber={chapter.chapter_number}
-                topSlot={
-                  <>
-                    <ChapterThanks
-                      novelId={novel.id}
-                      chapterNumber={chapter.chapter_number}
-                      hasTranslator={!!novel.translator_id}
-                      translatorDisplayName={translatorDisplayName}
-                      isLoggedIn={!!user}
-                    />
-                    <DiaryQuickEntry
-                      novelId={novel.id}
-                      chapterNumber={chapter.chapter_number}
-                      isLoggedIn={!!user}
-                    />
-                    {novel.translator_id && (
-                      <ThanksMessageForm
-                        translatorId={novel.translator_id}
-                        translatorDisplayName={translatorDisplayName}
-                        novelId={novel.id}
-                        chapterNumber={chapter.chapter_number}
-                        isLoggedIn={!!user}
-                        currentUserId={user?.id ?? null}
-                        translatorSlug={translatorSlugMain}
-                      />
-                    )}
-                  </>
-                }
-              />
-
-              {/* «Созвучие читателей» — на последней снап-странице, как
-                  в tene. Раньше блок жил снаружи .reader-main и в pages-
-                  режиме «висел» внизу body на каждой странице главы —
-                  стоило вертикально скроллить body, и пользователь видел
-                  рекомендации поверх любой страницы текста. Перенесли
-                  внутрь commentsSlot: в pages-режиме это финальный
-                  snap-target (.reader-pages-end), в scroll-режиме —
-                  просто ниже комментариев. Сетка из 6 обложек ужимается
-                  на ширине pageWidth (на мобиле .novel-grid и так 3
-                  колонки до 540px), читается так же. */}
-              {similarByReaders.length > 0 && (
-                <SimilarByReaders
-                  novels={similarByReaders}
-                  translators={similarTranslatorMap}
-                />
-              )}
+              <div style={{ marginTop: 14 }}>
+                <Link
+                  href={`/novel/${id}/${chapter.chapter_number}/discussion`}
+                  className="btn btn-ghost"
+                  style={{
+                    width: '100%',
+                    textAlign: 'center',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  💬 Обсудить главу
+                </Link>
+              </div>
             </>
           }
         />
