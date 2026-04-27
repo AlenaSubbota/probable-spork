@@ -53,16 +53,12 @@ export default function RootLayout({
       className={`${manrope.variable} ${lora.variable} h-full antialiased`}
     >
       <head>
-        {/* Anti-FOUC для тёмной темы: инлайн-скрипт в <head>
-            устанавливает data-theme ДО первого paint. Иначе страница
-            мигнёт светлой → тёмной при загрузке, и темы на SSR не
-            видно при preload. */}
-        <script
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('chaptify-theme')||'auto';var r=t==='auto'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;document.documentElement.setAttribute('data-theme',r);}catch(e){}})();`,
-          }}
-        />
+        {/* Anti-FOUC для тёмной темы: синхронный внешний скрипт в
+            <head> устанавливает data-theme ДО первого paint. Иначе
+            страница мигнёт светлой → тёмной при загрузке.
+            Вынесено во внешний файл /theme-init.js, чтобы проходить
+            строгий CSP (script-src 'self') без 'unsafe-inline'/nonce. */}
+        <script src="/theme-init.js" />
       </head>
       <body className="min-h-full flex flex-col">
         <SiteHeader />
