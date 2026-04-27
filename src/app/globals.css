@@ -10950,8 +10950,10 @@ html[data-theme='dark'] .star-week-portrait {
   align-items: stretch;
   /* Высота viewport минус шапка/панель — чтобы pages-контент не уезжал
      под кнопки. svh — стабильная высота на iOS даже при сворачивании
-     адресной строки. */
-  height: calc(100svh - 220px);
+     адресной строки. С учётом скрытой site-header в pages-режиме (см.
+     ниже) бюджет ужат: остаётся reader-header (52/44px) + bottom-bar
+     (~80/65px) + safe-area + небольшой запас. */
+  height: calc(100svh - 150px);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -10965,8 +10967,21 @@ html[data-theme='dark'] .star-week-portrait {
 }
 @media (max-width: 760px) {
   .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
-    height: calc(100svh - 180px);
+    height: calc(100svh - 125px);
   }
+}
+
+/* В pages-режиме прячем глобальную site-header — reader-header сверху и
+   sticky-bottom-bar снизу дают всё нужное (back, номер главы, прогресс,
+   настройки). Освобождает ~65px на десктопе и ~55px на мобиле под текст,
+   делает читалку ближе к «полному экрану книги». */
+body:has(.reader-wrapper[data-read-mode='pages']) > .site-header {
+  display: none;
+}
+/* Без site-header reader-header переезжает под notch — компенсируем
+   safe-area-inset-top. */
+.reader-page:has(.reader-wrapper[data-read-mode='pages']) .reader-header {
+  padding-top: env(safe-area-inset-top, 0);
 }
 
 /* Content-страница: ОДНА на главу, но визуально содержит все страницы
@@ -10982,7 +10997,7 @@ html[data-theme='dark'] .star-week-portrait {
   height: 100%;
   column-gap: 0;
   column-fill: auto;
-  padding: 8px 0 16px;
+  padding: 2px 0 6px;       /* минимальный вертикальный запас, чтобы текст не «прилипал» к краям scroller'а */
   overflow: visible;        /* колонки рисуются вправо за пределы width */
 }
 /* Spacer — невидимый flex-item той же ширины, что и content-страница.

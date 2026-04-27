@@ -451,8 +451,16 @@ export default async function ChapterPage({ params }: PageProps) {
           nextChapterNumber={nextChapter?.chapter_number ?? null}
           commentsSlot={
             <>
-              {!nextChapter && (
-                <nav className="reader-nav">
+              <nav className="reader-nav">
+                {nextChapter ? (
+                  <Link
+                    href={`/novel/${id}/${nextChapter.chapter_number}`}
+                    className="btn btn-primary"
+                    style={{ flex: 1, textAlign: 'center' }}
+                  >
+                    Следующая глава →
+                  </Link>
+                ) : (
                   <Link
                     href={`/novel/${id}`}
                     className="btn btn-ghost"
@@ -460,8 +468,8 @@ export default async function ChapterPage({ params }: PageProps) {
                   >
                     К новелле
                   </Link>
-                </nav>
-              )}
+                )}
+              </nav>
 
               <hr className="reader-divider" />
 
