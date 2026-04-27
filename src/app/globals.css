@@ -10948,12 +10948,10 @@ html[data-theme='dark'] .star-week-portrait {
 .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
   display: flex;
   align-items: stretch;
-  /* Высота viewport минус шапка/панель — чтобы pages-контент не уезжал
-     под кнопки. svh — стабильная высота на iOS даже при сворачивании
-     адресной строки. С учётом скрытой site-header в pages-режиме (см.
-     ниже) бюджет ужат: остаётся reader-header (52/44px) + bottom-bar
-     (~80/65px) + safe-area + небольшой запас. */
-  height: calc(100svh - 150px);
+  /* svh — стабильная высота на iOS даже при сворачивании адресной строки.
+     Бюджет вычитаем явно: reader-header (52/44px) + bottom-bar (~80/70px)
+     + safe-area-top (env, под notch) + safe-area-bottom (env, под home indicator). */
+  height: calc(100svh - 52px - 80px - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -10967,22 +10965,35 @@ html[data-theme='dark'] .star-week-portrait {
 }
 @media (max-width: 760px) {
   .reader-wrapper[data-read-mode='pages'] .reader-pages-scroller {
-    height: calc(100svh - 125px);
+    height: calc(100svh - 44px - 70px - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0));
   }
 }
 
 /* В pages-режиме прячем глобальную site-header — reader-header сверху и
-   sticky-bottom-bar снизу дают всё нужное (back, номер главы, прогресс,
-   настройки). Освобождает ~65px на десктопе и ~55px на мобиле под текст,
-   делает читалку ближе к «полному экрану книги». */
-body:has(.reader-wrapper[data-read-mode='pages']) > .site-header {
+   sticky-bottom-bar снизу дают всё нужное. Класс reader-pages-mode ставит
+   ReaderContent через JS (см. useEffect), потому что :has() нестабильно
+   работает в Telegram-WebView и старых WebKit'ах. */
+body.reader-pages-mode > .site-header {
   display: none;
 }
 /* Без site-header reader-header переезжает под notch — компенсируем
    safe-area-inset-top. */
-.reader-page:has(.reader-wrapper[data-read-mode='pages']) .reader-header {
+body.reader-pages-mode .reader-page .reader-header {
   padding-top: env(safe-area-inset-top, 0);
 }
+/* Когда поднимается клавиатура (visualViewport ужался > 100px): прячем
+   ReaderBottomBar. Иначе на iOS position: fixed «прилипает» к верху
+   клавиатуры полупрозрачной полосой. Visibility: hidden оставляет место
+   в layout (никаких reflow → totalPages не пересчитывается → snap не
+   срывает пользователя на текстовую страницу). */
+body.reader-keyboard-up .reader-bottom-bar {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* (правила скрытия site-header и компенсации notch'а перенесены выше
+   как body.reader-pages-mode — без :has() для совместимости с in-app
+   WebView, где :has() ещё нестабилен) */
 
 /* Content-страница: ОДНА на главу, но визуально содержит все страницы
    через multi-column. Width = pageWidth ставит JS, а multi-column

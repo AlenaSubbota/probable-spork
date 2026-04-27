@@ -117,6 +117,36 @@ export default function ReaderContent({
   // и calc/RO-эффект полностью игнорирует ресайзы.
   const inputFocusedRef = useRef<boolean>(false);
 
+  // Для CSS-каскада: пока юзер в pages-режиме, на body висит класс
+  // .reader-pages-mode. Используется чтобы скрыть глобальный SiteHeader
+  // и применить visibility-hide к ReaderBottomBar при открытой клавиатуре.
+  // Через body-класс (не через CSS :has) чтобы работало на любом WebView.
+  useEffect(() => {
+    if (settings.readMode === 'pages') {
+      document.body.classList.add('reader-pages-mode');
+      return () => document.body.classList.remove('reader-pages-mode');
+    }
+  }, [settings.readMode]);
+
+  // Детектим открытую клавиатуру через visualViewport и сигналим CSS.
+  // На iOS position: fixed элементы привязаны к visual viewport, поэтому
+  // ReaderBottomBar «прилипает» к верху клавиатуры. Прячем её через CSS
+  // когда детектим что viewport ужался > 100px относительно layout.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const check = () => {
+      const isKeyboardOpen = vv.height < window.innerHeight - 100;
+      document.body.classList.toggle('reader-keyboard-up', isKeyboardOpen);
+    };
+    check();
+    vv.addEventListener('resize', check);
+    return () => {
+      vv.removeEventListener('resize', check);
+      document.body.classList.remove('reader-keyboard-up');
+    };
+  }, []);
+
   const [pageWidth, setPageWidth] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
