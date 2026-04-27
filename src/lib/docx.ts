@@ -1,11 +1,18 @@
 // -----------------------------------------------------------
 // Импорт глав из .docx-файлов и из rich-text-буфера обмена
-// (Word, Google Docs, Pages). Возвращаем чистый HTML — он
-// сразу годится и для contentEditable-редактора, и для
-// сохранения в storage.
+// (Word, Google Docs, Pages).
+//
+// Главный путь — HTML-вывод (docxToHtml / htmlClipboardToHtml),
+// он используется новым WYSIWYG-редактором главы (RichTextEditor).
+//
+// Legacy-путь — BB-вывод (docxToBb / htmlClipboardToBb), нужен
+// старому BBCodeEditor: NovelForm и NewsForm всё ещё на нём
+// (короткие описания, BB удобнее). Удалить эти алиасы можно
+// будет только если вместе с ними переписать NovelForm/NewsForm.
 // -----------------------------------------------------------
 
 import { cleanHtml } from './sanitize';
+import { htmlToBb } from './bbcode';
 
 // Типы из mammoth достаточно «свободные», подгружается динамически,
 // чтобы не утяжелять основной бандл администраторской формой.
@@ -51,7 +58,7 @@ function transformParagraph(
   return paragraph;
 }
 
-export async function docxToHtml(file: File | Blob): Promise<string> {
+async function docxToCleanHtml(file: File | Blob): Promise<string> {
   const mammoth = await loadMammoth();
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.convertToHtml(
@@ -64,6 +71,10 @@ export async function docxToHtml(file: File | Blob): Promise<string> {
   return cleanHtml(result.value);
 }
 
+export async function docxToHtml(file: File | Blob): Promise<string> {
+  return docxToCleanHtml(file);
+}
+
 // Для onPaste из Word/Google Docs: clipboard выдаёт html-фрагмент
 // (без <html>/<body>). Прогоняем через cleanHtml, чтобы убрать
 // MsoNormal-классы, span'ы с inline-шрифтами, цвета, размеры —
@@ -72,4 +83,23 @@ export function htmlClipboardToHtml(html: string): string | null {
   if (!html || !html.trim()) return null;
   const cleaned = cleanHtml(html).trim();
   return cleaned || null;
+}
+
+// ---- Legacy: BB-вывод для старого BBCodeEditor ----
+//
+// Возвращают BB-код вместо HTML. Нужны NovelForm/NewsForm — они
+// хранят текст в BB-формате (textarea + bbToHtml на сабмите).
+// Внутренне идут через тот же mammoth/cleanHtml, потом конвертируют
+// в BB через htmlToBb.
+
+export async function docxToBb(file: File | Blob): Promise<string> {
+  const html = await docxToCleanHtml(file);
+  return htmlToBb(html);
+}
+
+export function htmlClipboardToBb(html: string): string | null {
+  if (!html || !html.trim()) return null;
+  const cleaned = cleanHtml(html);
+  const bb = htmlToBb(cleaned).trim();
+  return bb || null;
 }
