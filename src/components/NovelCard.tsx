@@ -9,6 +9,11 @@ interface NovelCardProps {
   translator: string;
   /** slug переводчика для ссылки /t/{slug}. Если не задан — имя остаётся span'ом. */
   translatorSlug?: string | null;
+  /** Полный href для клика по подписи под обложкой. Имеет приоритет над
+      translatorSlug и используется когда подпись — это автор (а не
+      переводчик). Например: `/search?q=<author>` чтобы клик уводил в
+      поиск по автору, а не на профиль переводчика. */
+  byHref?: string | null;
   metaInfo: string;
   rating: string;
   placeholderClass: string;
@@ -51,6 +56,7 @@ export default function NovelCard({
   title,
   translator,
   translatorSlug,
+  byHref,
   metaInfo,
   rating,
   placeholderClass,
@@ -64,6 +70,10 @@ export default function NovelCard({
   genres,
   ageRating,
 }: NovelCardProps) {
+  // Кому уходит клик по подписи: явный byHref → /search; иначе если есть
+  // translatorSlug → /t/<slug>; иначе вообще без ссылки.
+  const byLinkHref =
+    byHref ?? (translatorSlug ? `/t/${translatorSlug}` : null);
   const excerpt = textExcerpt(description, 200);
   const hasTooltip = !!(excerpt || (genres && genres.length > 0));
   const novelHref = `/novel/${id}`;
@@ -151,8 +161,8 @@ export default function NovelCard({
       </Link>
       <Link href={novelHref} className="novel-title">{title}</Link>
       <div className="novel-meta">
-        {translatorSlug ? (
-          <Link href={`/t/${translatorSlug}`} className="by">
+        {byLinkHref ? (
+          <Link href={byLinkHref} className="by">
             {translator}
           </Link>
         ) : (

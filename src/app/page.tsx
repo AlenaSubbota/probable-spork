@@ -13,7 +13,6 @@ import JournalStrip, { type JournalItem } from '@/components/home/JournalStrip';
 import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
 import StarOfTheWeek, { type StarOfTheWeekData } from '@/components/home/StarOfTheWeek';
-import { fetchTranslatorSlugs } from '@/lib/translator';
 import Link from 'next/link';
 import { getCoverUrl } from '@/lib/format';
 
@@ -40,7 +39,7 @@ export default async function HomePage() {
       .select('*')
       .eq('moderation_status', 'published')
       .order('latest_chapter_published_at', { ascending: false })
-      .limit(6),
+      .limit(12),
   ]);
 
   // Данные залогиненного пользователя
@@ -280,7 +279,7 @@ export default async function HomePage() {
       .select('id, user_name, text, created_at, novel_id, chapter_number')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
-      .limit(5);
+      .limit(6);
     if (comments && comments.length > 0) {
       const novelIds = Array.from(new Set(comments.map((c) => c.novel_id)));
       const { data: novelsForComments } = await supabase
@@ -305,7 +304,7 @@ export default async function HomePage() {
           } satisfies CommentFeedItem;
         })
         .filter((x): x is CommentFeedItem => x !== null)
-        .slice(0, 8);
+        .slice(0, 6);
     }
   } catch {
     // ok
@@ -456,14 +455,6 @@ export default async function HomePage() {
     // миграция 013 не накачена
   }
 
-  // Подтягиваем slugs переводчиков для popular + recent, чтобы имя в
-  // карточке было Link'ом на профиль.
-  const translatorIds = [
-    ...(popularNovels ?? []).map((n) => n.translator_id),
-    ...(recentNovels ?? []).map((n) => n.translator_id),
-  ];
-  const translatorSlugMap = await fetchTranslatorSlugs(supabase, translatorIds);
-
   // ---- Звезда недели — RPC из миграции 042 ----
   // Если за последние 7 дней никто ничего не набрал — блок не рендерится.
   let starOfTheWeek: StarOfTheWeekData | null = null;
@@ -502,6 +493,40 @@ export default async function HomePage() {
       <ReadingNow items={readingNowItems} totalReadersNow={totalReadersNow} />
 
       <MyShelfStrip items={shelfItems} totalCount={shelfTotal} />
+
+      {/* Новые главы — самое свежее наверху, плотной сеткой */}
+      <section className="container section">
+        <div className="section-head">
+          <h2>Новые главы</h2>
+          <Link href="/feed" className="more">Вся лента →</Link>
+        </div>
+        <div className="novel-grid novel-grid-dense">
+          {recentNovels?.map((novel, index) => {
+            const date = novel.latest_chapter_published_at
+              ? new Date(novel.latest_chapter_published_at).toLocaleDateString('ru-RU')
+              : 'Недавно';
+            return (
+              <NovelCard
+                key={novel.id}
+                id={novel.firebase_id}
+                title={novel.title}
+                translator={novel.author || 'Алёна'}
+                byHref={
+                  novel.author
+                    ? `/search?q=${encodeURIComponent(novel.author)}`
+                    : null
+                }
+                metaInfo={date}
+                rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
+                coverUrl={getCoverUrl(novel.cover_url)}
+                placeholderClass={`p${(index % 8) + 1}`}
+                placeholderText={novel.title.substring(0, 10) + '...'}
+                chapterCount={novel.chapter_count}
+              />
+            );
+          })}
+        </div>
+      </section>
 
       {/* Новости админа */}
       <LatestNews items={latestNews} unreadCount={unreadNewsCount} />
@@ -554,7 +579,11 @@ export default async function HomePage() {
               id={novel.firebase_id}
               title={novel.title}
               translator={novel.author || 'Алёна'}
-              translatorSlug={novel.translator_id ? translatorSlugMap.get(novel.translator_id) ?? null : null}
+              byHref={
+                novel.author
+                  ? `/search?q=${encodeURIComponent(novel.author)}`
+                  : null
+              }
               metaInfo={`${novel.rating_count || 0} оценок`}
               rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
               coverUrl={getCoverUrl(novel.cover_url)}
@@ -567,35 +596,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Новые главы */}
-      <section className="container section">
-        <div className="section-head">
-          <h2>Новые главы</h2>
-          <Link href="/feed" className="more">Вся лента →</Link>
-        </div>
-        <div className="novel-grid">
-          {recentNovels?.map((novel, index) => {
-            const date = novel.latest_chapter_published_at
-              ? new Date(novel.latest_chapter_published_at).toLocaleDateString('ru-RU')
-              : 'Недавно';
-            return (
-              <NovelCard
-                key={novel.id}
-                id={novel.firebase_id}
-                title={novel.title}
-                translator={novel.author || 'Алёна'}
-                translatorSlug={novel.translator_id ? translatorSlugMap.get(novel.translator_id) ?? null : null}
-                metaInfo={date}
-                rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
-                coverUrl={getCoverUrl(novel.cover_url)}
-                placeholderClass={`p${(index % 8) + 1}`}
-                placeholderText={novel.title.substring(0, 10) + '...'}
-                chapterCount={novel.chapter_count}
-              />
-            );
-          })}
-        </div>
-      </section>
     </main>
   );
 }
