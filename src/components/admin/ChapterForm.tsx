@@ -67,8 +67,6 @@ export default function ChapterForm({
   const [chapterNumber, setChapterNumber] = useState<number>(
     initial?.chapter_number ?? suggestedChapterNumber ?? 1
   );
-  // Контент — HTML. На initial mount либо берём готовый HTML из storage,
-  // либо конвертируем legacy BB через bbToHtml.
   const [content, setContent] = useState<string>(
     () => normalizeStoredContent(initial?.content ?? ''),
   );
@@ -76,6 +74,11 @@ export default function ChapterForm({
   const [priceCoins, setPriceCoins] = useState<number>(
     initial?.price_coins ?? 10
   );
+  // Если стоит галка — публикация пройдёт «тихо» без уведомления
+  // подписчиков. Полезно для мелких правок текста уже опубликованной
+  // главы. По умолчанию выключено: каждое нажатие «Опубликовать
+  // сейчас» = одно уведомление в Telegram-боте.
+  const [silentPublish, setSilentPublish] = useState<boolean>(false);
 
   // Статус публикации:
   //   'now'       — published_at = now()  (сразу видно читателям)
@@ -117,7 +120,6 @@ export default function ChapterForm({
 
   const saveDraftTimerRef = useRef<number | null>(null);
 
-  // ---- Автосохранение черновика (killer #2) — только в режиме create ----
   const saveDraft = useCallback(
     async (
       nextContent: string,
@@ -167,7 +169,6 @@ export default function ChapterForm({
     };
   }, [content, chapterNumber, isPaid, priceCoins, saveDraft, mode]);
 
-  // ---- Восстановление черновика ----
   const restoreDraft = () => {
     if (!draft) return;
     if (draft.chapter_number != null) setChapterNumber(draft.chapter_number);
@@ -196,13 +197,11 @@ export default function ChapterForm({
     setDraftOffered(false);
   };
 
-  // Plain-text версия для glossary-подсчёта.
   const plainText = useMemo(
     () => content.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' '),
     [content],
   );
 
-  // ---- Glossary highlight (killer #1) ----
   const sortedGlossary = useMemo(
     () => [...glossary].sort((a, b) => b.term_original.length - a.term_original.length),
     [glossary]
@@ -219,7 +218,6 @@ export default function ChapterForm({
     return total;
   }, [plainText, sortedGlossary]);
 
-  // ---- Отправка ----
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -290,69 +288,63 @@ export default function ChapterForm({
     const isPublishingNow =
       publishedAt !== null && new Date(publishedAt).getTime() <= Date.now() + 60_000;
 
-    if (mode === 'create') {
-      const { error: insertErr } = await supabase.from('chapters').insert({
-        novel_id: novelId,
-        chapter_number: chapterNumber,
-        is_paid: isPaid,
-        price_coins: isPaid ? priceCoins : 10,
-        content_path: filename,
-        published_at: publishedAt,
-      });
-      if (insertErr) {
-        setError(insertErr.message);
-        pushToast('error', `Не создалось: ${insertErr.message}`);
-        setSubmitting(false);
-        return;
-      }
-      if (isPublishingNow) {
-        await supabase
-          .from('novels')
-          .update({ latest_chapter_published_at: nowIso })
-          .eq('id', novelId);
-      }
+    // Через RPC publish_single_chapter (мигр. 063): атомарная INSERT/UPDATE
+    // главы + опционально silent (без уведомления подписчикам).
+    const { error: rpcErr } = await supabase.rpc('publish_single_chapter', {
+      p_novel_id: novelId,
+      p_chapter_number: chapterNumber,
+      p_content_path: filename,
+      p_is_paid: isPaid,
+      p_price_coins: isPaid ? priceCoins : 10,
+      p_published_at: publishedAt,
+      p_mode: mode,
+      p_silent: silentPublish,
+    });
 
+    if (rpcErr) {
+      setError(rpcErr.message);
+      pushToast(
+        'error',
+        mode === 'edit'
+          ? `Не сохранилось: ${rpcErr.message}`
+          : `Не создалось: ${rpcErr.message}`,
+      );
+      setSubmitting(false);
+      return;
+    }
+
+    if (mode === 'create') {
+      // Убираем черновик после успешной публикации.
       await supabase
         .from('chapter_drafts')
         .delete()
         .eq('user_id', user.id)
         .eq('novel_id', novelId)
         .eq('chapter_number', chapterNumber);
-    } else {
-      const { error: updateErr } = await supabase
-        .from('chapters')
-        .update({
-          is_paid: isPaid,
-          price_coins: isPaid ? priceCoins : 10,
-          content_path: filename,
-          published_at: publishedAt,
-        })
-        .eq('novel_id', novelId)
-        .eq('chapter_number', chapterNumber);
-      if (updateErr) {
-        setError(updateErr.message);
-        pushToast('error', `Не сохранилось: ${updateErr.message}`);
-        setSubmitting(false);
-        return;
-      }
-      if (isPublishingNow) {
-        await supabase
-          .from('novels')
-          .update({ latest_chapter_published_at: nowIso })
-          .eq('id', novelId);
-      }
     }
 
+    const willNotify = isPublishingNow && !silentPublish;
     pushToast(
       'success',
       mode === 'edit'
-        ? `Глава ${chapterNumber} сохранена.`
-        : `Глава ${chapterNumber} добавлена${isPublishingNow ? ' и опубликована' : ''}.`
+        ? `Глава ${chapterNumber} сохранена${willNotify ? ' · подписчики получили уведомление' : ''}.`
+        : `Глава ${chapterNumber} добавлена${
+            isPublishingNow
+              ? willNotify
+                ? ' и опубликована · подписчики уведомлены'
+                : ' и опубликована тихо'
+              : ''
+          }.`
     );
     setSubmitting(false);
     router.push(`/admin/novels/${novelFirebaseId}/edit`);
     router.refresh();
   };
+
+  const isLiveMode =
+    publishStatus === 'now' ||
+    (publishStatus === 'scheduled' && scheduledAt &&
+      new Date(scheduledAt).getTime() <= Date.now() + 30_000);
 
   return (
     <form onSubmit={handleSubmit} className="chapter-form">
@@ -488,6 +480,39 @@ export default function ChapterForm({
         )}
       </div>
 
+      {/* Управление уведомлением — показывается только для путей,
+          где главы реально уйдут в эфир. На черновике уведомлять некого. */}
+      {isLiveMode && (
+        <div
+          className="publish-control"
+          style={{ paddingTop: 12, paddingBottom: 12 }}
+        >
+          <label
+            className="rs-switch"
+            style={{ height: 56 }}
+            title="Когда галка снята: каждая опубликованная сейчас глава = одно сообщение в Telegram-боте всем подписчикам и тем, кто добавил новеллу в закладки. Включи галку, если правишь опечатку — подписчиков беспокоить не будем."
+          >
+            <input
+              type="checkbox"
+              checked={silentPublish}
+              onChange={(e) => setSilentPublish(e.target.checked)}
+            />
+            <div>
+              <div className="rs-switch-title">
+                {silentPublish
+                  ? '🔕 Опубликовать тихо (без уведомления)'
+                  : '🔔 Уведомить подписчиков'}
+              </div>
+              <div className="rs-switch-sub">
+                {silentPublish
+                  ? 'Подписчикам ничего не придёт. Хорошо для опечаток в уже вышедшей главе.'
+                  : 'Одна публикация = одно сообщение в Telegram-боте. Если планируешь несколько глав сразу — лучше через «Массовую загрузку» (одно общее уведомление).'}
+              </div>
+            </div>
+          </label>
+        </div>
+      )}
+
       <div className="chapter-editor">
         {glossary.length > 0 && (
           <div className="form-hint" style={{ marginBottom: 6 }}>
@@ -497,8 +522,9 @@ export default function ChapterForm({
         <RichTextEditor
           value={content}
           onChange={setContent}
-          minHeight={480}
-          placeholder="Пиши обычным текстом. Для выделения — кнопки выше или Ctrl+B/I/U. Можно вставлять из Word и Google Docs."
+          minHeight={360}
+          maxHeight={640}
+          placeholder="Пиши обычным текстом. Для выделения — кнопки выше или Ctrl+B/I/U. Можно вставлять из Word и Google Docs, импортировать .docx."
           hint="Жирный, курсив, центрирование сразу видны. Сноски — кнопка ⓘ. Загрузить .docx — кнопка 📄."
         />
       </div>
@@ -546,7 +572,11 @@ export default function ChapterForm({
             : publishStatus === 'scheduled'
             ? 'Запланировать'
             : mode === 'create'
-            ? 'Опубликовать главу'
+            ? silentPublish
+              ? '🔕 Опубликовать тихо'
+              : 'Опубликовать главу'
+            : silentPublish
+            ? '🔕 Сохранить тихо'
             : 'Сохранить'}
         </button>
       </div>
