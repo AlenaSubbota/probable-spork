@@ -12455,6 +12455,48 @@ html[data-theme='dark'] .novel-credit-person:hover {
   background: var(--paper-warm, #f5f0e6);
 }
 
+/* Тёмная тема для блока «Кто работал над этой новеллой».
+   В светлой теме .credits-row, .credits-total и .credits-candidates
+   используют либо --paper-warm (он не определён, фоллбэк жёстко
+   светлый), либо буквально #fff. На dark от этого получается белая
+   карточка внутри тёмной — нечитаемо. Перекрываем точечно. */
+html[data-theme='dark'] .credits-editor {
+  background: var(--surface);
+  border-color: var(--border);
+}
+html[data-theme='dark'] .credits-row {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+html[data-theme='dark'] .credits-row-name {
+  color: var(--ink);
+}
+html[data-theme='dark'] .credits-row-note {
+  color: var(--ink-soft);
+}
+html[data-theme='dark'] .credits-total {
+  background: var(--bg-soft);
+  color: var(--ink-mute);
+}
+html[data-theme='dark'] .credits-add {
+  border-color: var(--border);
+}
+html[data-theme='dark'] .credits-selected {
+  background: var(--accent-wash);
+}
+html[data-theme='dark'] .credits-candidates {
+  background: var(--surface-2);
+  border-color: var(--border);
+  /* Тонкая тень-обводка, чтобы дроп-даун явно читался поверх формы. */
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+html[data-theme='dark'] .credits-candidate {
+  color: var(--ink);
+}
+html[data-theme='dark'] .credits-candidate:hover {
+  background: var(--bg-soft);
+}
+
 /* ---------- Boosty claim block в paywall ---------- */
 .boosty-claim-block {
   padding: 18px 20px;
