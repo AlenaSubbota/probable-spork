@@ -1122,6 +1122,13 @@ html[data-theme='dark'] .logo-mark {
 }
 @media (max-width: 540px) {
   .novel-grid.novel-grid-dense { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  /* Серверный лимит — 12 карточек: телефону этого много, после 6-й
+     блок выглядит как «второй экран» под скролл. Прячем хвост, чтобы
+     оставить ровно 2 ряда (3×2). Полный список доступен из заголовка
+     по ссылке «Вся лента →». */
+  .novel-grid.novel-grid-dense > .novel-card:nth-child(n + 7) {
+    display: none;
+  }
 }
 
 .novel-card {
@@ -1890,6 +1897,20 @@ html[data-theme='dark'] .logo-mark {
   }
 }
 
+/* Между планшетом и телефоном: 760px — ужимаем gap и чуть подтягиваем
+   столбцы. Бренд ещё во всю ширину, ссылки в три колонки, но без воздуха. */
+@media (max-width: 760px) {
+  .site-footer {
+    margin-top: 80px;
+    padding: 52px 0 32px;
+  }
+  .site-footer-grid {
+    gap: 32px;
+    margin-bottom: 44px;
+  }
+  .site-footer-brand .logo { font-size: 20px; }
+}
+
 /* На мобиле: всё в одну колонку, нижний ряд тоже друг под другом. */
 @media (max-width: 600px) {
   .site-footer {
@@ -1898,14 +1919,40 @@ html[data-theme='dark'] .logo-mark {
   }
   .site-footer-grid {
     grid-template-columns: 1fr;
-    gap: 32px;
-    margin-bottom: 36px;
+    gap: 28px;
+    margin-bottom: 32px;
   }
+  .site-footer-brand { max-width: none; }
+  .site-footer-brand .logo { margin-bottom: 14px; }
+  .site-footer-tagline { max-width: none; }
+  .site-footer-head { margin-bottom: 14px; }
+  .site-footer-links { gap: 10px; }
   .site-footer-bottom {
     flex-direction: column;
     align-items: flex-start;
+    padding-top: 20px;
   }
-  .site-footer-legal { gap: 20px; flex-wrap: wrap; }
+  .site-footer-legal { gap: 18px; flex-wrap: wrap; }
+}
+
+/* Узкие телефоны (≤430): мелкий шрифт, плотные ссылки и одна
+   юр-ссылка на строку — иначе они переносятся вразнобой. */
+@media (max-width: 430px) {
+  .site-footer {
+    margin-top: 56px;
+    padding: 40px 0 24px;
+    font-size: 13.5px;
+  }
+  .site-footer-tagline { font-size: 14px; }
+  .site-footer-head { font-size: 11px; letter-spacing: 0.16em; }
+  .site-footer-links { font-size: 13.5px; }
+  .site-footer-bottom { gap: 12px; font-size: 12.5px; }
+  .site-footer-legal {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }
 
 /* ---------- continue reading shelf ---------- */

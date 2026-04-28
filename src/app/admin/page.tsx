@@ -10,6 +10,7 @@ import {
 } from '@/lib/admin';
 import AdminApplications from './AdminApplications';
 import SubmitForReviewButton from '@/components/admin/SubmitForReviewButton';
+import MarkStaleAbandonedButton from '@/components/admin/MarkStaleAbandonedButton';
 import ThanksInbox from '@/components/admin/ThanksInbox';
 import { fetchMyIncomingThanks } from '@/lib/thanks';
 
@@ -149,6 +150,7 @@ export default async function AdminDashboard() {
               <Link href="/admin/polls" className="btn btn-ghost">
                 🗳 Опросы
               </Link>
+              <MarkStaleAbandonedButton />
             </>
           )}
           <Link href="/admin/novels/new" className="btn btn-primary">
