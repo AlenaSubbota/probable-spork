@@ -8,11 +8,6 @@ import Link from 'next/link';
 //
 // 2. Нижняя строка: копирайт слева, юридические ссылки справа,
 //    разделена тонкой рамкой сверху.
-//
-// Часть ссылок ведёт на маршруты, которых пока нет в проекте
-// (/about, /contacts, /rules, /terms, /privacy, /cookies). Это
-// сделано осознанно: footer уже даёт читателю карту сайта, страницы
-// можно подносить по очереди — сначала контент, потом legal.
 
 export default function SiteFooter() {
   const year = new Date().getFullYear();
@@ -21,9 +16,9 @@ export default function SiteFooter() {
     <footer className="site-footer">
       <div className="container site-footer-grid">
         <div className="site-footer-brand">
-          <Link href="/" className="site-footer-logo" aria-label="Chaptify">
-            <span className="site-footer-logo-mark" aria-hidden="true">c</span>
-            <span className="site-footer-logo-name">Chaptify</span>
+          <Link href="/" className="logo" aria-label="Chaptify">
+            <div className="logo-mark">C</div>
+            Chaptify
           </Link>
           <p className="site-footer-tagline">
             Тихая библиотека для вечернего чтения.
