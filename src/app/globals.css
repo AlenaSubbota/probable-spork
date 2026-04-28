@@ -12165,6 +12165,23 @@ body.reader-keyboard-up .reader-bottom-bar {
   font-weight: 500;
 }
 
+/* Дарк-тема для блока «Над новеллой работают». На светлой теме базовые
+   правила с color-mix дают тёплую кремовую плашку. В тёмной 8%-gold
+   подмешивается недостаточно, плашка выглядит светлее окружающей
+   страницы, плюс пилюли-участники сливаются с фоном плашки. Явно
+   перекрашиваем тёплым графитом, пилюлям возвращаем --surface. */
+html[data-theme='dark'] .novel-credits {
+  background: var(--bg-soft);
+  border-color: var(--border-strong);
+}
+html[data-theme='dark'] .novel-credit-person {
+  background: var(--surface);
+}
+html[data-theme='dark'] .novel-credit-person:hover {
+  background: var(--surface-2);
+  border-color: var(--accent-soft);
+}
+
 /* ---------- Credits editor в /admin/novels/[id]/edit ---------- */
 .credits-editor {
   padding: 20px 22px;
