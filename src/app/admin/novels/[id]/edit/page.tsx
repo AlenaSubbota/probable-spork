@@ -48,6 +48,16 @@ export default async function EditNovelPage({ params }: PageProps) {
     redirect('/admin');
   }
 
+  // Chaptify-only метаданные (мигр. 065). Если строки ещё нет —
+  // считаем флаг false (новелла свежая, никто не помечал).
+  const { data: chaptifyMeta } = await supabase
+    .from('novel_chaptify_meta')
+    .select('original_completed')
+    .eq('novel_id', novel.id)
+    .maybeSingle();
+  const originalCompleted = !!(chaptifyMeta as { original_completed?: boolean } | null)
+    ?.original_completed;
+
   const { data: glossary } = await supabase
     .from('novel_glossaries')
     .select('*')
@@ -150,7 +160,7 @@ export default async function EditNovelPage({ params }: PageProps) {
           country: novel.country as Country | null,
           age_rating: novel.age_rating as AgeRating | null,
           translation_status: (novel.translation_status as TranslationStatus) ?? 'ongoing',
-          is_completed: !!novel.is_completed,
+          original_completed: originalCompleted,
           release_year: novel.release_year,
           descriptionHtml: novel.description ?? '',
           description: '',

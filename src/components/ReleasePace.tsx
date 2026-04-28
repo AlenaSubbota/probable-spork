@@ -34,10 +34,23 @@ export default function ReleasePace({ days, totalChapters, isCompleted }: Props)
     Object.entries(weekdayMap).sort((a, b) => b[1] - a[1])[0]?.[0];
   const weekdayNames = ['воскресеньям', 'понедельникам', 'вторникам', 'средам', 'четвергам', 'пятницам', 'субботам'];
 
+  // Сколько активных дней (с хотя бы одной главой) во всём окне 90 дней.
+  // Если их 0–3 и общий счётчик глав мал — это новелла только что
+  // добавлена, и судить о темпе ещё рано: одна-две сегодняшние главы
+  // дадут «стахановский темп», а пустые 88 дней — «пауза». И то и
+  // другое неправда. Поэтому отдельная ветка с честной формулировкой.
+  const activeDays = days.filter((d) => d.chapters > 0).length;
+  const looksFreshlyAdded = totalChapters <= 3 && activeDays <= 3;
+
   // Прогноз
   let forecast: string;
   if (isCompleted) {
     forecast = 'Новелла завершена — все главы уже здесь.';
+  } else if (looksFreshlyAdded) {
+    forecast =
+      totalChapters === 0
+        ? 'Новелла только что добавлена — главы ещё не выходили. Перевод, вероятно, в процессе.'
+        : 'Новелла только что добавлена — темп пока не определился. Перевод, вероятно, в процессе.';
   } else if (chaptersLast30 === 0) {
     forecast = 'Пауза уже 30+ дней. Возможно, переводчик копит бэклог.';
   } else if (chaptersPerWeek < 0.5) {

@@ -35,7 +35,12 @@ export interface NovelFormValues {
   country: Country | null;
   age_rating: AgeRating | null;
   translation_status: TranslationStatus;
-  is_completed: boolean;
+  /** Автор оригинала дописал работу до конца. ВАЖНО: это
+      Chaptify-only поле, оно живёт в отдельной таблице
+      `novel_chaptify_meta` и не пишется в `novels.is_completed`
+      (тот столбец на стороне tene означает «перевод готов и
+      доступен EPUB», семантически другое). */
+  original_completed: boolean;
   release_year: number | null;
   description: string;              // BB-код
   cover_url: string | null;
@@ -66,7 +71,7 @@ const EMPTY: NovelFormValues = {
   country: 'kr',
   age_rating: '16+',
   translation_status: 'ongoing',
-  is_completed: false,
+  original_completed: false,
   release_year: null,
   description: '',
   cover_url: null,
@@ -183,7 +188,9 @@ export default function NovelForm({
       country: values.country,
       age_rating: values.age_rating,
       translation_status: values.translation_status,
-      is_completed: values.is_completed,
+      // is_completed НЕ пишем — это столбец tene, мы его не контролируем.
+      // «Оригинал завершён» хранится в отдельной таблице
+      // novel_chaptify_meta, апсёртится после основного INSERT/UPDATE ниже.
       release_year: values.release_year,
       description: descriptionHtml,
       cover_url: values.cover_url,
@@ -201,6 +208,29 @@ export default function NovelForm({
       team_id: values.team_id,
     };
 
+    // Chaptify-only метаданные: апсёрт в novel_chaptify_meta. Делаем
+    // отдельным шагом после основного create/update, чтобы случайная
+    // ошибка в этой таблице не валила сохранение самой новеллы.
+    const upsertChaptifyMeta = async (novelId: number) => {
+      const { error: metaErr } = await supabase
+        .from('novel_chaptify_meta')
+        .upsert(
+          {
+            novel_id: novelId,
+            original_completed: values.original_completed,
+            updated_by: user.id,
+          },
+          { onConflict: 'novel_id' }
+        );
+      if (metaErr) {
+        // Не критично — основная новелла сохранена. Сообщим тостом.
+        pushToast(
+          'error',
+          `Флаг «Оригинал завершён» не сохранился: ${metaErr.message}`
+        );
+      }
+    };
+
     if (mode === 'create') {
       const firebase_id = makeSlug(values.title);
       // Админ сразу публикует. Переводчик — в draft, потом отдельно жмёт
@@ -212,7 +242,7 @@ export default function NovelForm({
           ...payload,
           moderation_status: isAdmin ? 'published' : 'draft',
         })
-        .select('firebase_id')
+        .select('id, firebase_id')
         .single();
 
       if (insertError) {
@@ -220,6 +250,11 @@ export default function NovelForm({
         pushToast('error', `Не удалось создать: ${insertError.message}`);
         setSubmitting(false);
         return;
+      }
+      // Сохраняем «оригинал завершён» только если флаг включён —
+      // дефолт false уже стоит в DEFAULT столбца, лишних строк не плодим.
+      if (values.original_completed) {
+        await upsertChaptifyMeta(data.id);
       }
       pushToast('success', 'Новелла создана — откроется страница редактирования.');
       router.push(`/admin/novels/${data.firebase_id}/edit`);
@@ -236,6 +271,9 @@ export default function NovelForm({
         setSubmitting(false);
         return;
       }
+      // На редактировании всегда апсёртим — пользователь мог снять
+      // галочку, и нам нужна строка с original_completed=false.
+      await upsertChaptifyMeta(values.id!);
       pushToast('success', 'Изменения сохранены.');
       setSubmitting(false);
       router.refresh();
@@ -401,16 +439,19 @@ export default function NovelForm({
           <label
             className="rs-switch"
             style={{ height: 38 }}
-            title="Автор оригинала дописал до конца. К твоему переводу это не относится."
+            title="Автор оригинала дописал работу до конца. На скачивание EPUB и статус перевода не влияет — это внутренний флаг Chaptify (не путать с novels.is_completed на стороне tene)."
           >
             <input
               type="checkbox"
-              checked={values.is_completed}
-              onChange={(e) => set('is_completed', e.target.checked)}
+              checked={values.original_completed}
+              onChange={(e) => set('original_completed', e.target.checked)}
             />
             <div>
               <div className="rs-switch-title">Оригинал завершён</div>
-              <div className="rs-switch-sub">Автор дописал до финала</div>
+              <div className="rs-switch-sub">
+                Автор дописал до финала. EPUB и статус перевода — это
+                отдельные настройки.
+              </div>
             </div>
           </label>
         </div>

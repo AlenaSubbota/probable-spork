@@ -40,6 +40,28 @@ export function timeAgo(iso: string | null | undefined) {
   return new Date(iso).toLocaleDateString('ru-RU');
 }
 
+// Имя автора в трёх вариантах: оригинал / транслит / русский — через
+// тонкий разделитель. Дубли (когда два варианта совпадают) свёрнуты.
+// Возвращает пустую строку, если ни один вариант не задан, — это
+// удобно для `?? 'Автор не указан'` на стороне вызова.
+export function formatAuthorVariants(
+  ru: string | null | undefined,
+  en: string | null | undefined,
+  original: string | null | undefined
+): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of [original, en, ru]) {
+    const v = raw?.trim();
+    if (!v) continue;
+    const key = v.toLocaleLowerCase('ru');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out.join(' / ');
+}
+
 export function formatCount(n: number | null | undefined) {
   if (!n) return '0';
   if (n >= 1000) {
