@@ -14,7 +14,7 @@ import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
 import StarOfTheWeek, { type StarOfTheWeekData } from '@/components/home/StarOfTheWeek';
 import Link from 'next/link';
-import { getCoverUrl } from '@/lib/format';
+import { getCoverUrl, formatAuthorVariants } from '@/lib/format';
 
 const AGE_RE = /^\d{1,2}\+$/;
 
@@ -505,12 +505,18 @@ export default async function HomePage() {
             const date = novel.latest_chapter_published_at
               ? new Date(novel.latest_chapter_published_at).toLocaleDateString('ru-RU')
               : 'Недавно';
+            const authorLabel =
+              formatAuthorVariants(
+                novel.author,
+                novel.author_en,
+                novel.author_original
+              ) || 'Автор не указан';
             return (
               <NovelCard
                 key={novel.id}
                 id={novel.firebase_id}
                 title={novel.title}
-                translator={novel.author || 'Алёна'}
+                translator={authorLabel}
                 byHref={
                   novel.author
                     ? `/search?q=${encodeURIComponent(novel.author)}`
@@ -573,26 +579,34 @@ export default async function HomePage() {
           <Link href="/catalog" className="more">Смотреть все →</Link>
         </div>
         <div className="novel-grid">
-          {popularNovels?.map((novel, index) => (
-            <NovelCard
-              key={novel.id}
-              id={novel.firebase_id}
-              title={novel.title}
-              translator={novel.author || 'Алёна'}
-              byHref={
-                novel.author
-                  ? `/search?q=${encodeURIComponent(novel.author)}`
-                  : null
-              }
-              metaInfo={`${novel.rating_count || 0} оценок`}
-              rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
-              coverUrl={getCoverUrl(novel.cover_url)}
-              placeholderClass={`p${(index % 8) + 1}`}
-              placeholderText={novel.title.substring(0, 10) + '...'}
-              chapterCount={novel.chapter_count}
-              flagText={novel.average_rating > 4.8 ? 'HOT' : undefined}
-            />
-          ))}
+          {popularNovels?.map((novel, index) => {
+            const authorLabel =
+              formatAuthorVariants(
+                novel.author,
+                novel.author_en,
+                novel.author_original
+              ) || 'Автор не указан';
+            return (
+              <NovelCard
+                key={novel.id}
+                id={novel.firebase_id}
+                title={novel.title}
+                translator={authorLabel}
+                byHref={
+                  novel.author
+                    ? `/search?q=${encodeURIComponent(novel.author)}`
+                    : null
+                }
+                metaInfo={`${novel.rating_count || 0} оценок`}
+                rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
+                coverUrl={getCoverUrl(novel.cover_url)}
+                placeholderClass={`p${(index % 8) + 1}`}
+                placeholderText={novel.title.substring(0, 10) + '...'}
+                chapterCount={novel.chapter_count}
+                flagText={novel.average_rating > 4.8 ? 'HOT' : undefined}
+              />
+            );
+          })}
         </div>
       </section>
 
