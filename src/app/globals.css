@@ -207,10 +207,12 @@ html[data-theme='dark'] .site-header {
 }
 .logo:hover { filter: brightness(1.1); }
 /* На промежуточных экранах прячем «Chaptify» текст, оставляем только
-   квадратный знак — он сам по себе узнаваем и компактен. */
+   квадратный знак — он сам по себе узнаваем и компактен.
+   Скоупим к шапке: в футере места достаточно, текст «Chaptify»
+   рядом с маркером там нужен всегда. */
 @media (max-width: 1180px) and (min-width: 761px) {
-  .logo { font-size: 0; gap: 0; }
-  .logo .logo-mark { font-size: 17px; }
+  .site-header .logo { font-size: 0; gap: 0; }
+  .site-header .logo .logo-mark { font-size: 17px; }
 }
 
 .logo-mark {
@@ -1803,40 +1805,10 @@ html[data-theme='dark'] .logo-mark {
 
 .site-footer-brand { max-width: 360px; }
 
-.site-footer-logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  text-decoration: none;
-  color: var(--ink);
-  margin-bottom: 18px;
-}
-
-/* Тёмный кофе-чёрный квадратик с курсивной «c» — иконка, как на макете.
-   В тёмной теме инвертируется через --ink/--bg, остаётся читаемым. */
-.site-footer-logo-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  background: var(--ink);
-  color: var(--bg);
-  display: grid;
-  place-items: center;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 700;
-  font-size: 22px;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  box-shadow: var(--shadow-sm);
-}
-.site-footer-logo-name {
-  font-family: var(--font-serif);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  color: var(--ink);
-}
+/* Бренд в футере использует общий компонент .logo / .logo-mark из шапки —
+   единый знак на сайте, чтобы не было ощущения двух разных логотипов.
+   Просто отбиваем его от таглайна вертикальным отступом. */
+.site-footer-brand .logo { margin-bottom: 18px; }
 
 .site-footer-tagline {
   margin: 0;
@@ -15892,4 +15864,142 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   text-align: center;
   box-shadow: 0 0 0 2px var(--bg);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- static / legal pages ----------
+   Общая типографика для /about, /contacts, /rules, /terms, /privacy,
+   /cookies — таких страниц немного, но каждая длинная и текстовая.
+   Один комплект стилей, чтобы не множить inline-style. */
+
+.static-page {
+  max-width: 760px;
+}
+.static-page .static-head {
+  padding: 24px 0 8px;
+}
+.static-page .static-head h1 {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  margin: 0 0 6px;
+  letter-spacing: -0.005em;
+}
+.static-page .static-lede {
+  margin: 0;
+  color: var(--ink-mute);
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 60ch;
+}
+.static-page .static-meta {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  font-family: var(--font-sans);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.static-page section {
+  margin-top: 36px;
+}
+.static-page section > h2 {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  margin: 0 0 12px;
+  color: var(--ink);
+}
+.static-page section > h3 {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  margin: 22px 0 8px;
+  color: var(--ink);
+}
+.static-page section p,
+.static-page section li {
+  color: var(--ink-soft);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.static-page section p { margin: 0 0 12px; }
+.static-page section ul,
+.static-page section ol {
+  margin: 8px 0 16px;
+  padding-left: 22px;
+}
+.static-page section li { margin-bottom: 6px; }
+.static-page section li::marker { color: var(--ink-mute); }
+.static-page section a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-soft);
+  transition: color .15s, border-color .15s;
+}
+.static-page section a:hover {
+  color: var(--accent-hover);
+  border-bottom-color: var(--accent);
+}
+.static-page section code {
+  background: var(--bg-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 13.5px;
+}
+
+/* Подсказка / примечание в рамке-карточке внутри текста. */
+.static-note {
+  margin: 18px 0;
+  padding: 16px 20px;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+.static-note strong { color: var(--ink); }
+
+/* Сетка контактов: иконка + лейбл + ссылка. На мобиле — в столбик. */
+.contact-list {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.contact-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.contact-list .contact-label {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  font-weight: 600;
+}
+.contact-list .contact-value {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  color: var(--ink);
+}
+.contact-list a.contact-value {
+  border-bottom: none;
+}
+.contact-list a.contact-value:hover { color: var(--accent); }
+.contact-list .contact-hint {
+  font-size: 13px;
+  color: var(--ink-mute);
+  line-height: 1.5;
+}
+
+@media (max-width: 540px) {
+  .static-page .static-head h1 { font-size: 26px; }
+  .static-page section > h2 { font-size: 19px; }
+  .contact-list { grid-template-columns: 1fr; }
 }
