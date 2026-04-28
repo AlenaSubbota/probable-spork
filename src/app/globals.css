@@ -1784,14 +1784,157 @@ html[data-theme='dark'] .logo-mark {
 /* ---------- footer ---------- */
 
 .site-footer {
-  margin-top: 60px;
-  padding: 28px 0 48px;
+  margin-top: 96px;
+  padding: 64px 0 36px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* Главная сетка: бренд занимает 2× ширины колонки. На узких — схлопывается. */
+.site-footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 56px;
+  margin-bottom: 56px;
+}
+
+.site-footer-brand { max-width: 360px; }
+
+.site-footer-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+
+/* Тёмный кофе-чёрный квадратик с курсивной «c» — иконка, как на макете.
+   В тёмной теме инвертируется через --ink/--bg, остаётся читаемым. */
+.site-footer-logo-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--ink);
+  color: var(--bg);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  box-shadow: var(--shadow-sm);
+}
+.site-footer-logo-name {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+
+.site-footer-tagline {
+  margin: 0;
+  color: var(--ink-mute);
+  font-style: italic;
+  line-height: 1.65;
+  max-width: 34ch;
+}
+
+.site-footer-col { min-width: 0; }
+
+.site-footer-head {
+  margin: 0 0 20px;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ink-mute);
+}
+
+.site-footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+}
+.site-footer-links a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: color 0.16s ease;
+}
+.site-footer-links a:hover,
+.site-footer-links a:focus-visible {
+  color: var(--accent);
+}
+
+.site-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 24px;
   border-top: 1px solid var(--border);
   font-size: 13px;
   color: var(--ink-mute);
-  text-align: center;
 }
-.site-footer a { color: var(--accent); }
+
+.site-footer-copy { letter-spacing: 0.005em; }
+
+.site-footer-legal {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.site-footer-legal a {
+  color: var(--ink-mute);
+  text-decoration: none;
+  transition: color 0.16s ease;
+}
+.site-footer-legal a:hover,
+.site-footer-legal a:focus-visible {
+  color: var(--accent);
+}
+
+/* На планшетах: бренд во всю ширину сверху, ссылки в три колонки снизу. */
+@media (max-width: 1024px) {
+  .site-footer-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 40px;
+  }
+  .site-footer-brand {
+    grid-column: 1 / -1;
+    max-width: 480px;
+  }
+}
+
+/* На мобиле: всё в одну колонку, нижний ряд тоже друг под другом. */
+@media (max-width: 600px) {
+  .site-footer {
+    margin-top: 64px;
+    padding: 48px 0 28px;
+  }
+  .site-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    margin-bottom: 36px;
+  }
+  .site-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .site-footer-legal { gap: 20px; flex-wrap: wrap; }
+}
 
 /* ---------- continue reading shelf ---------- */
 
