@@ -13,6 +13,16 @@ const nextConfig: NextConfig = {
   // Страницы сайта по-прежнему видят пути `/covers/...` и
   // `/sb-storage/...` как относительные; SSR node-процесс на
   // backend'е тянет реальные файлы с tene.fun и проксирует байты.
+  //
+  // ⚠ ПРИ ВЫКЛЮЧЕНИИ TENE-ФРОНТЕНДА (легаси-домен tene.fun перестанет
+  // работать) — обновить destination'ы на:
+  //   - chaptify.ru-nginx, который проксирует напрямую к Supabase
+  //     Storage (`https://<supabase-host>/storage/v1/object/public/`),
+  //     ИЛИ
+  //   - прямой Supabase URL (но тогда вернётся проблема Safari ITP
+  //     для /covers/, придётся отдавать через Image-CDN или
+  //     добавить CORS-заголовки на bucket).
+  // Подробнее: см. ауди в коммите `dbfc6ea` и обсуждение в чате.
   async rewrites() {
     return [
       {
