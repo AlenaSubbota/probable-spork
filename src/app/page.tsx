@@ -526,7 +526,11 @@ export default async function HomePage() {
                 rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
                 coverUrl={getCoverUrl(novel.cover_url)}
                 placeholderClass={`p${(index % 8) + 1}`}
-                placeholderText={novel.title.substring(0, 10) + '...'}
+                placeholderText={
+                  novel.title.length > 10
+                    ? novel.title.substring(0, 10) + '…'
+                    : novel.title
+                }
                 chapterCount={novel.chapter_count}
               />
             );
@@ -601,7 +605,11 @@ export default async function HomePage() {
                 rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
                 coverUrl={getCoverUrl(novel.cover_url)}
                 placeholderClass={`p${(index % 8) + 1}`}
-                placeholderText={novel.title.substring(0, 10) + '...'}
+                placeholderText={
+                  novel.title.length > 10
+                    ? novel.title.substring(0, 10) + '…'
+                    : novel.title
+                }
                 chapterCount={novel.chapter_count}
                 flagText={novel.average_rating > 4.8 ? 'HOT' : undefined}
               />
