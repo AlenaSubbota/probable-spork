@@ -95,6 +95,22 @@ export function cleanGenres(
   );
 }
 
+// Простая русская плюрализация: pluralRu(1, 'оценка', 'оценки', 'оценок')
+// → 'оценка'. Учитывает 11–14 (особый случай → many).
+export function pluralRu(
+  n: number,
+  one: string,
+  few: string,
+  many: string
+): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return many;
+  if (m10 === 1) return one;
+  if (m10 >= 2 && m10 <= 4) return few;
+  return many;
+}
+
 export function formatCount(n: number | null | undefined) {
   if (!n) return '0';
   if (n >= 1000) {

@@ -14,7 +14,7 @@ import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
 import StarOfTheWeek, { type StarOfTheWeekData } from '@/components/home/StarOfTheWeek';
 import Link from 'next/link';
-import { getCoverUrl, formatAuthorPrimary } from '@/lib/format';
+import { getCoverUrl, formatAuthorPrimary, pluralRu } from '@/lib/format';
 
 const AGE_RE = /^\d{1,2}\+$/;
 
@@ -597,7 +597,7 @@ export default async function HomePage() {
                     ? `/search?q=${encodeURIComponent(novel.author)}`
                     : null
                 }
-                metaInfo={`${novel.rating_count || 0} оценок`}
+                metaInfo={`${novel.rating_count || 0} ${pluralRu(novel.rating_count || 0, 'оценка', 'оценки', 'оценок')}`}
                 rating={novel.average_rating ? Number(novel.average_rating).toFixed(1) : '—'}
                 coverUrl={getCoverUrl(novel.cover_url)}
                 placeholderClass={`p${(index % 8) + 1}`}

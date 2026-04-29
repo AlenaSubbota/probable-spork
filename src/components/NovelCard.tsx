@@ -168,7 +168,12 @@ export default function NovelCard({
         ) : (
           <span className="by">{translator}</span>
         )}
-        {metaInfo && <> · {metaInfo}</>}
+        {metaInfo && (
+          <>
+            <span className="meta-sep" aria-hidden="true">·</span>
+            <span className="meta-info">{metaInfo}</span>
+          </>
+        )}
       </div>
     </div>
   );

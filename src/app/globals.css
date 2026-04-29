@@ -1262,14 +1262,18 @@ html[data-theme='dark'] .logo-mark {
   overflow: hidden;
   cursor: pointer;
   transition: color .12s;
+  /* Резервируем 2 строки даже для коротких названий — иначе соседние
+     карточки в гриде получают разную высоту блоком title→meta, и низ
+     обложек выходит «лестницей». line-height 1.3 × 2 = 2.6em. */
+  min-height: 2.6em;
 }
 .novel-title:hover { color: var(--accent); }
 .novel-meta {
   font-size: 11.5px;
   color: var(--ink-mute);
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 4px;
+  align-items: baseline;
   /* Длинные имена авторов (особенно мульти-варианты «оригинал /
      EN / RU») гарантированно поджимаем многоточием на одной строке —
      иначе ник уезжает на 2 строки и ломает высоту карточки в гриде. */
@@ -1287,6 +1291,16 @@ html[data-theme='dark'] .logo-mark {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  flex: 0 1 auto;
+}
+.novel-meta .meta-sep {
+  color: var(--ink-mute);
+  flex-shrink: 0;
+  opacity: .5;
+}
+.novel-meta .meta-info {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .novel-meta a.by:hover {
   color: var(--accent-hover);
@@ -12635,64 +12649,99 @@ body.reader-keyboard-up .reader-bottom-bar {
 }
 
 /* ---------- Novel credits — публичный блок на /novel/[id] ---------- */
+/* ====== Над новеллой работают (NovelCredits) ======
+   Десктоп — 2D-сетка карточек-групп: роль сверху, пилюли участников
+   ниже. Мобильник — построчная раскладка «роль слева, пилюли справа»,
+   чтобы блок не превращался в неровную лестницу.
+*/
 .novel-credits {
   margin: 24px 0 28px;
-  padding: 16px 20px;
+  padding: 18px 22px;
   /* paper-warm нигде не определён → на тёмной теме оставался #faf6ee
      светлой плашкой посреди графита. Через color-mix живёт в обеих
      темах. */
   background: color-mix(in srgb, var(--gold) 8%, var(--surface));
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid var(--border);
+  /* Тонкая золотая обводка-индикатор сверху, чтобы блок читался как
+     «команда переводчиков», а не очередная серая плашка. */
+  position: relative;
+  overflow: hidden;
+}
+.novel-credits::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--gold) 70%, transparent) 30%,
+    color-mix(in srgb, var(--gold) 70%, transparent) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 .novel-credits-head {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   font-family: var(--font-serif);
-  font-size: 15px;
+  font-size: 16px;
   color: var(--ink);
-  letter-spacing: .01em;
+  letter-spacing: -.005em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.novel-credits-head::before {
+  content: '✦';
+  color: color-mix(in srgb, var(--gold) 70%, var(--accent));
+  font-size: 13px;
 }
 .novel-credits-groups {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px 22px;
 }
 .novel-credit-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 140px;
+  gap: 7px;
+  min-width: 0;
 }
 .novel-credit-group-head {
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: .08em;
+  font-weight: 700;
   color: var(--ink-mute);
 }
 .novel-credit-people {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 .novel-credit-person {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px 3px 4px;
+  gap: 7px;
+  padding: 3px 12px 3px 4px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--ink);
   text-decoration: none;
-  transition: border-color .12s, background .12s;
+  transition: border-color .15s, background .15s, transform .15s;
+  max-width: 100%;
+  min-width: 0;
 }
 .novel-credit-person:hover {
   border-color: var(--accent-soft);
   background: var(--surface-2);
+  transform: translateY(-1px);
 }
 .novel-credit-avatar {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent, #a06a4d), var(--rose, #c58c98));
   color: #fff;
@@ -12712,13 +12761,49 @@ body.reader-keyboard-up .reader-bottom-bar {
 .novel-credit-name {
   font-size: 13px;
   font-weight: 500;
+  /* Длинные ники-комбинированные («Ольга Дюбарри-Левитт») на мобильнике
+     не ломают пилюлю — режутся многоточием. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 14em;
 }
 
-/* Дарк-тема для блока «Над новеллой работают». На светлой теме базовые
-   правила с color-mix дают тёплую кремовую плашку. В тёмной 8%-gold
-   подмешивается недостаточно, плашка выглядит светлее окружающей
-   страницы, плюс пилюли-участники сливаются с фоном плашки. Явно
-   перекрашиваем тёплым графитом, пилюлям возвращаем --surface. */
+/* Mobile: каждая группа — горизонтальная строка «роль | пилюли», блок
+   читается ровной колонкой без рваных столбцов. */
+@media (max-width: 540px) {
+  .novel-credits {
+    padding: 14px 16px;
+  }
+  .novel-credits-head {
+    font-size: 15px;
+  }
+  .novel-credits-groups {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .novel-credit-group {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .novel-credit-group:last-child {
+    border-bottom: none;
+  }
+  .novel-credit-group-head {
+    flex: 0 0 auto;
+    width: 86px;
+    padding-top: 6px;
+    font-size: 10.5px;
+  }
+  .novel-credit-people {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
 html[data-theme='dark'] .novel-credits {
   background: var(--bg-soft);
   border-color: var(--border-strong);
