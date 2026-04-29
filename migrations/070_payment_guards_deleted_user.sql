@@ -18,19 +18,31 @@
 -- ============================================================
 
 -- helper: возвращает true, если у юзера висит pending-запрос на
--- удаление аккаунта. Используется и в SQL-RPC, и потенциально
--- в RLS-политиках в будущем.
+-- удаление аккаунта. Реализовано как plpgsql (а не sql) с явным
+-- EXCEPTION, чтобы миграция не падала на DB, где ещё нет
+-- account_deletion_requests (мигр. 068 не накачена). Если таблицы
+-- нет — считаем «не удаляется», не блокируем платёжки.
 CREATE OR REPLACE FUNCTION public.is_account_pending_deletion(p_user uuid)
 RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
+LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path = public, pg_catalog
 AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.account_deletion_requests
-    WHERE user_id = p_user AND status = 'pending'
-  );
-$$;
+DECLARE
+  v_exists boolean := false;
+BEGIN
+  BEGIN
+    SELECT EXISTS (
+      SELECT 1
+      FROM public.account_deletion_requests
+      WHERE user_id = p_user AND status = 'pending'
+    ) INTO v_exists;
+  EXCEPTION WHEN undefined_table THEN
+    -- Мигр. 068 ещё не применена — тихо возвращаем false, чтобы
+    -- 070 встала в любом порядке относительно 068.
+    RETURN false;
+  END;
+  RETURN COALESCE(v_exists, false);
+END $$;
 
 GRANT EXECUTE ON FUNCTION public.is_account_pending_deletion(uuid)
   TO authenticated, service_role;
