@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Pre-push typecheck
+
+После `npm install` автоматически прописывается git-хук
+`.githooks/pre-push`, который перед каждым push'ом гоняет
+`tsc --noEmit` (~3 секунды). Если есть ошибки типов — push не уйдёт
+и CI не упадёт.
+
+Если очень нужно протолкнуть незаконченный код:
+
+```bash
+git push --no-verify
+```
+
+Хук отключаем командой `git config --unset core.hooksPath` и
+включаем обратно через `npm install` (повторный запуск пересоздаст
+конфиг).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

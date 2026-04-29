@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Перед push'ом гоняем TypeScript-typecheck на всём проекте.
+#
+# Зачем не полный `next build`: full-build занимает ~30–60 секунд, а
+# нас на CI ловят почти всегда именно type-ошибки (компонент пишется
+# чисто, но мы шлём в проп не тот тип, или narrow до never теряется).
+# `tsc --noEmit` это всё ловит за 3–5 секунд. Если очень нужно
+# протолкнуть незаконченный код — можно сделать `git push --no-verify`,
+# но тогда CI ляжет, и сами понимаем зачем.
+#
+# Прописывается автоматом после `npm install` через скрипт `prepare`
+# в package.json (`git config core.hooksPath .githooks`).
+
+set -e
+
+# Если в проекте нет TypeScript (например, после очистки node_modules) —
+# не блокируем push, оставляем сообщение.
+if [ ! -x "node_modules/.bin/tsc" ]; then
+  echo "[pre-push] tsc не найден в node_modules. Запусти 'npm install' и попробуй ещё раз."
+  exit 0
+fi
+
+echo "[pre-push] tsc --noEmit (typecheck before push)…"
+node_modules/.bin/tsc --noEmit
+
+echo "[pre-push] OK"
