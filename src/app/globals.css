@@ -11131,6 +11131,83 @@ html[data-theme='dark'] .star-week-portrait {
   max-width: 480px;
 }
 
+/* ---------- Subscribers overview (admin) ---------- */
+
+.subscribers-overview {
+  margin: 0 0 28px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.subscribers-overview-title {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  margin: 0 0 14px;
+  color: var(--ink);
+}
+.subscribers-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.subscribers-overview-card {
+  padding: 12px 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.subscribers-overview-num {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+.subscribers-overview-num-sub {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink-mute);
+}
+.subscribers-overview-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.subscribers-overview-sub {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  line-height: 1.4;
+}
+.subscribers-overview-explainer {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-soft);
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.subscribers-overview-explainer summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 2px 0;
+}
+.subscribers-overview-explainer ul {
+  margin: 10px 0 6px;
+  padding-left: 22px;
+}
+.subscribers-overview-explainer li {
+  margin-bottom: 6px;
+  line-height: 1.55;
+}
+
 /* ---------- Analytics: funnel modal ---------- */
 
 .funnel-modal-card {

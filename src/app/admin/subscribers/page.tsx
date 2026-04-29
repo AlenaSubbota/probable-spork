@@ -57,6 +57,29 @@ export default async function SubscribersPage() {
     .order('reviewed_at', { ascending: false })
     .limit(30);
 
+  // Сводка по платформам (Boosty-кэш / Tribute-pending / chaptify-active).
+  // Тихо проглатываем, если миграции 067 / 049 / 052 ещё не накачены —
+  // тогда виджет просто не покажется.
+  let overview: {
+    chaptify_active: number;
+    chaptify_total: number;
+    boosty: {
+      cached: number;
+      active_in_cache: number;
+      last_synced_at: string | null;
+      blog_username: string | null;
+    };
+    tribute: { pending_link: number };
+  } | null = null;
+  try {
+    const { data: ov } = await supabase.rpc('get_my_subscriber_overview');
+    if (ov && typeof ov === 'object' && (ov as { ok?: boolean }).ok) {
+      overview = ov as typeof overview;
+    }
+  } catch {
+    // мигр. 067 ещё не накачена
+  }
+
   // Активные подписчики прямо сейчас
   const { data: active } = await supabase
     .from('chaptify_subscriptions')
@@ -138,6 +161,112 @@ export default async function SubscribersPage() {
           </div>
         )}
       </header>
+
+      {overview && (
+        <section className="subscribers-overview">
+          <h3 className="subscribers-overview-title">Где у тебя сейчас подписчики</h3>
+          <div className="subscribers-overview-grid">
+            <div className="subscribers-overview-card">
+              <div className="subscribers-overview-num">
+                {overview.chaptify_active}
+              </div>
+              <div className="subscribers-overview-label">
+                на Chaptify
+                <span className="subscribers-overview-sub">
+                  привязаны к аккаунту, видны в списке ниже
+                </span>
+              </div>
+            </div>
+
+            {overview.boosty.cached > 0 && (
+              <div className="subscribers-overview-card">
+                <div className="subscribers-overview-num">
+                  {overview.boosty.active_in_cache}
+                  <span className="subscribers-overview-num-sub">
+                    {' '}
+                    / {overview.boosty.cached}
+                  </span>
+                </div>
+                <div className="subscribers-overview-label">
+                  Boosty (автосинк)
+                  <span className="subscribers-overview-sub">
+                    активные / всего в кэше
+                    {overview.boosty.last_synced_at && (
+                      <>
+                        {' · '}
+                        синк{' '}
+                        {new Date(
+                          overview.boosty.last_synced_at,
+                        ).toLocaleString('ru-RU', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {overview.tribute.pending_link > 0 && (
+              <div className="subscribers-overview-card">
+                <div className="subscribers-overview-num">
+                  {overview.tribute.pending_link}
+                </div>
+                <div className="subscribers-overview-label">
+                  Tribute, не привязаны
+                  <span className="subscribers-overview-sub">
+                    оплатили, ждут логина через TG
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <details className="subscribers-overview-explainer">
+            <summary>
+              Почему цифра в Boosty-автосинке может быть больше, чем
+              на самом Boosty
+            </summary>
+            <ul>
+              <li>
+                <strong>Истекшие, но в grace-периоде.</strong> Boosty
+                в админ-панели показывает только тех, у кого подписка
+                сейчас активна и не истекла. Наш кэш помнит подписчика
+                до конца оплаченного периода (и иногда чуть дольше),
+                чтобы fallback-матчинг по email сработал, если
+                читатель оплатит снова.
+              </li>
+              <li>
+                <strong>Поставленные на паузу.</strong> Если читатель
+                выключил автопродление, Boosty иногда не считает его
+                «активным» в счётчике дашборда, но мы оставляем строку
+                в кэше до фактического <code>subscribed_until</code> —
+                на этот период доступ к платным главам всё ещё есть.
+              </li>
+              <li>
+                <strong>Лаг синхронизации.</strong> Воркер обновляет
+                кэш раз в ~15 минут. Тот, кто только что отписался,
+                может ещё минут пять-десять висеть у нас как активный.
+              </li>
+              <li>
+                <strong>Подписчики на free-уровнях.</strong> Если у
+                тебя есть бесплатный тир («подписчики без оплаты»),
+                они есть и у Boosty, и у нас в кэше — но платным
+                автосинком ты их одобрить всё равно не сможешь, ведь
+                платежа нет.
+              </li>
+            </ul>
+            <p style={{ color: 'var(--ink-mute)', fontSize: 12.5 }}>
+              Цифра «активные / всего в кэше» — это первая (с
+              <code> subscribed_until &gt; now</code>); сравнивать
+              корректнее с Boosty UI именно её, а не «всего».
+            </p>
+          </details>
+        </section>
+      )}
 
       <SubscribersClient
         pending={pending ?? []}
