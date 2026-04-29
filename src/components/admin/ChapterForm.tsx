@@ -382,7 +382,7 @@ export default function ChapterForm({
         </label>
 
         {isPaid && (
-          <div className="form-field" style={{ maxWidth: 140 }}>
+          <div className="form-field" style={{ maxWidth: 180 }}>
             <label title="Сколько монет стоит разовая покупка этой главы. От 1 до 500. Подписчики переводчика читают бесплатно независимо от цены.">
               Цена, монет
             </label>
@@ -398,6 +398,14 @@ export default function ChapterForm({
                 setPriceCoins(Number.isFinite(v) ? Math.max(1, Math.min(500, v)) : 10);
               }}
             />
+            {/* На редактировании показываем «было N» — иначе легко
+                перебить уже выставленную цену дефолтом 10 при быстром
+                сохранении, никто не заметит до жалоб читателей. */}
+            {mode === 'edit' && initial?.price_coins != null && initial.price_coins !== priceCoins && (
+              <div className="form-hint" style={{ color: 'var(--ink-mute)' }}>
+                Было: {initial.price_coins} монет
+              </div>
+            )}
           </div>
         )}
 

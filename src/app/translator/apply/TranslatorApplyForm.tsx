@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import { friendlyError } from '@/lib/friendly-error';
 
 const LANGUAGES = [
   { key: 'kr', label: 'Корейский' },
@@ -31,6 +32,10 @@ export default function TranslatorApplyForm() {
       setError('Расскажи чуть подробнее — минимум 20 символов.');
       return;
     }
+    if (motivation.length > 2000) {
+      setError(`Слишком длинно — максимум 2000 символов, у тебя ${motivation.length}.`);
+      return;
+    }
     setStatus('submitting');
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -48,7 +53,7 @@ export default function TranslatorApplyForm() {
     });
     if (dbError) {
       setStatus('error');
-      setError(dbError.message);
+      setError(friendlyError(dbError, 'отправить заявку'));
       return;
     }
     router.refresh();
@@ -66,8 +71,14 @@ export default function TranslatorApplyForm() {
           onChange={(e) => setMotivation(e.target.value)}
           placeholder="Расскажи, какие новеллы ты уже переводил_а, что любишь в жанре, почему нравится именно Chaptify."
           required
+          maxLength={2000}
         />
-        <div className="form-hint">{motivation.length} / 2000</div>
+        <div
+          className="form-hint"
+          style={motivation.length >= 1900 ? { color: 'var(--rose)' } : undefined}
+        >
+          {motivation.length} / 2000
+        </div>
       </div>
 
       <div className="form-field">
