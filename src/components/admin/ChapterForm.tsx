@@ -466,7 +466,45 @@ export default function ChapterForm({
             />
             <p className="form-hint">
               До указанного времени главу видишь только ты. В ленте и на странице
-              новеллы у читателей её не будет.
+              новеллы у читателей её не будет.{' '}
+              <strong>
+                Время в твоём часовом поясе
+                {(() => {
+                  // Быстрая шильдик-подсказка вида «(UTC+3, Europe/Moscow)»,
+                  // чтобы переводчик не сомневался, что 22:00 — это 22:00 у
+                  // него, а не у сервера.
+                  try {
+                    const offsetMin = -new Date().getTimezoneOffset();
+                    const sign = offsetMin >= 0 ? '+' : '−';
+                    const hh = Math.floor(Math.abs(offsetMin) / 60);
+                    const mm = Math.abs(offsetMin) % 60;
+                    const off = `UTC${sign}${hh}${mm ? ':' + String(mm).padStart(2, '0') : ''}`;
+                    const zone =
+                      Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+                    return ` (${off}${zone ? ', ' + zone : ''})`;
+                  } catch {
+                    return '';
+                  }
+                })()}
+              </strong>
+              {scheduledAt && (() => {
+                const d = new Date(scheduledAt);
+                if (Number.isNaN(d.getTime())) return null;
+                return (
+                  <>
+                    {' '}— читатели увидят главу{' '}
+                    <strong>
+                      {d.toLocaleString('ru-RU', {
+                        day: 'numeric',
+                        month: 'long',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </strong>
+                    .
+                  </>
+                );
+              })()}
             </p>
           </div>
         )}
