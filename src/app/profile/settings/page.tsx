@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import SettingsForm from './SettingsForm';
 import LinkedAccounts from './LinkedAccounts';
 import RoadmapEditor from './RoadmapEditor';
+import DeleteAccountSection from '@/components/auth/DeleteAccountSection';
 
 export const metadata = { title: 'Настройки — Chaptify' };
 
@@ -128,6 +129,8 @@ export default async function ProfileSettingsPage() {
       )}
 
       {isTranslator && <RoadmapEditor translatorId={user.id} />}
+
+      <DeleteAccountSection userName={profile.user_name ?? null} />
     </main>
   );
 }
