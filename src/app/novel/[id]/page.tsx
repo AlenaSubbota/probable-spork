@@ -7,6 +7,7 @@ import SimilarByReaders from '@/components/SimilarByReaders';
 import ReleasePace from '@/components/ReleasePace';
 import BookmarkButton from '@/components/BookmarkButton';
 import NovelClaimButton from '@/components/NovelClaimButton';
+import ReportButton from '@/components/ReportButton';
 import AdultGate from '@/components/AdultGate';
 import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
 import MyNovelHistory from '@/components/novel/MyNovelHistory';
@@ -901,6 +902,17 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
               >
                 📘 EPUB
               </a>
+              {/* «Пожаловаться» — для всех пользователей; canEdit (свой
+                  админ-владелец/админ) этой кнопки не показываем —
+                  у них есть прямая редактура. Не залогинен — кнопка
+                  всё равно есть, тыкнет → подскажет войти. */}
+              {!canEdit && (
+                <ReportButton
+                  targetType="novel"
+                  targetId={novel.id}
+                  isLoggedIn={!!user}
+                />
+              )}
               {canEdit && (
                 <>
                   <Link

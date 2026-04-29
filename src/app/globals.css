@@ -11102,6 +11102,35 @@ html[data-theme='dark'] .star-week-portrait {
   color: var(--ink);
 }
 
+/* ---------- Report (жалоба) ---------- */
+
+.report-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ink-mute);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color .12s, background .12s, border-color .12s;
+}
+.report-trigger:hover,
+.report-trigger:focus-visible {
+  color: var(--rose);
+  background: var(--bg-soft);
+  border-color: var(--border);
+}
+.report-trigger-label {
+  font-size: 12.5px;
+}
+
+.report-modal-card {
+  max-width: 480px;
+}
+
 /* ---------- Analytics: funnel modal ---------- */
 
 .funnel-modal-card {

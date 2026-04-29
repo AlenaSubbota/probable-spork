@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client';
 import { timeAgo } from '@/lib/format';
 import { commentToHtml } from '@/lib/commentFormat';
 import CommentToolbar from './CommentToolbar';
+import ReportButton from './ReportButton';
 
 interface Comment {
   id: number;
@@ -357,6 +358,18 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
                 >
                   🗑 Удалить
                 </button>
+              )}
+              {/* Жалоба на чужой комментарий. Свой комментарий —
+                  ему тоже без жалобы (можно просто отредактировать
+                  или удалить, есть кнопки). Жалобы с админа на админа
+                  тоже скрываем — модерируют через прямое удаление. */}
+              {!isMine && !isAdmin && (
+                <ReportButton
+                  targetType="comment"
+                  targetId={c.id}
+                  isLoggedIn={!!userId}
+                  compact
+                />
               )}
             </div>
           )}
