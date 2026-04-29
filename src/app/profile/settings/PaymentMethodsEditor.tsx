@@ -121,6 +121,7 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
   // сработает, и узнал бы об этом только когда первый читатель попробует
   // войти). Если AUTH_API_URL не задан — пропускаем валидацию (dev).
   const saveChatId = async (methodId: number) => {
+    if (busy) return; // защита от двойного клика по «Сохранить chat_id»
     const v = editChatValue.trim();
     const parsed = v ? parseTgChatId(v) : null;
     if (v && parsed === null) {
@@ -128,11 +129,13 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
       return;
     }
 
+    setBusy(true);
     if (parsed !== null && AUTH_API_URL) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           push('error', 'Сессия потерялась. Перезайди.');
+          setBusy(false);
           return;
         }
         const resp = await fetch(`${AUTH_API_URL}/auth/boosty-tg-chat-validate`, {
@@ -159,11 +162,13 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
             bot_chat_unreachable: vd.detail || 'Telegram отказал.',
           };
           push('error', human[vd.error ?? ''] ?? `Telegram: ${vd.error ?? resp.statusText}`);
+          setBusy(false);
           return;
         }
         push('info', `Чат "${vd.title ?? '?'}" подтверждён — бот в нём.`);
       } catch (e) {
         push('error', `Не дозвонился до auth-service: ${e instanceof Error ? e.message : 'сеть'}`);
+        setBusy(false);
         return;
       }
     }
@@ -172,6 +177,7 @@ export default function PaymentMethodsEditor({ translatorId }: Props) {
       .from('translator_payment_methods')
       .update({ tg_chat_id: parsed })
       .eq('id', methodId);
+    setBusy(false);
     if (error) {
       push('error', error.message);
       return;
