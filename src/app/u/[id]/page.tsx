@@ -140,6 +140,52 @@ export default async function PublicUserProfile({ params }: PageProps) {
       : 0
     : 0;
 
+  // ---- Команды, в которых состоит ----
+  // Берём team_members + translator_teams (RLS на обе разрешает SELECT
+  // всем, мигр. 056). Архивные команды не показываем.
+  let teamsList: Array<{
+    id: number;
+    slug: string;
+    name: string;
+    avatar_url: string | null;
+    role: string;
+    is_owner: boolean;
+  }> = [];
+  try {
+    const { data: memberships } = await supabase
+      .from('team_members')
+      .select('role, team:translator_teams(id, slug, name, avatar_url, owner_id, is_archived)')
+      .eq('user_id', p.id);
+    type Row = {
+      role: string;
+      team: {
+        id: number;
+        slug: string;
+        name: string;
+        avatar_url: string | null;
+        owner_id: string;
+        is_archived: boolean;
+      } | null;
+    };
+    teamsList = (memberships as Row[] | null ?? [])
+      .filter((m) => m.team && !m.team.is_archived)
+      .map((m) => ({
+        id: m.team!.id,
+        slug: m.team!.slug,
+        name: m.team!.name,
+        avatar_url: m.team!.avatar_url,
+        role: m.role,
+        is_owner: m.team!.owner_id === p.id,
+      }))
+      .sort((a, b) => {
+        // Лидер своей команды → первой; дальше — по имени.
+        if (a.is_owner !== b.is_owner) return a.is_owner ? -1 : 1;
+        return a.name.localeCompare(b.name, 'ru');
+      });
+  } catch {
+    // мигр. 056 ещё не накачена
+  }
+
   // ---- Рейтинг + отзывы из маркетплейса ----
   let marketRating = { avg: 0, count: 0 };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -251,6 +297,39 @@ export default async function PublicUserProfile({ params }: PageProps) {
         </div>
       </div>
 
+      {teamsList.length > 0 && (
+        <section className="user-profile-teams">
+          <h3 className="user-profile-teams-title">
+            {teamsList.length === 1 ? 'В команде' : 'В командах'}
+          </h3>
+          <ul className="user-profile-teams-list">
+            {teamsList.map((t) => {
+              const initial = t.name.trim().charAt(0).toUpperCase() || '?';
+              return (
+                <li key={t.id}>
+                  <Link href={`/team/${t.slug}`} className="user-profile-team-card">
+                    <span className="user-profile-team-avatar">
+                      {t.avatar_url ? (
+                        <img src={t.avatar_url} alt="" />
+                      ) : (
+                        <span>{initial}</span>
+                      )}
+                    </span>
+                    <span className="user-profile-team-text">
+                      <span className="user-profile-team-name">{t.name}</span>
+                      <span className="user-profile-team-role">
+                        {TEAM_ROLE_LABEL[t.role] ?? 'Участник'}
+                        {t.is_owner ? ' · лидер' : ''}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* Киллер-фича #1: общие новеллы */}
       {!isSelf && viewer && sharedReadsCount > 0 && (
         <div className="handshake-card">
@@ -283,6 +362,24 @@ export default async function PublicUserProfile({ params }: PageProps) {
     </main>
   );
 }
+
+// Локализация ролей в команде. Совпадает с админ-формой
+// (CreditsEditor), но без эмодзи — здесь компактные тексто-чипы.
+const TEAM_ROLE_LABEL: Record<string, string> = {
+  lead: 'Лидер',
+  translator: 'Переводчик',
+  co_translator: 'Со-переводчик',
+  editor: 'Редактор',
+  proofreader: 'Корректор',
+  beta_reader: 'Бета-ридер',
+  illustrator: 'Иллюстратор',
+  designer: 'Дизайнер',
+  typesetter: 'Тайпер',
+  glossary: 'Глоссарий',
+  community: 'Комьюнити',
+  promo_writer: 'Промо-копирайтер',
+  other: 'Участник',
+};
 
 function plural(n: number, one: string, few: string, many: string) {
   const mod10 = n % 10;
