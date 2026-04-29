@@ -500,7 +500,7 @@ export default async function HomePage() {
           <h2>Новые главы</h2>
           <Link href="/feed" className="more">Вся лента →</Link>
         </div>
-        <div className="novel-grid novel-grid-dense">
+        <div className="novel-grid novel-grid-dense novel-grid-tight">
           {recentNovels?.map((novel, index) => {
             const date = novel.latest_chapter_published_at
               ? new Date(novel.latest_chapter_published_at).toLocaleDateString('ru-RU')
@@ -582,7 +582,7 @@ export default async function HomePage() {
           <h2>Популярное</h2>
           <Link href="/catalog" className="more">Смотреть все →</Link>
         </div>
-        <div className="novel-grid">
+        <div className="novel-grid novel-grid-tight">
           {popularNovels?.map((novel, index) => {
             const authorLabel =
               formatAuthorPrimary(

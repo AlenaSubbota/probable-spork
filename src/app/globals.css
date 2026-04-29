@@ -1229,6 +1229,64 @@ html[data-theme='dark'] .logo-mark {
   }
 }
 
+/* Модификатор .novel-grid-tight — кап до одного ряда карточек на
+   десктопе/лэптопе и двух на узких экранах. Применяется на главной
+   к блокам «Популярное» (.novel-grid) и «Новые главы»
+   (.novel-grid.novel-grid-dense): сервер отдаёт по 6/12 новелл,
+   но визуально хвост лишний — ссылки «Смотреть все →» и
+   «Вся лента →» в section-head ведут на полный список.
+
+   Диапазоны min/max не пересекаются, чтобы для каждой ширины
+   срабатывало ровно одно правило (без «display: none» прилипшего
+   при ресайзе наверх). Числа nth-child(n+X) = (визуальный кап) + 1.
+
+   Регулярная сетка: 6 кол ≥1100, 4 кол 760-1100, 3 кол ≤760.
+   Dense сетка:      8 ≥1280, 6 1100-1280, 5 860-1100, 4 540-860, 3 ≤540.
+*/
+@media (min-width: 1101px) {
+  .novel-grid-tight > .novel-card:nth-child(n + 7) { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .novel-grid-tight > .novel-card:nth-child(n + 5) { display: none; }
+}
+@media (max-width: 760px) {
+  /* На узких — допускаем 2 ряда (3×2), иначе слишком сжатый блок */
+  .novel-grid-tight > .novel-card:nth-child(n + 7) { display: none; }
+}
+
+@media (min-width: 1281px) {
+  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 9) { display: none; }
+}
+@media (min-width: 1101px) and (max-width: 1280px) {
+  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 7) { display: none; }
+}
+@media (min-width: 861px) and (max-width: 1100px) {
+  /* 5 кол × 2 ряда — на мини-десктопе оставляем больше «ленты»,
+     иначе одного ряда из 5 мало */
+  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 11) { display: none; }
+}
+@media (min-width: 541px) and (max-width: 860px) {
+  /* 4 кол × 2 ряда */
+  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 9) { display: none; }
+}
+@media (max-width: 540px) {
+  /* Дублируем кап ≤540 (n+7) явно через -tight: исходный селектор
+     .novel-grid.novel-grid-dense выше уже это делает, но если в
+     будущем dense дефолт поменяют, tight гарантированно остаётся. */
+  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 7) { display: none; }
+}
+
+/* Поджимаем sectionа c tight-сеткой: высота этих блоков «ела»
+   вертикальное полотно главной даже после ровных рядов. Меньше
+   воздуха сверху/снизу + плотнее зазор под заголовком блока. */
+.section:has(> .novel-grid-tight) {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+.section:has(> .novel-grid-tight) .section-head {
+  margin-bottom: 12px;
+}
+
 .novel-card {
   display: flex;
   flex-direction: column;
