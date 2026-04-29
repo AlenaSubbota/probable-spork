@@ -15862,32 +15862,21 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
    вертикальный скролл, чтобы длинная нить комментов читалась без
    выхода из снап-цепочки.
    ========================================================= */
+/* Финальный блок «обсуждение/благодарности/рекомендации» в pages-режиме
+   живёт ОТДЕЛЬНЫМ flow-блоком ниже горизонтального листателя — как
+   обычная секция страницы. Раньше он лежал внутри scroller'а как
+   snap-target с собственным overflow-y, и читатели жаловались на
+   ощущение «sub-page» с внутренним скроллом. Теперь снап заканчивается
+   на последней текстовой странице, дальше — обычный вертикальный
+   скролл сайта в обсуждение. */
 .reader-wrapper[data-read-mode='pages'] .reader-pages-end {
-  flex: 0 0 auto;
-  /* width задаётся inline = pageWidth (как у spacer'ов). */
-  height: 100%;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  overflow-y: auto;
-  overflow-x: hidden;
   background: var(--surface);
-  border-left: 1px solid var(--border);
-  padding: 24px 22px 80px;
-  box-sizing: border-box;
-  /* Тонкий скроллбар внутри страницы — на десктопе видно, на мобиле
-     системный invisible. */
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent-soft) transparent;
+  border-top: 1px solid var(--border);
+  /* Боттом-запас под фиксированный ReaderBottomBar (~80 px desktop /
+     70 px mobile + safe-area-bottom). Иначе последний коммент уезжает
+     под панель. */
+  padding: 28px 22px calc(110px + env(safe-area-inset-bottom, 0));
 }
-.reader-wrapper[data-read-mode='pages'] .reader-pages-end::-webkit-scrollbar {
-  width: 6px;
-}
-.reader-wrapper[data-read-mode='pages'] .reader-pages-end::-webkit-scrollbar-thumb {
-  background: var(--accent-soft);
-  border-radius: 999px;
-}
-/* Внутри финальной страницы перебиваем дефолтные отступы reader-main
-   (комменты лежат там, рассчитаны на full-width main). */
 .reader-wrapper[data-read-mode='pages'] .reader-pages-end .comments-section {
   margin-top: 0;
 }
@@ -15902,7 +15891,7 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
 /* Mobile: меньше боковой padding, чтобы комменты дышали в узкой ширине. */
 @media (max-width: 540px) {
   .reader-wrapper[data-read-mode='pages'] .reader-pages-end {
-    padding: 18px 14px 70px;
+    padding: 22px 14px calc(120px + env(safe-area-inset-bottom, 0));
   }
 }
 
