@@ -832,67 +832,38 @@ export default function ReaderContent({
   //     ResizeObserver на scroller'е стреляет → totalPages
   //     пересчитывается → snap утаскивает с обсуждения. Лечим:
   //     inputFocusedRef = true, calc/RO игнорят ресайзы (см. выше).
-  //   • body заперт от вертикального скролла, поэтому iOS не может
-  //     сам поднять input над клавиатурой через body.scrollTop —
-  //     скроллим локально внутри .reader-pages-end через
-  //     visualViewport-расчёт высоты «над клавиатурой».
   //   • На время фокуса снимаем scroll-snap-type — иначе клавиатура
   //     иногда дёргает scrollLeft, и snap затаскивает на соседнюю
   //     страницу. По окончании фокуса возвращаем snap.
-  // Историческая заметка: раньше тут же висел onScroll-watcher,
-  // который восстанавливал scrollLeft к savedLeft на любое движение,
-  // если фокус был активен. Он лечил микро-дрожание iOS, но при
-  // этом ронял реальные swipe'ы юзера между страницами (если фокус
-  // в textarea остался зажат), и пользователь жаловался, что свайп
-  // к обсуждению «возвращает» к последней странице текста. Снят.
+  //
+  // Раньше здесь дополнительно жил `ensureInputVisible`, который
+  // вручную считал позицию input'а через visualViewport и подскролливал
+  // .reader-pages-end. Он стрелял ОДНОВРЕМЕННО с iOS-нативным
+  // «scrollIntoView фокусированного поля в ближайший overflow:auto
+  // родитель» — двойной скролл, и input «съезжал» вверх. Снято: у
+  // .reader-pages-end и так overflow-y: auto, iOS сам его найдёт и
+  // поднимет input ровно куда надо.
   useEffect(() => {
     if (!ready || settings.readMode !== 'pages') return;
     const scroller = scrollerRef.current;
     if (!scroller) return;
-
-    let activeInput: HTMLElement | null = null;
 
     const isEditable = (el: EventTarget | null): boolean => {
       if (!(el instanceof HTMLElement)) return false;
       return !!el.closest('input, textarea, select, [contenteditable="true"]');
     };
 
-    const ensureInputVisible = () => {
-      const input = activeInput;
-      if (!input) return;
-      const pagesEnd = input.closest<HTMLElement>('.reader-pages-end');
-      if (!pagesEnd) return;
-      const vv = window.visualViewport;
-      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      const inputRect = input.getBoundingClientRect();
-      const headroom = 24;
-      const overflowBottom = inputRect.bottom + headroom - visibleBottom;
-      if (overflowBottom > 0) {
-        pagesEnd.scrollTop += overflowBottom;
-      }
-    };
-    const onVvResize = () => {
-      ensureInputVisible();
-      requestAnimationFrame(ensureInputVisible);
-    };
-
     const onFocusIn = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
-      activeInput = e.target as HTMLElement;
       inputFocusedRef.current = true;
       scroller.style.scrollSnapType = 'none';
-      window.visualViewport?.addEventListener('resize', onVvResize);
-      ensureInputVisible();
-      window.setTimeout(ensureInputVisible, 320);
     };
     const onFocusOut = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
       // Фокус ушёл на другой редактор — не сбрасываем флаг.
       const next = e.relatedTarget as HTMLElement | null;
       if (next && isEditable(next)) return;
-      activeInput = null;
       inputFocusedRef.current = false;
-      window.visualViewport?.removeEventListener('resize', onVvResize);
       scroller.style.scrollSnapType = '';
     };
 
@@ -903,7 +874,6 @@ export default function ReaderContent({
     return () => {
       scroller.removeEventListener('focusin', onFocusIn);
       scroller.removeEventListener('focusout', onFocusOut);
-      window.visualViewport?.removeEventListener('resize', onVvResize);
       scroller.style.scrollSnapType = '';
       inputFocusedRef.current = false;
     };
