@@ -11475,6 +11475,21 @@ html[data-theme='dark'] .translator-tab.is-active {
 body.reader-pages-mode > .site-header {
   display: none;
 }
+/* В pages-режиме нижняя панель reader-bottom-bar position:fixed, и её
+   80 px учтены в calc()-высоте scroller'а. Когда юзер на последней
+   snap-странице (обсуждение), панель скрыта (translateY(110%)) — а
+   зарезервированная зона остаётся пустой и показывает базовый
+   var(--bg) ниже scroller'а как «коричневую полосу». Чтобы её не
+   было видно как чужеродный элемент, в pages-режиме перебиваем
+   фон reader-page на var(--surface) — это тот же фон, что у
+   страницы обсуждения, и зона визуально с ней сливается.
+   На текстовых страницах разницы почти нет: контент главы фон
+   не задаёт, наследует от reader-page; --surface чуть светлее
+   --bg, оба тёплые кремовые. */
+body.reader-pages-mode > .reader-page,
+body.reader-pages-mode .reader-page {
+  background: var(--surface);
+}
 /* Без site-header reader-header переезжает под notch — компенсируем
    safe-area-inset-top. */
 body.reader-pages-mode .reader-page .reader-header {

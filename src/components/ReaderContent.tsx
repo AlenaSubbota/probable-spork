@@ -827,24 +827,29 @@ export default function ReaderContent({
   }, [ready, settings.readMode]);
 
   // ---- 6.57. iOS keyboard / input focus в .reader-pages-end ----
-  // Когда пользователь тапает по textarea на странице обсуждения:
+  // При тапе по textarea на странице обсуждения:
   //   • iOS поднимает клавиатуру → visualViewport ужимается →
   //     ResizeObserver на scroller'е стреляет → totalPages
-  //     пересчитывается → snap утаскивает с обсуждения. Лечим
-  //     inputFocusedRef и игнором ресайзов (см. выше).
-  //   • position: fixed элементы привязаны к visual viewport — iOS
-  //     может дёрнуть scrollLeft scroller'а; снимаем snap-type, ловим
-  //     дрейф onScroll, возвращаем к savedLeft.
+  //     пересчитывается → snap утаскивает с обсуждения. Лечим:
+  //     inputFocusedRef = true, calc/RO игнорят ресайзы (см. выше).
   //   • body заперт от вертикального скролла, поэтому iOS не может
   //     сам поднять input над клавиатурой через body.scrollTop —
-  //     придётся скроллить локально внутри .reader-pages-end через
+  //     скроллим локально внутри .reader-pages-end через
   //     visualViewport-расчёт высоты «над клавиатурой».
+  //   • На время фокуса снимаем scroll-snap-type — иначе клавиатура
+  //     иногда дёргает scrollLeft, и snap затаскивает на соседнюю
+  //     страницу. По окончании фокуса возвращаем snap.
+  // Историческая заметка: раньше тут же висел onScroll-watcher,
+  // который восстанавливал scrollLeft к savedLeft на любое движение,
+  // если фокус был активен. Он лечил микро-дрожание iOS, но при
+  // этом ронял реальные swipe'ы юзера между страницами (если фокус
+  // в textarea остался зажат), и пользователь жаловался, что свайп
+  // к обсуждению «возвращает» к последней странице текста. Снят.
   useEffect(() => {
     if (!ready || settings.readMode !== 'pages') return;
     const scroller = scrollerRef.current;
     if (!scroller) return;
 
-    let savedLeft = 0;
     let activeInput: HTMLElement | null = null;
 
     const isEditable = (el: EventTarget | null): boolean => {
@@ -852,18 +857,6 @@ export default function ReaderContent({
       return !!el.closest('input, textarea, select, [contenteditable="true"]');
     };
 
-    let restoring = false;
-    const onScroll = () => {
-      if (!inputFocusedRef.current) return;
-      if (restoring) return;
-      if (Math.abs(scroller.scrollLeft - savedLeft) < 2) return;
-      restoring = true;
-      scroller.scrollTo({ left: savedLeft, behavior: 'instant' as ScrollBehavior });
-      requestAnimationFrame(() => { restoring = false; });
-    };
-
-    // Поднимаем focused input над клавиатурой вручную — body заперт,
-    // iOS сам не сможет.
     const ensureInputVisible = () => {
       const input = activeInput;
       if (!input) return;
@@ -886,42 +879,31 @@ export default function ReaderContent({
     const onFocusIn = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
       activeInput = e.target as HTMLElement;
-      savedLeft = scroller.scrollLeft;
       inputFocusedRef.current = true;
       scroller.style.scrollSnapType = 'none';
-      scroller.addEventListener('scroll', onScroll, { passive: true });
       window.visualViewport?.addEventListener('resize', onVvResize);
       ensureInputVisible();
       window.setTimeout(ensureInputVisible, 320);
     };
     const onFocusOut = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
-      // Фокус ушёл на другой редактор — сохраняем флаг.
+      // Фокус ушёл на другой редактор — не сбрасываем флаг.
       const next = e.relatedTarget as HTMLElement | null;
-      if (next && isEditable(next)) {
-        savedLeft = scroller.scrollLeft;
-        return;
-      }
+      if (next && isEditable(next)) return;
       activeInput = null;
       inputFocusedRef.current = false;
-      scroller.removeEventListener('scroll', onScroll);
       window.visualViewport?.removeEventListener('resize', onVvResize);
       scroller.style.scrollSnapType = '';
-      if (Math.abs(scroller.scrollLeft - savedLeft) > 4) {
-        requestAnimationFrame(() => {
-          scroller.scrollTo({ left: savedLeft, behavior: 'instant' as ScrollBehavior });
-        });
-      }
     };
 
-    // Слушаем focus на уровне document — input теперь может жить и в
-    // scroller'е (теоретически), и в .reader-pages-end вне его.
-    document.addEventListener('focusin', onFocusIn);
-    document.addEventListener('focusout', onFocusOut);
+    // Слушаем focus на уровне scroller'а — input живёт внутри
+    // .reader-pages-end, которая лежит во flex-цепочке scroller'а.
+    scroller.addEventListener('focusin', onFocusIn);
+    scroller.addEventListener('focusout', onFocusOut);
     return () => {
-      document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('focusout', onFocusOut);
-      scroller.removeEventListener('scroll', onScroll);
+      scroller.removeEventListener('focusin', onFocusIn);
+      scroller.removeEventListener('focusout', onFocusOut);
+      window.visualViewport?.removeEventListener('resize', onVvResize);
       scroller.style.scrollSnapType = '';
       inputFocusedRef.current = false;
     };
