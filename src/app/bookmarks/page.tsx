@@ -96,6 +96,11 @@ export default async function BookmarksPage({
   if (allKeys.length === 0) {
     return (
       <main className="container section">
+        <div className="admin-breadcrumbs">
+          <Link href="/">Главная</Link>
+          <span>/</span>
+          <span>Моя библиотека</span>
+        </div>
         <h1 style={{ fontFamily: 'var(--font-serif)', margin: '20px 0 10px' }}>
           Моя библиотека
         </h1>
@@ -211,6 +216,11 @@ export default async function BookmarksPage({
 
   return (
     <main className="container section">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Моя библиотека</span>
+      </div>
       <div className="bookmarks-head">
         <div>
           <h1>Моя библиотека</h1>

@@ -41,6 +41,11 @@ export default function MessageThread({ myId, otherId, initial, novelPreviewMap 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const supabase = createClient();
 
+  // Polling-callback не должен пересоздаваться при каждом изменении
+  // previews — иначе useEffect ниже будет пересоздавать setInterval, и
+  // период становится непредсказуемым (то 10 c, то ~5 c из-за гонки
+  // setInterval/clearInterval). previews читаем через функциональный
+  // setPreviews(prev => …), внешний previews из замыкания не нужен.
   const refresh = useCallback(async () => {
     const { data } = await supabase
       .from('direct_messages')
@@ -52,29 +57,43 @@ export default function MessageThread({ myId, otherId, initial, novelPreviewMap 
       .limit(500);
     if (Array.isArray(data)) {
       setMessages(data as Message[]);
-      // Добавляем превью для новых attached_novel_ids
-      const newNovelIds = (data as Message[])
+      // Берём список attached_novel_ids у новых сообщений и подгружаем
+      // превьюшки для тех, которых ещё нет в кэше — функционально,
+      // не привязываясь к старому значению previews из замыкания.
+      const allAttached = (data as Message[])
         .map((m) => m.attached_novel_id)
-        .filter((id): id is number => !!id && !previews[id]);
-      if (newNovelIds.length > 0) {
-        const { data: nd } = await supabase
-          .from('novels')
-          .select('id, title, firebase_id, cover_url')
-          .in('id', Array.from(new Set(newNovelIds)));
-        const next = { ...previews };
-        for (const n of nd ?? []) {
-          next[n.id] = {
-            title: n.title,
-            firebase_id: n.firebase_id,
-            cover_url: n.cover_url,
-          };
-        }
-        setPreviews(next);
+        .filter((id): id is number => !!id);
+      if (allAttached.length > 0) {
+        setPreviews((prev) => {
+          const missing = allAttached.filter((id) => !prev[id]);
+          if (missing.length === 0) return prev;
+          // Запрос асинхронный — кикаем его в фоне, апдейтим стейт
+          // повторным setPreviews при возвращении.
+          (async () => {
+            const { data: nd } = await supabase
+              .from('novels')
+              .select('id, title, firebase_id, cover_url')
+              .in('id', Array.from(new Set(missing)));
+            if (!nd || nd.length === 0) return;
+            setPreviews((p2) => {
+              const next = { ...p2 };
+              for (const n of nd) {
+                next[n.id] = {
+                  title: n.title,
+                  firebase_id: n.firebase_id,
+                  cover_url: n.cover_url,
+                };
+              }
+              return next;
+            });
+          })();
+          return prev;
+        });
       }
     }
     // Отмечаем как прочитанные
     await supabase.rpc('mark_dm_read', { p_other: otherId });
-  }, [supabase, myId, otherId, previews]);
+  }, [supabase, myId, otherId]);
 
   // Polling каждые 10 сек — простейшая замена realtime для MVP
   useEffect(() => {

@@ -1525,6 +1525,11 @@ export default function HelpClient() {
 
   return (
     <main className="container section help-page">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Справка</span>
+      </div>
       <header className="help-head">
         <h1>Справка Chaptify</h1>
         <p className="help-sub">

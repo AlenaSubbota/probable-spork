@@ -105,7 +105,11 @@ export default function BookmarkCard({ item }: Props) {
               ? 'К новелле'
               : 'Продолжить'}
           </Link>
-          <BookmarkRemoveButton firebaseId={item.firebase_id} title={item.title} />
+          <BookmarkRemoveButton
+            firebaseId={item.firebase_id}
+            novelId={item.novel_id ?? null}
+            title={item.title}
+          />
         </div>
       </div>
     </div>

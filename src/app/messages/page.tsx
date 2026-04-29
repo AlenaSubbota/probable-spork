@@ -47,6 +47,11 @@ export default async function MessagesPage() {
 
   return (
     <main className="container section">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Сообщения</span>
+      </div>
       <header className="admin-head">
         <div>
           <h1>Сообщения</h1>

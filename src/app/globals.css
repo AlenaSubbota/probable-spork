@@ -1270,11 +1270,23 @@ html[data-theme='dark'] .logo-mark {
   display: flex;
   gap: 8px;
   align-items: center;
+  /* Длинные имена авторов (особенно мульти-варианты «оригинал /
+     EN / RU») гарантированно поджимаем многоточием на одной строке —
+     иначе ник уезжает на 2 строки и ломает высоту карточки в гриде. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .novel-meta .by {
   color: var(--accent);
   font-weight: 600;
   transition: color .12s;
+  /* Внутри flex .by забирает столько ширины, сколько занимает текст;
+     overflow-hidden у родителя обрежет хвост многоточием. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .novel-meta a.by:hover {
   color: var(--accent-hover);
@@ -3199,7 +3211,12 @@ html[data-theme='dark'] .logo-mark {
 .admin-page--wide {
   max-width: 1400px;
 }
-.admin-page h1 {
+.admin-page h1,
+/* Те же serif-заголовки на «утилитарных» страницах, которые
+   рендерят <header className="admin-head"> (друзья, сообщения,
+   уведомления и т.д.) и не оборачиваются в .admin-page. */
+.admin-head h1,
+.news-head h1 {
   font-family: var(--font-serif);
   font-size: 30px;
   margin: 0 0 4px;
@@ -3216,7 +3233,9 @@ html[data-theme='dark'] .logo-mark {
 .admin-head > * { min-width: 0; }
 .admin-page h1 { word-break: break-word; }
 @media (max-width: 640px) {
-  .admin-page h1 { font-size: 24px; }
+  .admin-page h1,
+  .admin-head h1,
+  .news-head h1 { font-size: 24px; }
   .admin-head { gap: 14px; margin-bottom: 20px; }
   /* Кнопки в ряду экшнов админки сжимаются и переносятся; заодно
      каждая growth'ает чтоб занять одну колонку — выглядит ровно

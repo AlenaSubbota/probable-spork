@@ -44,6 +44,11 @@ export function timeAgo(iso: string | null | undefined) {
 // тонкий разделитель. Дубли (когда два варианта совпадают) свёрнуты.
 // Возвращает пустую строку, если ни один вариант не задан, — это
 // удобно для `?? 'Автор не указан'` на стороне вызова.
+//
+// Используется на ДЕТАЛЬНОЙ странице новеллы, где места достаточно.
+// На карточках в гридах, где места мало, нужен `formatAuthorPrimary`
+// — он берёт только один вариант (русский, иначе транслит, иначе
+// оригинал), чтобы строка не уезжала на две и не ломала сетку.
 export function formatAuthorVariants(
   ru: string | null | undefined,
   en: string | null | undefined,
@@ -60,6 +65,17 @@ export function formatAuthorVariants(
     out.push(v);
   }
   return out.join(' / ');
+}
+
+// Главный вариант имени автора для компактных мест (карточки гридов,
+// поиск, лента). Приоритет: русский → транслит → оригинал. Если ни
+// один не задан — пустая строка.
+export function formatAuthorPrimary(
+  ru: string | null | undefined,
+  en: string | null | undefined,
+  original: string | null | undefined
+): string {
+  return (ru?.trim() || en?.trim() || original?.trim() || '');
 }
 
 // Возрастные «жанры» в реальности — возрастной рейтинг новеллы, а не

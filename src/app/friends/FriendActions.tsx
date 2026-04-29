@@ -16,39 +16,66 @@ export default function FriendActions({ otherId, requestId, kind }: Props) {
   const [busy, setBusy] = useState(false);
   const supabase = createClient();
 
+  // Раньше ошибки RPC просто проглатывались — кнопка анимировалась
+  // в busy и возвращалась обратно, юзер не понимал, прошло или нет.
+  // Теперь любую ошибку показываем alert'ом с понятным текстом.
+  const showRpcError = (action: string, err: unknown) => {
+    const msg =
+      err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : 'неизвестная ошибка';
+    alert(`Не получилось ${action}: ${msg}`);
+  };
+
   const doAccept = async () => {
     setBusy(true);
-    await supabase.rpc('respond_to_friend_request', {
+    const { error } = await supabase.rpc('respond_to_friend_request', {
       p_request_id: requestId,
       p_accept: true,
     });
-    router.refresh();
     setBusy(false);
+    if (error) {
+      showRpcError('принять заявку', error);
+      return;
+    }
+    router.refresh();
   };
 
   const doDecline = async () => {
     setBusy(true);
-    await supabase.rpc('respond_to_friend_request', {
+    const { error } = await supabase.rpc('respond_to_friend_request', {
       p_request_id: requestId,
       p_accept: false,
     });
-    router.refresh();
     setBusy(false);
+    if (error) {
+      showRpcError('отклонить заявку', error);
+      return;
+    }
+    router.refresh();
   };
 
   const doUnfriend = async () => {
     if (!confirm('Удалить из друзей?')) return;
     setBusy(true);
-    await supabase.rpc('unfriend', { p_other: otherId });
-    router.refresh();
+    const { error } = await supabase.rpc('unfriend', { p_other: otherId });
     setBusy(false);
+    if (error) {
+      showRpcError('удалить из друзей', error);
+      return;
+    }
+    router.refresh();
   };
 
   const doCancel = async () => {
     setBusy(true);
-    await supabase.rpc('unfriend', { p_other: otherId });
-    router.refresh();
+    const { error } = await supabase.rpc('unfriend', { p_other: otherId });
     setBusy(false);
+    if (error) {
+      showRpcError('отменить заявку', error);
+      return;
+    }
+    router.refresh();
   };
 
   if (kind === 'incoming') {

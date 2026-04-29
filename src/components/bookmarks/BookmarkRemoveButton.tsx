@@ -6,14 +6,27 @@ import { createClient } from '@/utils/supabase/client';
 
 interface Props {
   firebaseId: string;
+  /** Числовой PK новеллы — нужен для удаления tene-импортированных
+      закладок, у которых ключ — id, а не firebase_id. */
+  novelId?: number | null;
   title: string;
 }
 
 // Кнопка удаления новеллы из «Моя библиотека».
-// profiles.bookmarks — это JSONB: может быть массивом firebase_id (legacy tene)
-// или объектом {firebase_id: status}. Чтобы не ломать tene, поддерживаем оба
-// формата: читаем текущее значение, удаляем ключ/элемент, пишем обратно.
-export default function BookmarkRemoveButton({ firebaseId, title }: Props) {
+// profiles.bookmarks — это JSONB: может быть массивом firebase_id
+// (legacy tene), массивом числовых id, объектом {firebase_id: status}
+// или объектом {numeric_id: status} (тоже tene-наследие). Чистим
+// все формы, удаляя любой ключ/элемент, который совпадает либо с
+// firebaseId, либо со строкой числового PK.
+//
+// Запись идёт через RPC update_my_profile (SECURITY DEFINER) — direct
+// UPDATE на profiles иногда не проходит RLS, и кнопка «корзина»
+// тогда тихо ничего не делает.
+export default function BookmarkRemoveButton({
+  firebaseId,
+  novelId,
+  title,
+}: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -33,19 +46,28 @@ export default function BookmarkRemoveButton({ firebaseId, title }: Props) {
       .eq('id', user.id)
       .maybeSingle();
 
+    const numericKey = novelId != null ? String(novelId) : null;
+    const matches = (key: string | number) => {
+      const s = String(key);
+      return s === firebaseId || (numericKey != null && s === numericKey);
+    };
+
     let next: unknown = profile?.bookmarks;
     if (Array.isArray(next)) {
-      next = (next as string[]).filter((id) => id !== firebaseId);
+      next = (next as Array<string | number>).filter((id) => !matches(id));
     } else if (next && typeof next === 'object') {
       const copy = { ...(next as Record<string, unknown>) };
-      delete copy[firebaseId];
+      for (const k of Object.keys(copy)) {
+        if (matches(k)) delete copy[k];
+      }
       next = copy;
     }
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ bookmarks: next })
-      .eq('id', user.id);
+    // RPC из tene: позволяет self-update profiles в обход RLS,
+    // плюс атомарно (без read-modify-write race).
+    const { error } = await supabase.rpc('update_my_profile', {
+      data_to_update: { bookmarks: next },
+    });
 
     setBusy(false);
     if (error) {

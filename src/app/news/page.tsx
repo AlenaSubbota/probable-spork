@@ -60,6 +60,11 @@ export default async function NewsPage({ searchParams }: PageProps) {
 
   return (
     <main className="container section news-page">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Новости</span>
+      </div>
       <header className="news-head">
         <div>
           <h1>Новости Chaptify</h1>

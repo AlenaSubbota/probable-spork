@@ -14,7 +14,7 @@ import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
 import StarOfTheWeek, { type StarOfTheWeekData } from '@/components/home/StarOfTheWeek';
 import Link from 'next/link';
-import { getCoverUrl, formatAuthorVariants } from '@/lib/format';
+import { getCoverUrl, formatAuthorPrimary } from '@/lib/format';
 
 const AGE_RE = /^\d{1,2}\+$/;
 
@@ -506,7 +506,7 @@ export default async function HomePage() {
               ? new Date(novel.latest_chapter_published_at).toLocaleDateString('ru-RU')
               : 'Недавно';
             const authorLabel =
-              formatAuthorVariants(
+              formatAuthorPrimary(
                 novel.author,
                 novel.author_en,
                 novel.author_original
@@ -581,7 +581,7 @@ export default async function HomePage() {
         <div className="novel-grid">
           {popularNovels?.map((novel, index) => {
             const authorLabel =
-              formatAuthorVariants(
+              formatAuthorPrimary(
                 novel.author,
                 novel.author_en,
                 novel.author_original

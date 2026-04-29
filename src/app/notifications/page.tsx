@@ -37,6 +37,11 @@ export default async function NotificationsPage({
 
   return (
     <main className="container section">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Уведомления</span>
+      </div>
       <NotificationsClient
         initial={notifications}
         filter={filter}

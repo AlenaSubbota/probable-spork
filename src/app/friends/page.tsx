@@ -132,6 +132,11 @@ export default async function FriendsPage() {
 
   return (
     <main className="container section">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Друзья</span>
+      </div>
       <header className="admin-head">
         <div>
           <h1>Друзья</h1>

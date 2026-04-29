@@ -61,6 +61,11 @@ export default async function StreakPage({ searchParams }: PageProps) {
 
   return (
     <main className="container streak-page">
+      <div className="admin-breadcrumbs">
+        <Link href="/">Главная</Link>
+        <span>/</span>
+        <span>Дневник чтения</span>
+      </div>
       <header className="streak-hero">
         <div className="streak-hero-flame" aria-hidden="true">
           <span className={`streak-flame streak-flame--${state}`}>
