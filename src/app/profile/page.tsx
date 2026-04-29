@@ -7,6 +7,7 @@ import ReadingStreak, { type ActivityDay } from '@/components/profile/ReadingStr
 import BookDiet from '@/components/profile/BookDiet';
 import ReadingTotals from '@/components/profile/ReadingTotals';
 import LogoutButton from '@/components/auth/LogoutButton';
+import TranslatorTabs from '@/components/translator/TranslatorTabs';
 import { cleanGenres } from '@/lib/format';
 
 // Локализация ролей в команде. Дублируется в /u/[id] — общая
@@ -397,8 +398,15 @@ export default async function ProfilePage() {
   const displayName =
     profile.translator_display_name ?? profile.user_name ?? profile.email ?? 'Читатель';
 
+  // Slug для таб-полосы. Берём translator_slug, иначе user_name —
+  // /t/<slug> терпит оба варианта (см. lookup в t/[slug]/page.tsx).
+  const tabsSlug = isTranslator
+    ? profile.translator_slug || profile.user_name || null
+    : null;
+
   return (
     <main className="container section">
+      {tabsSlug && <TranslatorTabs active="me" slug={tabsSlug} />}
       {/* Шапка профиля */}
       <div className="profile-hero">
         <UserAvatar avatarUrl={profile.avatar_url} name={displayName} size={84} />

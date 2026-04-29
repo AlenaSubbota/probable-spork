@@ -11,6 +11,9 @@ interface Props {
   avatarUrl: string | null;
   isTranslator: boolean;
   coinBalance: number | null;
+  /** Slug переводчика для прямой ссылки на витрину /t/<slug>.
+      Если null — пункт «Моя витрина» в меню скрыт. */
+  translatorSlug?: string | null;
 }
 
 // Выпадающее меню в шапке для залогиненного пользователя.
@@ -22,6 +25,7 @@ export default function UserMenu({
   avatarUrl,
   isTranslator,
   coinBalance,
+  translatorSlug = null,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -87,6 +91,16 @@ export default function UserMenu({
             <span className="user-menu-icon" aria-hidden="true">👤</span>
             <span>Мой профиль</span>
           </Link>
+          {isTranslator && translatorSlug && (
+            <Link
+              href={`/t/${translatorSlug}`}
+              className="user-menu-item"
+              onClick={() => setOpen(false)}
+            >
+              <span className="user-menu-icon" aria-hidden="true">📖</span>
+              <span>Моя витрина</span>
+            </Link>
+          )}
           <Link href="/profile/settings" className="user-menu-item" onClick={() => setOpen(false)}>
             <span className="user-menu-icon" aria-hidden="true">⚙</span>
             <span>Настройки</span>

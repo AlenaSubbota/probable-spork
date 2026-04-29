@@ -12,6 +12,7 @@ export default async function SiteHeader() {
   let userName: string | null = null;
   let avatarUrl: string | null = null;
   let isTranslator = false;
+  let translatorSlug: string | null = null;
   let coinBalance: number | null = null;
   let unreadDm = 0;
   let unreadNotif = 0;
@@ -30,11 +31,15 @@ export default async function SiteHeader() {
         is_admin?: boolean;
         coin_balance?: number | null;
         avatar_url?: string | null;
+        translator_slug?: string | null;
       };
       userName = p.user_name ?? null;
       avatarUrl = p.avatar_url ?? null;
       isTranslator =
         p.is_admin === true || p.role === 'translator' || p.role === 'admin';
+      if (isTranslator) {
+        translatorSlug = p.translator_slug || p.user_name || null;
+      }
       if (typeof p.coin_balance === 'number') coinBalance = p.coin_balance;
     }
 
@@ -152,6 +157,7 @@ export default async function SiteHeader() {
               avatarUrl={avatarUrl}
               isTranslator={isTranslator}
               coinBalance={coinBalance}
+              translatorSlug={translatorSlug}
             />
           ) : (
             <>

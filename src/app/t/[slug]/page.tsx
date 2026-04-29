@@ -19,6 +19,7 @@ import TranslatorFilmography, {
   type FilmographyEntry,
 } from '@/components/translator/TranslatorFilmography';
 import TranslatorWallet from '@/components/translator/TranslatorWallet';
+import TranslatorTabs from '@/components/translator/TranslatorTabs';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
 
 interface PageProps {
@@ -443,6 +444,8 @@ export default async function TranslatorPage({ params }: PageProps) {
   );
   const avatarInitial = displayName.trim().charAt(0).toUpperCase() || '?';
 
+  const isOwnerViewer = !!viewer && viewer.id === profile.id;
+
   return (
     <main className="container section">
       <div className="admin-breadcrumbs">
@@ -450,6 +453,9 @@ export default async function TranslatorPage({ params }: PageProps) {
         <span>/</span>
         <span>Переводчик</span>
       </div>
+      {isOwnerViewer && (
+        <TranslatorTabs active="view" slug={effectiveSlug} />
+      )}
       {/* Шапка переводчика */}
       <div className="translator-hero">
         <div className="translator-hero-avatar">
