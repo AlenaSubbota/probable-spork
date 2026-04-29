@@ -32,14 +32,18 @@ export default function TranslatorTabs({ active, slug }: Props) {
         className={`translator-tab${active === 'view' ? ' is-active' : ''}`}
         prefetch={false}
       >
-        <span aria-hidden="true">📖</span> Витрина
+        <span aria-hidden="true">📖</span>
+        <span className="translator-tab-text">Страница переводчика</span>
+        <span className="translator-tab-text-short">Переводчик</span>
       </Link>
       <Link
         href="/profile"
         className={`translator-tab${active === 'me' ? ' is-active' : ''}`}
         prefetch={false}
       >
-        <span aria-hidden="true">⚙</span> Мне
+        <span aria-hidden="true">👤</span>
+        <span className="translator-tab-text">Личная страница</span>
+        <span className="translator-tab-text-short">Личное</span>
       </Link>
     </nav>
   );

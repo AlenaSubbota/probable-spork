@@ -145,3 +145,58 @@ export function memberProfileHref(m: TeamMemberRow): string {
 export function memberDisplayName(m: TeamMemberRow): string {
   return m.translator_display_name || m.user_name || 'Без имени';
 }
+
+// Список команд, в которых состоит пользователь (включая ту, где он
+// owner). Используется в чипах «В команде» на /profile, /u/[id] и
+// /t/[slug]. Архивные команды не возвращаем — они скрыты от витрины.
+export interface UserTeamMembership {
+  id: number;
+  slug: string;
+  name: string;
+  avatar_url: string | null;
+  role: string;
+  is_owner: boolean;
+}
+
+export async function fetchUserTeams(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<UserTeamMembership[]> {
+  type Row = {
+    role: string;
+    team: {
+      id: number;
+      slug: string;
+      name: string;
+      avatar_url: string | null;
+      owner_id: string;
+      is_archived: boolean;
+    } | null;
+  };
+  try {
+    const { data } = await supabase
+      .from('team_members')
+      .select(
+        'role, team:translator_teams(id, slug, name, avatar_url, owner_id, is_archived)'
+      )
+      .eq('user_id', userId);
+    return (data as Row[] | null ?? [])
+      .filter((m) => m.team && !m.team.is_archived)
+      .map((m) => ({
+        id: m.team!.id,
+        slug: m.team!.slug,
+        name: m.team!.name,
+        avatar_url: m.team!.avatar_url,
+        role: m.role,
+        is_owner: m.team!.owner_id === userId,
+      }))
+      .sort((a, b) => {
+        // Лидер своей команды — первой; дальше по имени.
+        if (a.is_owner !== b.is_owner) return a.is_owner ? -1 : 1;
+        return a.name.localeCompare(b.name, 'ru');
+      });
+  } catch {
+    // Миграция 056 не накачена — вернём пустой массив.
+    return [];
+  }
+}

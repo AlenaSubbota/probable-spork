@@ -1081,15 +1081,27 @@ html[data-theme='dark'] .logo-mark {
   font-style: italic;
   font-size: 13px;
 }
-/* На мобиле сжимаем кнопки, но не в скролл — они важны визуально */
+/* На мобиле кнопки ужимаем, чтобы 8 штук влезли в одну строку
+   на узких экранах (≥360 px ширины) и не перекидывались на
+   несколько рядов. Toggle-кнопка с эмодзи отдельно ужимаем
+   её font-size, иначе emoji-glyph «глаз» крупнее текста и
+   делает кнопку выше остальных. */
 @media (max-width: 540px) {
+  .comment-toolbar {
+    gap: 3px;
+    padding: 5px 6px;
+  }
   .comment-toolbar-btn {
-    min-width: 36px;
-    height: 36px;
-    font-size: 12.5px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    font-size: 12px;
+    border-radius: 5px;
   }
   .comment-toolbar-btn--toggle {
-    padding: 0 10px;
+    padding: 0 8px;
+    font-size: 13px;
+    line-height: 1;
   }
 }
 
@@ -6924,6 +6936,14 @@ html[data-theme='dark'] .star-week-portrait {
   align-items: center;
   gap: 6px;
   white-space: nowrap;
+}
+/* Полные подписи (для десктопа) и короткие (для мобильника) — стрелка
+   показывает один из двух в зависимости от ширины экрана. */
+.translator-tab-text { display: inline; }
+.translator-tab-text-short { display: none; }
+@media (max-width: 540px) {
+  .translator-tab-text { display: none; }
+  .translator-tab-text-short { display: inline; }
 }
 .translator-tab:hover {
   color: var(--ink);

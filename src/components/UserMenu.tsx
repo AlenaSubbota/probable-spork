@@ -98,7 +98,7 @@ export default function UserMenu({
               onClick={() => setOpen(false)}
             >
               <span className="user-menu-icon" aria-hidden="true">📖</span>
-              <span>Моя витрина</span>
+              <span>Страница переводчика</span>
             </Link>
           )}
           <Link href="/profile/settings" className="user-menu-item" onClick={() => setOpen(false)}>

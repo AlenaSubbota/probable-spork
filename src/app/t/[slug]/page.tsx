@@ -20,6 +20,7 @@ import TranslatorFilmography, {
 } from '@/components/translator/TranslatorFilmography';
 import TranslatorWallet from '@/components/translator/TranslatorWallet';
 import TranslatorTabs from '@/components/translator/TranslatorTabs';
+import { fetchUserTeams, TEAM_ROLE_LABELS } from '@/lib/team';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
 
 interface PageProps {
@@ -446,6 +447,11 @@ export default async function TranslatorPage({ params }: PageProps) {
 
   const isOwnerViewer = !!viewer && viewer.id === profile.id;
 
+  // Команды переводчика — пилюля «В команде [имя]» в шапке
+  // витрины. Помогает читателю понять, что переводчик не одиночка
+  // и куда дальше посмотреть его команду.
+  const teams = await fetchUserTeams(supabase, profile.id);
+
   return (
     <main className="container section">
       <div className="admin-breadcrumbs">
@@ -519,6 +525,39 @@ export default async function TranslatorPage({ params }: PageProps) {
           </p>
         </aside>
       </div>
+
+      {teams.length > 0 && (
+        <section className="user-profile-teams">
+          <h3 className="user-profile-teams-title">
+            {teams.length === 1 ? 'В команде' : 'В командах'}
+          </h3>
+          <ul className="user-profile-teams-list">
+            {teams.map((t) => {
+              const initial = t.name.trim().charAt(0).toUpperCase() || '?';
+              return (
+                <li key={t.id}>
+                  <Link href={`/team/${t.slug}`} className="user-profile-team-card">
+                    <span className="user-profile-team-avatar">
+                      {t.avatar_url ? (
+                        <img src={t.avatar_url} alt="" />
+                      ) : (
+                        <span>{initial}</span>
+                      )}
+                    </span>
+                    <span className="user-profile-team-text">
+                      <span className="user-profile-team-name">{t.name}</span>
+                      <span className="user-profile-team-role">
+                        {TEAM_ROLE_LABELS[t.role as keyof typeof TEAM_ROLE_LABELS] ?? 'Участник'}
+                        {t.is_owner ? ' · лидер' : ''}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Тихий режим: если пауза активна — деликатный баннер */}
       {profile.quiet_until &&
