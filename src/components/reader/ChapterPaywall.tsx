@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
@@ -49,10 +49,19 @@ export default function ChapterPaywall({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Синхронный лок против двойного клика. setBusy(true) — async (стейт
+  // обновится только на следующем рендере), и быстрые два таба до
+  // re-render'а оба попадают в handleBuy → buy_chapter RPC отрабатывает
+  // ОК на второй клик через `already_owned`-ветку, но между чтением
+  // балансa с FOR UPDATE и инсертом в chapter_purchases — гонка
+  // возможна. Ref сразу видно, никакого ожидания render'а.
+  const lockRef = useRef(false);
 
   const canAfford = userBalance >= chapterPrice;
 
   const handleBuy = async () => {
+    if (lockRef.current) return;
+    lockRef.current = true;
     setError(null);
     setBusy(true);
     const supabase = createClient();
@@ -64,6 +73,7 @@ export default function ChapterPaywall({
     if (rpcError) {
       setError(rpcError.message);
       setBusy(false);
+      lockRef.current = false;
       return;
     }
     const res = (data ?? {}) as {
@@ -91,8 +101,12 @@ export default function ChapterPaywall({
           : res.error ?? 'Не удалось купить главу.';
       setError(msg);
       setBusy(false);
+      lockRef.current = false;
       return;
     }
+    // На успешной покупке lockRef нарочно НЕ снимаем — router.refresh()
+    // подкатит новый paywall-state и компонент перерендерится; до тех
+    // пор второй клик уже не имеет смысла.
     router.refresh();
   };
 
