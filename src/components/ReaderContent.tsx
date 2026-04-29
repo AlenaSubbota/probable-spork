@@ -546,9 +546,10 @@ export default function ReaderContent({
     const jumpToEnd = () => {
       setTimeout(() => {
         if (settings.readMode === 'pages') {
-          // Сначала листаем книгу к концу — последняя текстовая страница;
-          // потом доскроллим body вниз, чтобы ушло в обсуждение
-          // (которое теперь лежит flow-блоком под scroller'ом).
+          // В pages-режиме «конец» — последняя snap-страница, это
+          // обсуждение (если есть) или последняя страница текста.
+          // scrollWidth scroller'а её включает, поэтому достаточно
+          // довести scrollLeft до scrollWidth.
           const sc = scrollerRef.current;
           if (sc) {
             sc.scrollTo({
@@ -556,10 +557,6 @@ export default function ReaderContent({
               behavior: 'instant' as ScrollBehavior,
             });
           }
-          window.scrollTo({
-            top: document.body.scrollHeight,
-            behavior: 'instant' as ScrollBehavior,
-          });
         } else {
           window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' as ScrollBehavior });
         }
@@ -681,15 +678,14 @@ export default function ReaderContent({
         // абзац точно влез в колонку — внутренние padding'и колонки,
         // round-up margin'ов, sub-pixel anti-aliasing. С маленьким
         // haircut'ом мы получали лишнюю «пустую» страницу в самом
-        // конце главы. 12 px — потолок наблюдаемых артефактов; на
-        // реальном переполнении (когда хотя бы пара слов утекла в
-        // следующую колонку) разница куда больше и Math.ceil срабатывает
-        // как надо.
+        // конце главы. 12 px — потолок наблюдаемых артефактов.
         const sw = Math.max(0, content.scrollWidth - 12);
-        const total = Math.max(1, Math.ceil(sw / w));
-        // Обсуждение теперь живёт ниже scroller'а как обычный flow,
-        // в счёт страниц-листалки не входит — счётчик «X из Y»
-        // считает только текстовые страницы.
+        const textPagesCount = Math.max(1, Math.ceil(sw / w));
+        // Если есть commentsSlot — она занимает отдельную snap-страницу
+        // после всего текста. Считаем её в общем total, чтобы счётчик
+        // «X из Y» в нижней панели и слайдер показывали «впереди есть
+        // ещё одна страница».
+        const total = textPagesCount + (commentsSlot ? 1 : 0);
         setTotalPages((prev) => (prev === total ? prev : total));
       });
     };
@@ -771,6 +767,10 @@ export default function ReaderContent({
     settings.paragraphSpacing,
     settings.textIndent,
     settings.fontFamily,
+    // commentsSlot — boolean truthy/falsy. При первом рендере его может
+    // ещё не быть (загружается на сервере), поэтому надо пересчитать
+    // totalPages, когда появится — иначе обсуждение не попадёт в счёт.
+    !!commentsSlot,
   ]);
 
   // ---- 6.55. Scroll-mode: вычисляем процент прогресса для нижней панели ----
@@ -826,23 +826,26 @@ export default function ReaderContent({
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [ready, settings.readMode]);
 
-  // ---- 6.57. iOS keyboard / input focus в pages-режиме ----
-  // С тех пор как обсуждение лежит обычным flow-блоком ниже scroller'а,
-  // iOS сам поднимает focused input в видимую часть. Нам остаётся
-  // только защититься от двух старых проблем:
-  //   • когда юзер фокусируется в textarea (комментарий), клавиатура
-  //     может ужать viewport → ResizeObserver на scroller стреляет →
-  //     totalPages пересчитывается → snap утаскивает читателя.
-  //     Лечим: inputFocusedRef = true, calc/RO игнорят ресайзы (см. выше).
-  //   • iOS внезапно дёргает scrollLeft scroller'а в неожиданное место
-  //     при появлении клавиатуры. Лечим: snap-type = none, и watcher,
-  //     который возвращает scrollLeft к сохранённому savedLeft.
+  // ---- 6.57. iOS keyboard / input focus в .reader-pages-end ----
+  // Когда пользователь тапает по textarea на странице обсуждения:
+  //   • iOS поднимает клавиатуру → visualViewport ужимается →
+  //     ResizeObserver на scroller'е стреляет → totalPages
+  //     пересчитывается → snap утаскивает с обсуждения. Лечим
+  //     inputFocusedRef и игнором ресайзов (см. выше).
+  //   • position: fixed элементы привязаны к visual viewport — iOS
+  //     может дёрнуть scrollLeft scroller'а; снимаем snap-type, ловим
+  //     дрейф onScroll, возвращаем к savedLeft.
+  //   • body заперт от вертикального скролла, поэтому iOS не может
+  //     сам поднять input над клавиатурой через body.scrollTop —
+  //     придётся скроллить локально внутри .reader-pages-end через
+  //     visualViewport-расчёт высоты «над клавиатурой».
   useEffect(() => {
     if (!ready || settings.readMode !== 'pages') return;
     const scroller = scrollerRef.current;
     if (!scroller) return;
 
     let savedLeft = 0;
+    let activeInput: HTMLElement | null = null;
 
     const isEditable = (el: EventTarget | null): boolean => {
       if (!(el instanceof HTMLElement)) return false;
@@ -859,20 +862,37 @@ export default function ReaderContent({
       requestAnimationFrame(() => { restoring = false; });
     };
 
-    // С тех пор как обсуждение переехало из snap-цепочки в обычный flow
-    // ниже scroller'а, manual-scroll внутри контейнера больше не нужен —
-    // iOS сам поднимает focused input в visualViewport. Оставляем
-    // только: фиксацию флага inputFocusedRef (его смотрит ResizeObserver,
-    // чтобы не пересчитывать totalPages, пока юзер пишет коммент) и
-    // защёлку на горизонтальный snap, чтобы клавиатура не утаскивала
-    // текущую страницу-листалку.
+    // Поднимаем focused input над клавиатурой вручную — body заперт,
+    // iOS сам не сможет.
+    const ensureInputVisible = () => {
+      const input = activeInput;
+      if (!input) return;
+      const pagesEnd = input.closest<HTMLElement>('.reader-pages-end');
+      if (!pagesEnd) return;
+      const vv = window.visualViewport;
+      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const inputRect = input.getBoundingClientRect();
+      const headroom = 24;
+      const overflowBottom = inputRect.bottom + headroom - visibleBottom;
+      if (overflowBottom > 0) {
+        pagesEnd.scrollTop += overflowBottom;
+      }
+    };
+    const onVvResize = () => {
+      ensureInputVisible();
+      requestAnimationFrame(ensureInputVisible);
+    };
 
     const onFocusIn = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
+      activeInput = e.target as HTMLElement;
       savedLeft = scroller.scrollLeft;
       inputFocusedRef.current = true;
       scroller.style.scrollSnapType = 'none';
       scroller.addEventListener('scroll', onScroll, { passive: true });
+      window.visualViewport?.addEventListener('resize', onVvResize);
+      ensureInputVisible();
+      window.setTimeout(ensureInputVisible, 320);
     };
     const onFocusOut = (e: FocusEvent) => {
       if (!isEditable(e.target)) return;
@@ -882,8 +902,10 @@ export default function ReaderContent({
         savedLeft = scroller.scrollLeft;
         return;
       }
+      activeInput = null;
       inputFocusedRef.current = false;
       scroller.removeEventListener('scroll', onScroll);
+      window.visualViewport?.removeEventListener('resize', onVvResize);
       scroller.style.scrollSnapType = '';
       if (Math.abs(scroller.scrollLeft - savedLeft) > 4) {
         requestAnimationFrame(() => {
@@ -1087,13 +1109,20 @@ export default function ReaderContent({
   }, [novelId, chapterNumber]);
 
   const scrollToComments = useCallback(() => {
-    // Раньше в pages-режиме комменты были последней snap-страницей,
-    // и мы просто скроллили scroller к правому краю. Теперь они
-    // лежат обычным flow-блоком ниже scroller'а — в обоих режимах
-    // достаточно scrollIntoView на саму секцию.
+    if (settings.readMode === 'pages') {
+      // В pages-режиме обсуждение — последняя snap-страница в
+      // scroller'е. Доводим scroller до правого края: snap зацепится
+      // ровно на ней (не на хвосте текста).
+      const sc = scrollerRef.current;
+      if (sc) {
+        sc.scrollTo({ left: sc.scrollWidth, behavior: 'smooth' });
+      }
+      return;
+    }
+    // В scroll-режиме — обычный scrollIntoView, ищем секцию по классу.
     const sec = document.querySelector('.comments-section');
     if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  }, [settings.readMode]);
 
   // ---- 7. Таймер сна ----
   useEffect(() => {
@@ -1159,42 +1188,50 @@ export default function ReaderContent({
         // с overflow-visible: колонки 2..N визуально перетекают вправо
         // поверх spacer'ов, и пользователь видит их при свайпе.
         //
-        // ВАЖНО: блок обсуждения (commentsSlot) рендерится НЕ ВНУТРИ
-        // scroller'а, а как отдельный flow-блок ниже. Раньше он жил
-        // последним snap-target'ом с собственным overflow-y, и юзеры
-        // жаловались на «page in page» — внутренний скролл внутри
-        // листателя. Теперь scroller занимает первый экран (книга),
-        // а вертикальный скролл сайта естественно уводит читателя
-        // в обсуждение, как в scroll-режиме.
-        <>
+        // Блок обсуждения (commentsSlot) — отдельная snap-страница
+        // ПОСЛЕ всех текстовых: свайп с последней страницы текста
+        // переключает на неё. Внутри обсуждения — обычный
+        // вертикальный скролл, как «свиток»: видны все комменты,
+        // благодарности, рекомендации одной лентой. Чтобы это не
+        // ощущалось «page in page», снаружи body заблокирован от
+        // вертикального скролла (см. CSS body.reader-pages-mode),
+        // и на странице один-единственный вертикальный axis.
+        <div
+          ref={scrollerRef}
+          className="reader-pages-scroller"
+          onClick={onContentClick}
+        >
           <div
-            ref={scrollerRef}
-            className="reader-pages-scroller"
-            onClick={onContentClick}
-          >
+            ref={contentRef}
+            className="novel-content reader-pages-content"
+            style={bodyStyle}
+            dangerouslySetInnerHTML={{ __html: processedContent }}
+          />
+          {/* spacer'ы дают snap-targets для колонок 2..N. Если
+              есть commentsSlot, она тоже считается отдельной snap-
+              страницей в total — поэтому из числа spacer'ов её
+              вычитаем, иначе перед обсуждением выскакивала бы
+              лишняя пустая страница. */}
+          {Array.from({
+            length: Math.max(0, totalPages - 1 - (commentsSlot ? 1 : 0)),
+          }).map((_, i) => (
             <div
-              ref={contentRef}
-              className="novel-content reader-pages-content"
-              style={bodyStyle}
-              dangerouslySetInnerHTML={{ __html: processedContent }}
+              key={`pm-spacer-${i}`}
+              className="reader-pages-spacer"
+              style={{ width: pageWidth || '100%' }}
+              aria-hidden="true"
             />
-            {/* spacer'ы дают snap-targets для колонок 2..N (одна на каждый
-                текстовый «лист» помимо первого, который рендерит сама content-page). */}
-            {Array.from({
-              length: Math.max(0, totalPages - 1),
-            }).map((_, i) => (
-              <div
-                key={`pm-spacer-${i}`}
-                className="reader-pages-spacer"
-                style={{ width: pageWidth || '100%' }}
-                aria-hidden="true"
-              />
-            ))}
-          </div>
+          ))}
           {commentsSlot && (
-            <div className="reader-pages-end">{commentsSlot}</div>
+            <div
+              className="reader-pages-end"
+              style={{ width: pageWidth || '100%' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {commentsSlot}
+            </div>
           )}
-        </>
+        </div>
       ) : (
         <div className="novel-content-host">
           <div

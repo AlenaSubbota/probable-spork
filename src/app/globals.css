@@ -16000,20 +16000,37 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
    вертикальный скролл, чтобы длинная нить комментов читалась без
    выхода из снап-цепочки.
    ========================================================= */
-/* Финальный блок «обсуждение/благодарности/рекомендации» в pages-режиме
-   живёт ОТДЕЛЬНЫМ flow-блоком ниже горизонтального листателя — как
-   обычная секция страницы. Раньше он лежал внутри scroller'а как
-   snap-target с собственным overflow-y, и читатели жаловались на
-   ощущение «sub-page» с внутренним скроллом. Теперь снап заканчивается
-   на последней текстовой странице, дальше — обычный вертикальный
-   скролл сайта в обсуждение. */
+/* Финальный блок «обсуждение / благодарности / рекомендации» —
+   ОТДЕЛЬНАЯ snap-страница горизонтального листателя (после всех
+   текстовых). Свайп с последней страницы текста переключает на неё,
+   как закрытие книги. Внутри — единственный вертикальный axis
+   (читается как «свиток»), скроллбар скрыт; чтобы при таком layout'е
+   не получалось ощущения «page in page», body-скролл наружу
+   запрещён в pages-режиме (см. reader-keyboard-fix.css), внутри
+   wrapper'а нет других overflow-областей, и весь размер карточки —
+   ровно высота viewport'а. */
 .reader-wrapper[data-read-mode='pages'] .reader-pages-end {
+  flex: 0 0 auto;
+  /* width задаётся inline = pageWidth (как у spacer'ов и контента). */
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--surface);
-  border-top: 1px solid var(--border);
-  /* Боттом-запас под фиксированный ReaderBottomBar (~80 px desktop /
-     70 px mobile + safe-area-bottom). Иначе последний коммент уезжает
-     под панель. */
-  padding: 28px 22px calc(110px + env(safe-area-inset-bottom, 0));
+  /* Тонкая разделительная полоска слева — визуально отделяет от
+     последней страницы текста, чтобы переход не был «бесшовным». */
+  border-left: 1px solid var(--border);
+  padding: 26px 24px calc(80px + env(safe-area-inset-bottom, 0));
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  /* Скроллбар прячем — только так страница ощущается как «свиток»,
+     а не как «вложенный контейнер с полосой справа». На десктопе
+     контент длинный, юзер всё равно поймёт что можно скроллить. */
+  scrollbar-width: none;
+}
+.reader-wrapper[data-read-mode='pages'] .reader-pages-end::-webkit-scrollbar {
+  display: none;
 }
 .reader-wrapper[data-read-mode='pages'] .reader-pages-end .comments-section {
   margin-top: 0;
@@ -16029,7 +16046,7 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
 /* Mobile: меньше боковой padding, чтобы комменты дышали в узкой ширине. */
 @media (max-width: 540px) {
   .reader-wrapper[data-read-mode='pages'] .reader-pages-end {
-    padding: 22px 14px calc(120px + env(safe-area-inset-bottom, 0));
+    padding: 20px 16px calc(80px + env(safe-area-inset-bottom, 0));
   }
 }
 
