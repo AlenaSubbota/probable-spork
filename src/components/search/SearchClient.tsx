@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { getCoverUrl } from '@/lib/format';
+import { getCoverUrl, cleanGenres } from '@/lib/format';
 
 interface NovelHit {
   id: number;
@@ -174,7 +174,7 @@ export default function SearchClient() {
         title_original: titleOrig,
         author,
         cover_url: (n.cover_url as string | null) ?? null,
-        genres: Array.isArray(n.genres) ? (n.genres as string[]) : null,
+        genres: cleanGenres(n.genres),
         average_rating: (n.average_rating as number | null) ?? null,
         chapter_count: (n.chapter_count as number | null) ?? null,
         matched_field,

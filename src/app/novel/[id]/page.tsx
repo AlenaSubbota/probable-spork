@@ -10,7 +10,7 @@ import NovelClaimButton from '@/components/NovelClaimButton';
 import AdultGate from '@/components/AdultGate';
 import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
 import MyNovelHistory from '@/components/novel/MyNovelHistory';
-import { getCoverUrl } from '@/lib/format';
+import { getCoverUrl, cleanGenres } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
 import { fetchTranslators } from '@/lib/translator';
 
@@ -455,7 +455,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
   //       18+ новеллу читателю детской новеллы)
   let fallbackSimilar: unknown[] = [];
   if (!similarByReaders || similarByReaders.length === 0) {
-    const currentGenres: string[] = Array.isArray(novel.genres) ? novel.genres : [];
+    const currentGenres = cleanGenres(novel.genres);
 
     // Собираем пул-кандидатов: объединение разных критериев через отдельные
     // лёгкие запросы + дедупликация. Пулу хватает ~60 штук, чтобы потом
@@ -543,7 +543,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
   }
 
   const coverUrl = getCoverUrl(novel.cover_url);
-  const genres: string[] = Array.isArray(novel.genres) ? novel.genres : [];
+  const genres = cleanGenres(novel.genres);
   const primaryGenre = genres[0];
   const firstChapterNumber = firstChapter?.chapter_number ?? 1;
 

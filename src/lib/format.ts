@@ -62,6 +62,23 @@ export function formatAuthorVariants(
   return out.join(' / ');
 }
 
+// Возрастные «жанры» в реальности — возрастной рейтинг новеллы, а не
+// её жанр. Tene-сайт исторически складывал «18+», «16+» и т.п. в
+// novels.genres вместе с настоящими жанрами; в Chaptify рейтинг
+// живёт в отдельной колонке age_rating, поэтому возрастные токены
+// в списке жанров — паразитные. Чистим везде, где жанры показываются
+// читателю.
+const AGE_TOKEN_RE = /^\d{1,2}\+$/;
+export function cleanGenres(
+  genres: unknown
+): string[] {
+  if (!Array.isArray(genres)) return [];
+  return genres.filter(
+    (g): g is string =>
+      typeof g === 'string' && g.trim().length > 0 && !AGE_TOKEN_RE.test(g.trim())
+  );
+}
+
 export function formatCount(n: number | null | undefined) {
   if (!n) return '0';
   if (n >= 1000) {

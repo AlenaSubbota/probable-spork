@@ -19,7 +19,7 @@ import TranslatorFilmography, {
   type FilmographyEntry,
 } from '@/components/translator/TranslatorFilmography';
 import TranslatorWallet from '@/components/translator/TranslatorWallet';
-import { getCoverUrl } from '@/lib/format';
+import { getCoverUrl, cleanGenres } from '@/lib/format';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -136,7 +136,7 @@ export default async function TranslatorPage({ params }: PageProps) {
     title: n.title,
     author: n.author,
     cover_url: n.cover_url,
-    genres: Array.isArray(n.genres) ? (n.genres as string[]) : [],
+    genres: cleanGenres(n.genres),
     average_rating: n.average_rating as number | null,
     rating_count: n.rating_count as number | null,
     chapter_count: n.chapter_count as number | null,

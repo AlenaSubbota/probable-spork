@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import NovelCard from '@/components/NovelCard';
 import CatalogFilters from '@/components/CatalogFilters';
 import MoodPicker from '@/components/MoodPicker';
-import { getCoverUrl } from '@/lib/format';
+import { getCoverUrl, cleanGenres } from '@/lib/format';
 import {
   getMood,
   getReadingBucket,
@@ -27,8 +27,6 @@ interface CatalogParams {
       по novels.team_id = (id команды по slug). */
   team?: string;
 }
-
-const AGE_RE = /^\d{1,2}\+$/;
 
 export default async function CatalogPage({
   searchParams,
@@ -148,13 +146,10 @@ export default async function CatalogPage({
 
   const genreMap: Record<string, number> = {};
   (allForGenres ?? []).forEach((n) => {
-    const gs = n.genres;
-    if (Array.isArray(gs)) {
-      for (const g of gs) {
-        // Убираем возрастные токены из жанров (они теперь в age_rating)
-        if (typeof g === 'string' && AGE_RE.test(g.trim())) continue;
-        genreMap[g] = (genreMap[g] ?? 0) + 1;
-      }
+    // cleanGenres убирает возрастные токены («18+» и т.п.) и валидирует
+    // строки. См. lib/format.ts.
+    for (const g of cleanGenres(n.genres)) {
+      genreMap[g] = (genreMap[g] ?? 0) + 1;
     }
   });
   const genres = Object.entries(genreMap)
@@ -248,13 +243,7 @@ export default async function CatalogPage({
                   flagText={novel.is_completed ? 'FIN' : undefined}
                   flagClass={novel.is_completed ? 'done' : undefined}
                   description={(novel as { description?: string | null }).description ?? null}
-                  genres={
-                    Array.isArray(novel.genres)
-                      ? (novel.genres as string[]).filter(
-                          (g) => typeof g === 'string' && !AGE_RE.test(g.trim())
-                        )
-                      : null
-                  }
+                  genres={cleanGenres(novel.genres)}
                   ageRating={(novel as { age_rating?: string | null }).age_rating ?? null}
                 />
               ))}

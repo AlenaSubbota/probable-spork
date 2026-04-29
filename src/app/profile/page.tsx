@@ -7,6 +7,7 @@ import ReadingStreak, { type ActivityDay } from '@/components/profile/ReadingStr
 import BookDiet from '@/components/profile/BookDiet';
 import ReadingTotals from '@/components/profile/ReadingTotals';
 import LogoutButton from '@/components/auth/LogoutButton';
+import { cleanGenres } from '@/lib/format';
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -89,7 +90,7 @@ export default async function ProfilePage() {
     readNovels = (data ?? []).map((n) => ({
       id: n.id,
       title: n.title,
-      genres: Array.isArray(n.genres) ? (n.genres as string[]) : [],
+      genres: cleanGenres(n.genres),
       country: (n as { country?: string | null }).country ?? null,
       translator_id: (n as { translator_id?: string | null }).translator_id ?? null,
     }));
@@ -171,7 +172,7 @@ export default async function ProfilePage() {
     const readIdsSet = new Set(readNovels.map((n) => n.id));
     for (const n of allNovels ?? []) {
       if (readIdsSet.has(n.id)) continue;
-      const gs = Array.isArray(n.genres) ? (n.genres as string[]) : [];
+      const gs = cleanGenres(n.genres);
       const newGenre = gs.find((g) => !readGenres.has(g));
       if (!newGenre) continue;
       suggestions.push({

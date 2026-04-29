@@ -5,6 +5,7 @@ import ModerationCard, {
   type ModerationNovel,
 } from '@/components/admin/ModerationCard';
 import ClaimCard, { type Claim } from '@/components/admin/ClaimCard';
+import { cleanGenres } from '@/lib/format';
 
 export const metadata = { title: 'Модерация · Админка — Chaptify' };
 
@@ -65,7 +66,7 @@ export default async function AdminModerationPage() {
       description: n.description,
       chapter_count: n.chapter_count,
       age_rating: n.age_rating,
-      genres: Array.isArray(n.genres) ? n.genres : null,
+      genres: cleanGenres(n.genres),
       translator_display_name: t?.display ?? null,
       translator_slug: t?.slug ?? null,
     };
