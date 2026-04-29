@@ -857,6 +857,9 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             <div className="actions-row">
               {/* Если читатель уже что-то открывал в этой новелле — кнопка
                   становится «Продолжить с N главы» и ведёт ровно туда.
+                  Если глав ещё нет (новелла только добавлена / переводчик
+                  не загрузил) — показываем неактивный вид с явным
+                  пояснением, чтобы клик не приводил на 404.
                   Иначе обычное «Читать с 1-й главы». */}
               {myHistory?.currentChapter ? (
                 <Link
@@ -865,13 +868,22 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                 >
                   Продолжить с {myHistory.currentChapter}-й главы
                 </Link>
-              ) : (
+              ) : firstChapter ? (
                 <Link
                   href={`/novel/${novel.firebase_id}/${firstChapterNumber}`}
                   className="btn btn-primary"
                 >
                   Читать с 1-й главы
                 </Link>
+              ) : (
+                <span
+                  className="btn btn-ghost"
+                  aria-disabled="true"
+                  title="Переводчик ещё не выложил ни одной главы. Загляни попозже."
+                  style={{ cursor: 'not-allowed', opacity: 0.7 }}
+                >
+                  Главы ещё не вышли
+                </span>
               )}
               {user && (
                 <BookmarkButton
