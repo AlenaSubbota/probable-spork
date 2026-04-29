@@ -86,6 +86,8 @@ export default function ChapterPaywall({
           ? 'Файл главы ещё не загружен переводчиком. Покупка пока невозможна, попробуй позже.'
           : res.error === 'not_authenticated'
           ? 'Сначала войди в аккаунт.'
+          : res.error === 'account_pending_deletion'
+          ? 'Аккаунт в очереди на удаление — покупки отключены.'
           : res.error ?? 'Не удалось купить главу.';
       setError(msg);
       setBusy(false);
