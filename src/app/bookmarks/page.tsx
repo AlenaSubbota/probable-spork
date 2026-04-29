@@ -54,20 +54,46 @@ export default async function BookmarksPage({
     last_read?: Record<string, { novelId: number; chapterId: number; timestamp: string }> | null;
   };
 
-  // Извлекаем firebase_id и статус из закладок
+  // Извлекаем ключи закладок и статус. На стороне tene/Chaptify
+  // bookmarks может приехать в трёх форматах:
+  //   1) массив firebase_id-слагов: ["abc-xy12", "kim-romance-3a8e"];
+  //   2) объект { firebase_id: status } (формат Chaptify-кнопки полки);
+  //   3) объект { numeric_novel_id: true|status } — старый tene-формат,
+  //      где ключи это PK таблицы novels (целое число строкой).
+  // Поэтому сразу разделяем ключи на «слаги» и «числовые id»
+  // и запросом ниже ищем оба варианта.
   const bmRaw = profile.bookmarks;
   const bookmarkMap = new Map<string, string>();
   if (Array.isArray(bmRaw)) {
-    for (const id of bmRaw as string[]) bookmarkMap.set(id, 'reading');
+    for (const id of bmRaw as unknown[]) {
+      if (typeof id === 'string' && id.trim().length > 0) {
+        bookmarkMap.set(id.trim(), 'reading');
+      } else if (typeof id === 'number' && Number.isFinite(id)) {
+        bookmarkMap.set(String(id), 'reading');
+      }
+    }
   } else if (bmRaw && typeof bmRaw === 'object') {
-    for (const [k, v] of Object.entries(bmRaw as Record<string, string>)) {
-      bookmarkMap.set(k, String(v));
+    for (const [k, v] of Object.entries(bmRaw as Record<string, unknown>)) {
+      if (!k.trim()) continue;
+      const status = typeof v === 'string' ? v : 'reading';
+      bookmarkMap.set(k.trim(), status);
     }
   }
 
-  const firebaseIds = Array.from(bookmarkMap.keys());
+  const allKeys = Array.from(bookmarkMap.keys());
+  // Числовые ключи — это PK новеллы из tene; строковые — firebase_id-слаги.
+  const numericIds: number[] = [];
+  const slugIds: string[] = [];
+  for (const k of allKeys) {
+    const asNum = Number(k);
+    if (Number.isInteger(asNum) && asNum > 0 && /^\d+$/.test(k)) {
+      numericIds.push(asNum);
+    } else {
+      slugIds.push(k);
+    }
+  }
 
-  if (firebaseIds.length === 0) {
+  if (allKeys.length === 0) {
     return (
       <main className="container section">
         <h1 style={{ fontFamily: 'var(--font-serif)', margin: '20px 0 10px' }}>
@@ -86,11 +112,33 @@ export default async function BookmarksPage({
     );
   }
 
-  // Подтягиваем новеллы
-  const { data: novelsData } = await supabase
-    .from('novels_view')
-    .select('id, firebase_id, title, author, cover_url, chapter_count, is_completed, translator_id')
-    .in('firebase_id', firebaseIds);
+  // Подтягиваем новеллы — сразу по обоим срезам ключей. Дубли (если
+  // один ключ внезапно обнаружится и так и сяк) дедуплицируем по id.
+  const novelsById = new Map<number, {
+    id: number;
+    firebase_id: string;
+    title: string;
+    author: string | null;
+    cover_url: string | null;
+    chapter_count: number | null;
+    is_completed: boolean | null;
+    translator_id: string | null;
+  }>();
+  if (slugIds.length > 0) {
+    const { data } = await supabase
+      .from('novels_view')
+      .select('id, firebase_id, title, author, cover_url, chapter_count, is_completed, translator_id')
+      .in('firebase_id', slugIds);
+    for (const n of data ?? []) novelsById.set(n.id, n);
+  }
+  if (numericIds.length > 0) {
+    const { data } = await supabase
+      .from('novels_view')
+      .select('id, firebase_id, title, author, cover_url, chapter_count, is_completed, translator_id')
+      .in('id', numericIds);
+    for (const n of data ?? []) novelsById.set(n.id, n);
+  }
+  const novelsData = Array.from(novelsById.values());
 
   // Slugs переводчиков — отдельным запросом, чтобы делать имя кликабельным.
   const translatorIds = Array.from(
