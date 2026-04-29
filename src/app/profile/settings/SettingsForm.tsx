@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import AvatarPicker from '@/components/AvatarPicker';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
+import BrandingPicker from '@/components/branding/BrandingPicker';
+import type { BrandPalette, BrandSeal } from '@/lib/translator-branding';
 
 interface SettingsValues {
   user_name: string;
@@ -19,6 +21,8 @@ interface SettingsValues {
   quiet_until: string;
   quiet_note: string;
   accepts_coins_for_chapters: boolean;
+  translator_brand_palette: BrandPalette | null;
+  translator_brand_seal: BrandSeal | null;
 }
 
 interface Props {
@@ -67,6 +71,9 @@ export default function SettingsForm({
       payload.quiet_until = quietRaw ? `${quietRaw}T23:59:59Z` : null;
       payload.quiet_note = values.quiet_note.trim() || null;
       payload.accepts_coins_for_chapters = values.accepts_coins_for_chapters;
+      // Брендинг: пустая строка → NULL в RPC (CHECK не пропускает '').
+      payload.translator_brand_palette = values.translator_brand_palette ?? '';
+      payload.translator_brand_seal = values.translator_brand_seal ?? '';
     }
     // Приватность хранится в profiles.settings jsonb
     payload.settings = {
@@ -246,6 +253,24 @@ export default function SettingsForm({
               несколько провайдеров сразу и Boosty-автосинк.
             </div>
           </div>
+        </section>
+      )}
+
+      {isTranslator && (
+        <section className="settings-block">
+          <h2>Твой герб</h2>
+          <p style={{ color: 'var(--ink-mute)', fontSize: 13.5, marginTop: -8, marginBottom: 14 }}>
+            Палитра + печать. Появятся как тонкая полоска на обложках
+            твоих новелл, как акцент в шапке читалки и как «сургучная»
+            подпись под каждой главой. Снимаешь брендинг — всё
+            возвращается в общий стиль сайта.
+          </p>
+          <BrandingPicker
+            palette={values.translator_brand_palette}
+            seal={values.translator_brand_seal}
+            onChangePalette={(v) => set('translator_brand_palette', v)}
+            onChangeSeal={(v) => set('translator_brand_seal', v)}
+          />
         </section>
       )}
 

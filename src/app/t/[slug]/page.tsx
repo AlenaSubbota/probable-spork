@@ -22,6 +22,7 @@ import TranslatorWallet from '@/components/translator/TranslatorWallet';
 import TranslatorTabs from '@/components/translator/TranslatorTabs';
 import { fetchUserTeams, TEAM_ROLE_LABELS } from '@/lib/team';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
+import { readBrand } from '@/lib/translator-branding';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -100,10 +101,18 @@ export default async function TranslatorPage({ params }: PageProps) {
         payout_tribute_channel: string | null;
         quiet_until: string | null;
         quiet_note: string | null;
+        translator_brand_palette?: string | null;
+        translator_brand_seal?: string | null;
       }
     | undefined;
 
   if (!profile) notFound();
+
+  // Брендинг переводчика — палитра + печать. Поля попадают через
+  // public_profiles view (расширен в мигр. 071). Если миграция ещё
+  // не накачена — поля undefined → readBrand вернёт null → страница
+  // рендерится в общей палитре сайта.
+  const translatorBrand = readBrand(profile);
 
   const displayName =
     profile.translator_display_name ||
@@ -453,7 +462,10 @@ export default async function TranslatorPage({ params }: PageProps) {
   const teams = await fetchUserTeams(supabase, profile.id);
 
   return (
-    <main className="container section">
+    <main
+      className={`container section${translatorBrand?.palette ? ' tr-profile-frame' : ''}`}
+      data-tr-palette={translatorBrand?.palette ?? undefined}
+    >
       <div className="admin-breadcrumbs">
         <Link href="/">Главная</Link>
         <span>/</span>
@@ -638,6 +650,7 @@ export default async function TranslatorPage({ params }: PageProps) {
                 title={n.title}
                 translator={displayName}
                 translatorSlug={effectiveSlug}
+                brandPalette={translatorBrand?.palette ?? null}
                 metaInfo={`${n.chapter_count ?? 0} гл.`}
                 rating={n.average_rating ? Number(n.average_rating).toFixed(1) : '—'}
                 coverUrl={getCoverUrl(n.cover_url)}

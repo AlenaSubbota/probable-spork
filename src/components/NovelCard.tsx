@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatReadingTime } from '@/lib/catalog';
 import { getCoverUrl } from '@/lib/format';
 import NovelCoverCarousel from './NovelCoverCarousel';
+import type { BrandPalette } from '@/lib/translator-branding';
 
 interface NovelCardProps {
   id: string;
@@ -9,6 +10,9 @@ interface NovelCardProps {
   translator: string;
   /** slug переводчика для ссылки /t/{slug}. Если не задан — имя остаётся span'ом. */
   translatorSlug?: string | null;
+  /** Палитра брендинга переводчика. Если задана — на обложке появляется
+      тонкая цветная нить снизу как «маркер автора». */
+  brandPalette?: BrandPalette | null;
   /** Полный href для клика по подписи под обложкой. Имеет приоритет над
       translatorSlug и используется когда подпись — это автор (а не
       переводчик). Например: `/search?q=<author>` чтобы клик уводил в
@@ -56,6 +60,7 @@ export default function NovelCard({
   title,
   translator,
   translatorSlug,
+  brandPalette,
   byHref,
   metaInfo,
   rating,
@@ -88,7 +93,7 @@ export default function NovelCard({
   );
 
   return (
-    <div className="novel-card">
+    <div className="novel-card" data-tr-palette={brandPalette ?? undefined}>
       <Link href={novelHref} className="novel-card-cover-link" aria-label={title}>
         <div className="novel-cover">
           {allCovers.length > 1 ? (

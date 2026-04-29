@@ -99,6 +99,83 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
+/* =========================================================
+   Брендинг переводчика (мигр. 071).
+
+   Каждый переводчик может выбрать палитру (atributo
+   data-tr-palette на любом контейнере). Внутри этого контейнера
+   три CSS-кастома: --tr-accent, --tr-accent-soft, --tr-wash.
+   Они НЕ переопределяют глобальные --accent/--accent-soft —
+   фоны и кнопки сайта остаются нейтральными. Бренд проявляется
+   точечно: подпись переводчика под главой, рамка на профиле
+   /t/[slug], тонкая полоска у обложек его новелл.
+
+   Палитры подобраны так, чтобы --tr-accent читался на --surface
+   (~5:1 в светлой теме, ~4.6:1 в тёмной). data-theme="dark" даёт
+   светлый вариант акцента — берётся из родительского html.
+   ========================================================= */
+[data-tr-palette="amber"] {
+  --tr-accent:      #B8763C;
+  --tr-accent-soft: #E8C9A2;
+  --tr-wash:        #F5E4CC;
+}
+[data-tr-palette="midnight"] {
+  --tr-accent:      #5B6CB8;
+  --tr-accent-soft: #C5CCE6;
+  --tr-wash:        #E2E6F2;
+}
+[data-tr-palette="sage"] {
+  --tr-accent:      #6E8E66;
+  --tr-accent-soft: #C5D6BC;
+  --tr-wash:        #E1ECDA;
+}
+[data-tr-palette="rose"] {
+  --tr-accent:      #B66478;
+  --tr-accent-soft: #EAC5CD;
+  --tr-wash:        #F4DEE3;
+}
+[data-tr-palette="ink"] {
+  --tr-accent:      #3E3A36;
+  --tr-accent-soft: #B6B0A8;
+  --tr-wash:        #DAD4CA;
+}
+[data-tr-palette="paper"] {
+  --tr-accent:      #8C7E66;
+  --tr-accent-soft: #D6CBB6;
+  --tr-wash:        #ECE3D1;
+}
+
+html[data-theme="dark"] [data-tr-palette="amber"] {
+  --tr-accent:      #E1A874;
+  --tr-accent-soft: #5C432A;
+  --tr-wash:        #3A2C1C;
+}
+html[data-theme="dark"] [data-tr-palette="midnight"] {
+  --tr-accent:      #97A4D8;
+  --tr-accent-soft: #2F375A;
+  --tr-wash:        #232842;
+}
+html[data-theme="dark"] [data-tr-palette="sage"] {
+  --tr-accent:      #A9C19F;
+  --tr-accent-soft: #38492F;
+  --tr-wash:        #283322;
+}
+html[data-theme="dark"] [data-tr-palette="rose"] {
+  --tr-accent:      #DDA4B0;
+  --tr-accent-soft: #5C353F;
+  --tr-wash:        #40252C;
+}
+html[data-theme="dark"] [data-tr-palette="ink"] {
+  --tr-accent:      #C9C2B6;
+  --tr-accent-soft: #4C4843;
+  --tr-wash:        #38342F;
+}
+html[data-theme="dark"] [data-tr-palette="paper"] {
+  --tr-accent:      #C9B997;
+  --tr-accent-soft: #4F4636;
+  --tr-wash:        #3A3327;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -16619,4 +16696,186 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   .static-page .static-head h1 { font-size: 26px; }
   .static-page section > h2 { font-size: 19px; }
   .contact-list { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   Брендинг переводчика — UI-слой (см. мигр. 071, lib/translator-branding.ts).
+
+   Все правила привязаны к [data-tr-palette]: если переводчик не
+   выбрал палитру — селекторы не сработают, страница рендерится
+   как раньше. Это гарантирует «нет брендинга = ноль изменений».
+   ========================================================= */
+
+/* Подпись переводчика под главой («сургучная печать»). Появляется
+   на финальной странице читалки + у себя на профиле. */
+.tr-signature {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 24px;
+  margin: 28px auto;
+  max-width: 560px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, var(--tr-wash, var(--accent-wash)) 0%, transparent 60%),
+    var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+.tr-signature::before {
+  /* Тонкая золотая жилка слева — как нить с печатью на письме. */
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--tr-accent, var(--accent));
+}
+.tr-signature-seal {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--tr-accent, var(--accent));
+  color: var(--surface);
+  /* Едва заметная «вмятина» — намёк на оттиск. */
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--tr-accent, var(--accent)) 70%, white 30%),
+    0 2px 6px color-mix(in srgb, var(--tr-accent, var(--accent)) 40%, transparent);
+  animation: trSealStamp .55s cubic-bezier(.2,.7,.2,1) both;
+}
+.tr-signature-seal svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+}
+.tr-signature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tr-signature-label {
+  font-size: 11.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.tr-signature-name {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  /* Длинные ники держим на одной строке — у нас контейнер max-width 560 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr-signature-name:hover { color: var(--tr-accent, var(--accent)); }
+
+@keyframes trSealStamp {
+  0%   { opacity: 0; transform: scale(.4) rotate(-12deg); }
+  60%  { opacity: 1; transform: scale(1.06) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* «Гербовая шапка» на странице переводчика /t/[slug]. Только
+   когда переводчик выбрал палитру — иначе шапка стандартная. */
+[data-tr-palette].tr-profile-frame {
+  position: relative;
+  border-top: 3px solid var(--tr-accent);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+[data-tr-palette].tr-profile-frame::before {
+  /* Тонкая мягкая дымка под верхним краем — фирменный «touch» */
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 140px;
+  background: linear-gradient(
+    180deg,
+    var(--tr-wash) 0%,
+    transparent 100%
+  );
+  z-index: -1;
+  pointer-events: none;
+  opacity: .55;
+}
+
+/* Акцент-полоска на обложке новеллы у переводчика с брендингом.
+   Тонкая (3px) цветная нить внизу обложки. На каталоге/главной
+   проявляется как «маркер автора», по которому глаз привыкает
+   находить «свои» переводы в плотной сетке. */
+.novel-card[data-tr-palette] .novel-cover::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: var(--tr-accent);
+  border-radius: 0 0 12px 12px;
+  pointer-events: none;
+}
+
+/* Брендинг в шапке читалки: акцентная нить под "Глава N". Появляется
+   только если у новеллы есть переводчик с палитрой. */
+.reader-page[data-tr-palette] .reader-header {
+  border-bottom-color: var(--tr-accent);
+}
+
+/* Пикер брендинга в /profile/settings — горизонтальная сетка
+   радио-«чипсов». Переводчик кликает кружочек/печать — выбор
+   обводится тонким акцентом. */
+.brand-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.brand-picker input { position: absolute; opacity: 0; pointer-events: none; }
+.brand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+  transition: border-color .12s, transform .12s;
+  user-select: none;
+}
+.brand-chip:hover { transform: translateY(-1px); }
+.brand-chip[data-checked="true"] {
+  border-color: var(--tr-accent, var(--accent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tr-accent, var(--accent)) 25%, transparent);
+}
+.brand-chip-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.brand-chip-seal {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+}
+.brand-chip-seal svg { width: 100%; height: 100%; fill: currentColor; }
+.brand-chip-clear {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+.brand-picker-hint {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin-top: 8px;
+  min-height: 1.4em;
 }
