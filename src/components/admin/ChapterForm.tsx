@@ -8,6 +8,7 @@ import DraftBanner from './DraftBanner';
 import RichTextEditor from './RichTextEditor';
 import { cleanHtml, materializeFootnotes } from '@/lib/sanitize';
 import { bbToHtml } from '@/lib/bbcode';
+import { friendlyError } from '@/lib/friendly-error';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface GlossaryItem {
@@ -302,13 +303,12 @@ export default function ChapterForm({
     });
 
     if (rpcErr) {
-      setError(rpcErr.message);
-      pushToast(
-        'error',
-        mode === 'edit'
-          ? `Не сохранилось: ${rpcErr.message}`
-          : `Не создалось: ${rpcErr.message}`,
+      const friendly = friendlyError(
+        rpcErr,
+        mode === 'edit' ? 'сохранить главу' : 'создать главу',
       );
+      setError(friendly);
+      pushToast('error', friendly);
       setSubmitting(false);
       return;
     }

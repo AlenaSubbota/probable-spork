@@ -12,6 +12,7 @@ import TranslatorPicker, {
 import TeamPicker, { type PickerTeam } from './TeamPicker';
 import { bbToHtml, htmlToBb } from '@/lib/bbcode';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
+import { friendlyError } from '@/lib/friendly-error';
 import {
   AGE_RATINGS,
   COUNTRY_LABELS,
@@ -246,8 +247,9 @@ export default function NovelForm({
         .single();
 
       if (insertError) {
-        setError(insertError.message);
-        pushToast('error', `Не удалось создать: ${insertError.message}`);
+        const friendly = friendlyError(insertError, 'создать новеллу');
+        setError(friendly);
+        pushToast('error', friendly);
         setSubmitting(false);
         return;
       }
@@ -266,8 +268,9 @@ export default function NovelForm({
         .eq('id', values.id!);
 
       if (updateError) {
-        setError(updateError.message);
-        pushToast('error', `Не сохранилось: ${updateError.message}`);
+        const friendly = friendlyError(updateError, 'сохранить новеллу');
+        setError(friendly);
+        pushToast('error', friendly);
         setSubmitting(false);
         return;
       }
