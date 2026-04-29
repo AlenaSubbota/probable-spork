@@ -492,7 +492,7 @@ export default async function HomePage() {
       {/* HERO: что реально читают прямо сейчас */}
       <ReadingNow items={readingNowItems} totalReadersNow={totalReadersNow} />
 
-      <MyShelfStrip items={shelfItems} totalCount={shelfTotal} />
+      <MyShelfStrip items={shelfItems} totalCount={shelfTotal} isLoggedIn={!!user} />
 
       {/* Новые главы — самое свежее наверху, плотной сеткой */}
       <section className="container section">
