@@ -675,7 +675,17 @@ export default function ReaderContent({
         // scrollWidth content'а = ширина одной колонки * число колонок.
         // Берём именно его (а не scroller.scrollWidth, потому что spacer'ы
         // ещё не подтянулись после первого расчёта).
-        const sw = Math.max(0, content.scrollWidth - 2);
+        //
+        // Запас 12 px вместо 2 px: некоторые движки (Safari, in-app
+        // WebView) добавляют 1–8 px к scrollWidth даже если последний
+        // абзац точно влез в колонку — внутренние padding'и колонки,
+        // round-up margin'ов, sub-pixel anti-aliasing. С маленьким
+        // haircut'ом мы получали лишнюю «пустую» страницу в самом
+        // конце главы. 12 px — потолок наблюдаемых артефактов; на
+        // реальном переполнении (когда хотя бы пара слов утекла в
+        // следующую колонку) разница куда больше и Math.ceil срабатывает
+        // как надо.
+        const sw = Math.max(0, content.scrollWidth - 12);
         const total = Math.max(1, Math.ceil(sw / w));
         // Обсуждение теперь живёт ниже scroller'а как обычный flow,
         // в счёт страниц-листалки не входит — счётчик «X из Y»
