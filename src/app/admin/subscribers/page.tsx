@@ -60,7 +60,7 @@ export default async function SubscribersPage() {
   // Сводка по платформам (Boosty-кэш / Tribute-pending / chaptify-active).
   // Тихо проглатываем, если миграции 067 / 049 / 052 ещё не накачены —
   // тогда виджет просто не покажется.
-  let overview: {
+  type SubscriberOverview = {
     chaptify_active: number;
     chaptify_total: number;
     boosty: {
@@ -70,11 +70,12 @@ export default async function SubscribersPage() {
       blog_username: string | null;
     };
     tribute: { pending_link: number };
-  } | null = null;
+  };
+  let overview: SubscriberOverview | null = null;
   try {
     const { data: ov } = await supabase.rpc('get_my_subscriber_overview');
     if (ov && typeof ov === 'object' && (ov as { ok?: boolean }).ok) {
-      overview = ov as typeof overview;
+      overview = ov as SubscriberOverview;
     }
   } catch {
     // мигр. 067 ещё не накачена
