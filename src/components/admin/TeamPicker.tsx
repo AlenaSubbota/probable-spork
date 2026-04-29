@@ -1,6 +1,10 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/utils/supabase/client';
+import { friendlyError } from '@/lib/friendly-error';
 
 export interface PickerTeam {
   id: number;
@@ -24,13 +28,68 @@ interface Props {
 
 // Picker команды для NovelForm. Если у юзера одна команда — это просто
 // большая карточка с галочкой (она и так выбрана). Если несколько — radio
-// между ними. Если ни одной — мягкая подсказка-CTA «создай команду».
+// между ними. Если ни одной — inline quick-create форма с одним полем
+// «Имя команды» (slug сами сгенерим из имени), чтобы новичок не рвался
+// на отдельную страницу /admin/team/new и не терял прогресс по форме
+// новеллы.
 export default function TeamPicker({
   value,
   onChange,
   teams,
   allowNoTeam = false,
 }: Props) {
+  const router = useRouter();
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const slugFrom = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-zа-я0-9-\s]/gi, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 30);
+
+  const handleQuickCreate = async () => {
+    setError(null);
+    const trimmed = name.trim();
+    if (trimmed.length < 2) {
+      setError('Имя команды от 2 символов.');
+      return;
+    }
+    if (trimmed.length > 80) {
+      setError('Слишком длинное имя.');
+      return;
+    }
+    const slug = slugFrom(trimmed);
+    if (slug.length < 2) {
+      setError('Имя содержит только спецсимволы — добавь буквы или цифры.');
+      return;
+    }
+    setBusy(true);
+    const supabase = createClient();
+    const { data, error: rpcErr } = await supabase.rpc('create_my_team', {
+      p_slug: slug,
+      p_name: trimmed,
+    });
+    setBusy(false);
+    if (rpcErr) {
+      setError(friendlyError(rpcErr, 'создать команду'));
+      return;
+    }
+    const newTeamId = typeof data === 'number' ? data : null;
+    if (newTeamId != null) {
+      onChange(newTeamId);
+      // Подтягиваем свежие данные о команде в форме сверху.
+      router.refresh();
+    }
+    setCreating(false);
+    setName('');
+  };
+
   if (teams.length === 0) {
     return (
       <div className="team-picker-empty">
@@ -40,9 +99,74 @@ export default function TeamPicker({
           один. Без команды новелла «висит» одиночкой, читатели не понимают,
           с кем говорят.
         </div>
-        <Link href="/admin/team/new" className="btn btn-primary">
-          🪶 Создать команду
-        </Link>
+        {!creating ? (
+          <div className="team-picker-empty-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setCreating(true)}
+            >
+              🪶 Создать команду
+            </button>
+            <Link href="/admin/team/new" className="btn btn-ghost">
+              Подробная страница →
+            </Link>
+          </div>
+        ) : (
+          <div className="team-picker-quickcreate">
+            <label className="form-label">
+              Имя команды (его увидят читатели)
+            </label>
+            <input
+              type="text"
+              className="form-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="например, «Tene Translations»"
+              maxLength={80}
+              autoFocus
+              disabled={busy}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleQuickCreate();
+                }
+              }}
+            />
+            <p className="form-hint">
+              Slug-ссылка сгенерится сама из имени:{' '}
+              <code>/team/{name.trim() ? slugFrom(name) : 'имя-команды'}</code>
+              . Описание, аватар и других участников можно добавить позже на
+              странице команды.
+            </p>
+            {error && (
+              <p style={{ color: 'var(--rose)', fontSize: 13, margin: '4px 0 0' }}>
+                {error}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleQuickCreate}
+                disabled={busy}
+              >
+                {busy ? 'Создаём…' : 'Создать и продолжить'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setCreating(false);
+                  setError(null);
+                }}
+                disabled={busy}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -14784,6 +14784,23 @@ html[data-theme='dark'] .novel-team-card-deco { opacity: 0.10; }
   color: var(--ink-soft);
 }
 .team-picker-empty strong { color: var(--ink); }
+.team-picker-empty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.team-picker-quickcreate {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.team-picker-quickcreate code {
+  background: var(--bg-soft);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+}
 
 /* «Расширенные настройки переводчика» — details-блок для админа */
 .admin-form-extra {
