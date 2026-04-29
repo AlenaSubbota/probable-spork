@@ -14784,6 +14784,33 @@ html[data-theme='dark'] .novel-team-card-deco { opacity: 0.10; }
   color: var(--ink-soft);
 }
 .team-picker-empty strong { color: var(--ink); }
+
+/* Inline-блок «не удалось загрузить главу» — рендерится через
+   dangerouslySetInnerHTML вместо текста главы, когда proxy/storage
+   ответил ошибкой. Должна быть кнопка retry, иначе читатель не
+   понимает, что делать. */
+.chapter-load-error {
+  margin: 24px 0;
+  padding: 18px 22px;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.chapter-load-error strong {
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 17px;
+  display: block;
+  margin-bottom: 6px;
+}
+.chapter-load-error-detail {
+  font-size: 13.5px;
+  color: var(--ink-mute);
+  margin-bottom: 4px;
+}
 .team-picker-empty-actions {
   display: flex;
   gap: 8px;

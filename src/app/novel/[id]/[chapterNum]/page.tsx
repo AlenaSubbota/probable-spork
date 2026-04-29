@@ -1,6 +1,18 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+
+// Локальный escapeHtml — нужен для безопасной inline-вставки сообщений
+// об ошибке загрузки главы, которые рендерятся через
+// dangerouslySetInnerHTML вместе с самим текстом главы.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 import ReaderContent from '@/components/ReaderContent';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
 import CommentsSection from '@/components/CommentsSection';
@@ -271,6 +283,24 @@ export default async function ChapterPage({ params }: PageProps) {
   // есть доступ (hasAccess), юзер залогинен, bucket-policy разрешит.
   const shouldUseProxy = !user && !chapter.is_paid && !!chapter.content_path;
 
+  // Обёртка для inline-сообщения «не удалось загрузить» — показывает
+  // короткий текст + ссылку «Попробовать снова» (просто перезагружает
+  // страницу). Раньше при сетевом сбое читатель видел лишь красную
+  // строку и не знал, что можно retry'ить.
+  const renderLoadError = (
+    title: string,
+    detail?: string,
+    showRetry = true,
+  ): string => {
+    const safeDetail = detail
+      ? `<div class="chapter-load-error-detail">${escapeHtml(detail)}</div>`
+      : '';
+    const retry = showRetry
+      ? '<a href="" class="btn btn-ghost" style="margin-top:12px">↻ Попробовать снова</a>'
+      : '';
+    return `<div class="chapter-load-error"><strong>${escapeHtml(title)}</strong>${safeDetail}${retry}</div>`;
+  };
+
   const fetchChapterText = async (): Promise<string | null> => {
     if (!chapter.content_path) return null;
     if (shouldUseProxy) {
@@ -282,11 +312,17 @@ export default async function ChapterPage({ params }: PageProps) {
         const url = `${base}/auth/free-chapter/${novel.id}/${chapter.chapter_number}`;
         const resp = await fetch(url, { cache: 'no-store' });
         if (!resp.ok) {
-          return `<p style="color:var(--rose)">Не удалось загрузить текст: ${resp.status} ${resp.statusText}.</p>`;
+          return renderLoadError(
+            'Не получилось загрузить главу',
+            `Сервер ответил ${resp.status} ${resp.statusText}. Скорее всего временный сбой — обнови страницу.`,
+          );
         }
         return await resp.text();
       } catch (e) {
-        return `<p style="color:var(--rose)">Не удалось загрузить текст: ${e instanceof Error ? e.message : 'сеть'}.</p>`;
+        return renderLoadError(
+          'Не получилось загрузить главу',
+          `Сеть отвалилась${e instanceof Error && e.message ? ': ' + e.message : ''}. Проверь подключение и попробуй снова.`,
+        );
       }
     }
     const { data: fileData, error: storageError } = await supabase.storage
@@ -298,10 +334,17 @@ export default async function ChapterPage({ params }: PageProps) {
       // подменяем на человеческое.
       const raw = storageError?.message ?? '';
       const isMissing = /not\s*found|404|object/i.test(raw);
-      const human = isMissing
-        ? 'Переводчик ещё не загрузил текст этой главы — попробуй позже или напиши ему/ей в личку через профиль.'
-        : `Не удалось загрузить текст: ${raw || 'неизвестная ошибка'}.`;
-      return `<p style="color:var(--rose)">${human}</p>`;
+      if (isMissing) {
+        return renderLoadError(
+          'Текст этой главы пока не загружен',
+          'Переводчик ещё не выложил файл — попробуй позже или напиши ему/ей в личку через профиль.',
+          /* showRetry */ false,
+        );
+      }
+      return renderLoadError(
+        'Не получилось загрузить главу',
+        raw || 'неизвестная ошибка хранилища',
+      );
     }
     return await fileData.text();
   };
