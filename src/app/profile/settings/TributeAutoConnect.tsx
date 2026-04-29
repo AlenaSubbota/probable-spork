@@ -39,6 +39,22 @@ export default function TributeAutoConnect() {
   const [apiKey, setApiKey] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
+  // По умолчанию URL замаскирован: видны только префикс и хвост, секрет
+  // в середине скрыт под •••. Скриншот в саппорт = безопасно. Раскрытие
+  // по явному клику «Показать», отдельно от копирования.
+  const [showWebhook, setShowWebhook] = useState(false);
+
+  const maskWebhookUrl = (url: string): string => {
+    // Структура URL: https://chaptify.ru/tribute/<token>. Маскируем
+    // только token-часть, чтобы юзер видел, какой это URL и какого
+    // длина токен.
+    const idx = url.lastIndexOf('/');
+    if (idx < 0 || idx === url.length - 1) return url;
+    const head = url.slice(0, idx + 1);
+    const token = url.slice(idx + 1);
+    if (token.length <= 8) return head + '••••••••';
+    return head + token.slice(0, 4) + '••••••••' + token.slice(-4);
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -332,10 +348,20 @@ export default function TributeAutoConnect() {
                 wordBreak: 'break-all',
                 flex: 1,
                 minWidth: 200,
+                fontFamily: 'monospace',
               }}
             >
-              {webhookUrl}
+              {showWebhook ? webhookUrl : maskWebhookUrl(webhookUrl)}
             </code>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setShowWebhook((v) => !v)}
+              style={{ height: 30, fontSize: 12 }}
+              title={showWebhook ? 'Скрыть полный URL' : 'Показать полный URL'}
+            >
+              {showWebhook ? '🙈 Скрыть' : '👁 Показать'}
+            </button>
             <button
               type="button"
               className="btn btn-ghost"
@@ -346,8 +372,10 @@ export default function TributeAutoConnect() {
             </button>
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 8 }}>
-            URL уникальный — никому его не показывай. Подпись webhook'а
-            мы проверяем твоим же API-Key, но лишняя осторожность не помешает.
+            URL уникальный и приравнивается к секрету — никому его не
+            показывай и не отправляй скрин-целиком в саппорт. По умолчанию
+            токен спрятан, его всегда можно «Скопировать» в буфер не
+            раскрывая.
           </div>
         </div>
       )}
