@@ -1022,7 +1022,11 @@ html[data-theme='dark'] .logo-mark {
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px 8px;
-  background: var(--bg-soft);
+  /* Совпадает с фоном самой textarea (`var(--surface-2)`), чтобы
+     тулбар читался как часть единого блока ввода, а не как
+     контрастная плашка — на iOS такая плашка над клавиатурой
+     выглядит как «полоска отдельно от поля». */
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-bottom: none;
   border-radius: 10px 10px 0 0;
@@ -11162,10 +11166,18 @@ body.reader-pages-mode .reader-page .reader-header {
    ReaderBottomBar. Иначе на iOS position: fixed «прилипает» к верху
    клавиатуры полупрозрачной полосой. Visibility: hidden оставляет место
    в layout (никаких reflow → totalPages не пересчитывается → snap не
-   срывает пользователя на текстовую страницу). */
+   срывает пользователя на текстовую страницу). Дополнительно
+   зануляем background/shadow/border/backdrop-filter — на случай, если
+   между переключением visibility и применением CSS iOS успевает
+   отрисовать кадр со «старой» полупрозрачной плашкой. */
 body.reader-keyboard-up .reader-bottom-bar {
   visibility: hidden;
   pointer-events: none;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 /* (правила скрытия site-header и компенсации notch'а перенесены выше
