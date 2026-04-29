@@ -1110,23 +1110,28 @@ html[data-theme='dark'] .logo-mark {
 .novel-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 20px;
+  gap: 18px 16px;
+  /* Уравниваем высоту всех рядов гридa: иначе ряд с одной 2-строчной
+     карточкой делает «лесенку» из соседних рядов с 1-строчными
+     названиями. 1fr на implicit-rows + align-items: stretch (дефолт)
+     → все ряды одной высоты, все карточки внутри тоже. */
+  grid-auto-rows: 1fr;
 }
 @media (max-width: 1100px) { .novel-grid { grid-template-columns: repeat(4, 1fr); } }
-@media (max-width: 760px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; } }
+@media (max-width: 760px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); gap: 14px 12px; } }
 /* Мобиле: 3 колонки в ряд (как просила Алёна). 3 × (~100 px) + gap —
    обложки становятся книжными «плитками», экран смотрится плотно. */
-@media (max-width: 540px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
+@media (max-width: 540px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); gap: 12px 10px; } }
 
 /* Плотная сетка для блока «Новые главы» наверху главной. Обложки
    уже стандартных, в ряд помещается на 1-2 колонки больше — экран
    читается как «свежая лента», без воздуха между плитками. */
 .novel-grid.novel-grid-dense {
   grid-template-columns: repeat(8, 1fr);
-  gap: 14px;
+  gap: 14px 12px;
 }
-.novel-grid.novel-grid-dense .novel-title { font-size: 14px; }
-.novel-grid.novel-grid-dense .novel-meta { font-size: 12px; }
+.novel-grid.novel-grid-dense .novel-title { font-size: 13px; line-height: 1.25; }
+.novel-grid.novel-grid-dense .novel-meta { font-size: 11px; }
 @media (max-width: 1280px) {
   .novel-grid.novel-grid-dense { grid-template-columns: repeat(6, 1fr); }
 }
@@ -1150,7 +1155,12 @@ html[data-theme='dark'] .logo-mark {
 .novel-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  /* В паре с .novel-grid { grid-auto-rows: 1fr; align-items: stretch }
+     карточки заполняют ряд равной высоты. Имя автора прижимаем к
+     низу карточки через margin-top: auto на .novel-meta — иначе
+     short-title карточки растягиваются с пустотой под title. */
+  height: 100%;
 }
 /* Обложка и заголовок — самостоятельные <Link>, чтобы имя переводчика
    в meta могло быть отдельной ссылкой (вложенные Link запрещены в Next 16). */
@@ -1254,7 +1264,7 @@ html[data-theme='dark'] .logo-mark {
 .novel-title {
   font-size: 13.5px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
   color: var(--ink);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1262,10 +1272,10 @@ html[data-theme='dark'] .logo-mark {
   overflow: hidden;
   cursor: pointer;
   transition: color .12s;
-  /* Резервируем 2 строки даже для коротких названий — иначе соседние
-     карточки в гриде получают разную высоту блоком title→meta, и низ
-     обложек выходит «лестницей». line-height 1.3 × 2 = 2.6em. */
-  min-height: 2.6em;
+  /* Высоту НЕ резервируем — это раздувало карточки и оставляло
+     видимую пустоту под однострочным названием. Вместо этого ряды
+     грида уравнены через grid-auto-rows: 1fr (см. .novel-grid),
+     а meta прижимается к низу через margin-top: auto. */
 }
 .novel-title:hover { color: var(--accent); }
 .novel-meta {
@@ -1281,6 +1291,10 @@ html[data-theme='dark'] .logo-mark {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  /* Прижимаем к низу карточки: covers и meta получают одинаковый
+     baseline во всех колонках ряда, а свободное место уходит между
+     title и meta. */
+  margin-top: auto;
 }
 .novel-meta .by {
   color: var(--accent);
