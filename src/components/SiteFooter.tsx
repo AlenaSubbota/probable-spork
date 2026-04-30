@@ -8,6 +8,7 @@ import Link from 'next/link';
 
 const PRIMARY_LINKS: Array<{ href: string; label: string }> = [
   { href: '/catalog', label: 'Каталог' },
+  { href: '/collections', label: 'Подборки' },
   { href: '/feed', label: 'Лента' },
   { href: '/news', label: 'Журнал' },
   { href: '/translator/apply', label: 'Переводчикам' },

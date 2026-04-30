@@ -585,36 +585,115 @@ export default async function HomePage() {
     return false;
   };
 
-  // ---- Превью подборок: до 3 обложек на каждую коллекцию ----
-  const collectionsPreview: CollectionPreview[] = COLLECTIONS.map((c) => {
-    let matches: PoolNovel[] = [];
-    if (c.novelIds && c.novelIds.length > 0) {
-      const ids = new Set(c.novelIds);
-      matches = novelPool.filter((n) => ids.has(n.firebase_id));
-    } else if (c.smartFilter) {
-      const f = c.smartFilter;
-      matches = novelPool.filter((n) => {
-        if (f.country && n.country !== f.country) return false;
-        if (f.minRating !== undefined && (n.average_rating ?? 0) < f.minRating)
-          return false;
-        if (f.genres && f.genres.length > 0 && !poolMatchesGenres(n, f.genres))
-          return false;
-        return true;
-      });
+  // ---- Featured-подборки из БД (создают переводчики и админ).
+  // Идут первыми в списке. Обложки берём отдельной выборкой, потому
+  // что новеллы из DB-подборок могут не попадать в novelPool (он
+  // ограничен топ-150 по рейтингу).
+  type DbFeaturedCollection = {
+    id: number;
+    slug: string;
+    title: string;
+    tagline: string | null;
+    emoji: string | null;
+    novel_ids: unknown;
+  };
+  let dbCollectionsPreview: CollectionPreview[] = [];
+  try {
+    const { data: dbColls } = await supabase
+      .from('collections')
+      .select('id, slug, title, tagline, emoji, novel_ids')
+      .eq('is_published', true)
+      .eq('is_featured', true)
+      .order('updated_at', { ascending: false })
+      .limit(8);
+    const allDbColls = (dbColls ?? []) as DbFeaturedCollection[];
+    const allCoverIds = new Set<string>();
+    for (const c of allDbColls) {
+      const ids = Array.isArray(c.novel_ids)
+        ? (c.novel_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+        : [];
+      for (const id of ids.slice(0, 3)) allCoverIds.add(id);
     }
-    return {
-      slug: c.slug,
-      title: c.title,
-      tagline: c.tagline,
-      emoji: c.emoji,
-      count: matches.length,
-      covers: matches.slice(0, 3).map((n) => ({
-        firebase_id: n.firebase_id,
-        cover_url: n.cover_url,
-        title: n.title,
-      })),
-    };
-  }).filter((c) => c.count > 0);
+    let coverById = new Map<string, { firebase_id: string; cover_url: string | null; title: string }>();
+    if (allCoverIds.size > 0) {
+      const { data: coverRows } = await supabase
+        .from('novels')
+        .select('firebase_id, cover_url, title')
+        .in('firebase_id', Array.from(allCoverIds));
+      coverById = new Map(
+        (coverRows ?? []).map((n) => [
+          n.firebase_id as string,
+          {
+            firebase_id: n.firebase_id as string,
+            cover_url: (n.cover_url ?? null) as string | null,
+            title: n.title as string,
+          },
+        ])
+      );
+    }
+    dbCollectionsPreview = allDbColls
+      .map((c) => {
+        const ids = Array.isArray(c.novel_ids)
+          ? (c.novel_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+          : [];
+        const covers = ids
+          .slice(0, 3)
+          .map((id) => coverById.get(id))
+          .filter((x): x is { firebase_id: string; cover_url: string | null; title: string } => !!x);
+        return {
+          slug: c.slug,
+          title: c.title,
+          tagline: c.tagline ?? '',
+          emoji: c.emoji ?? '✦',
+          count: ids.length,
+          covers,
+        };
+      })
+      .filter((c) => c.count > 0);
+  } catch {
+    // миграция 073 не накачена — DB-подборок просто не покажем
+  }
+
+  // ---- Статические подборки из lib/collections.ts: добиваем хвост.
+  const dbSlugs = new Set(dbCollectionsPreview.map((c) => c.slug));
+  const staticCollectionsPreview: CollectionPreview[] = COLLECTIONS
+    .filter((c) => !dbSlugs.has(c.slug))
+    .map((c) => {
+      let matches: PoolNovel[] = [];
+      if (c.novelIds && c.novelIds.length > 0) {
+        const ids = new Set(c.novelIds);
+        matches = novelPool.filter((n) => ids.has(n.firebase_id));
+      } else if (c.smartFilter) {
+        const f = c.smartFilter;
+        matches = novelPool.filter((n) => {
+          if (f.country && n.country !== f.country) return false;
+          if (f.minRating !== undefined && (n.average_rating ?? 0) < f.minRating)
+            return false;
+          if (f.genres && f.genres.length > 0 && !poolMatchesGenres(n, f.genres))
+            return false;
+          return true;
+        });
+      }
+      return {
+        slug: c.slug,
+        title: c.title,
+        tagline: c.tagline,
+        emoji: c.emoji,
+        count: matches.length,
+        covers: matches.slice(0, 3).map((n) => ({
+          firebase_id: n.firebase_id,
+          cover_url: n.cover_url,
+          title: n.title,
+        })),
+      };
+    })
+    .filter((c) => c.count > 0);
+
+  // DB-подборки идут первыми, статика — следом.
+  const collectionsPreview: CollectionPreview[] = [
+    ...dbCollectionsPreview,
+    ...staticCollectionsPreview,
+  ];
 
   // ---- Превью настроений: до 3 обложек на каждое настроение ----
   const moodPreviews: Record<MoodKey, { covers: string[] }> = {} as Record<
