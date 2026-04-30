@@ -52,7 +52,7 @@ export default function ContactsPage() {
               abuse@chaptify.ru
             </a>
             <span className="contact-hint">
-              Нарушение авторских прав, plagiat, оскорбления и любые жалобы
+              Нарушение авторских прав, плагиат, оскорбления и любые жалобы
               на контент. Подробности — в{' '}
               <Link href="/rules">правилах сообщества</Link>.
             </span>
