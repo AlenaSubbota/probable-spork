@@ -344,34 +344,52 @@ export default async function HomePage() {
     // миграция 015 не накачена — блок тихо не рендерится
   }
 
-  // ---- Цитаты дня: до 3-х случайных публичных цитат для community-полосы.
-  // RPC возвращает по одной случайной — дёргаем три раза параллельно
-  // и дедуплицируем по id. Если получилось меньше 3-х (мало цитат в БД)
-  // — отрисуем сколько есть.
+  // ---- Цитаты дня: до 3-х случайных публичных цитат для полосы.
+  // Используется RPC random_public_quotes(p_limit) из миграции 074
+  // — справедливый рандом по всем публичным цитатам, без отсечения
+  // на топ-200 по свежести (старые цитаты тоже попадают в ротацию).
+  // Fallback на 014: если 074 ещё не накачена, дёргаем одиночный
+  // RPC три раза параллельно и дедуплицируем.
   let quotesOfTheDay: QuoteItem[] = [];
   try {
-    const triple = await Promise.all([
-      supabase.rpc('random_public_quote'),
-      supabase.rpc('random_public_quote'),
-      supabase.rpc('random_public_quote'),
-    ]);
-    const seen = new Set<number>();
-    for (const { data } of triple) {
-      const q = Array.isArray(data) ? data[0] : null;
-      if (q && !seen.has(q.id)) {
-        seen.add(q.id);
-        quotesOfTheDay.push({
-          id: q.id,
-          quote_text: q.quote_text,
-          chapter_number: q.chapter_number,
-          author_name: q.author_name,
-          novel_title: q.novel_title,
-          novel_firebase_id: q.novel_firebase_id,
-        });
+    const { data: bulkQuotes, error: bulkErr } = await supabase.rpc(
+      'random_public_quotes',
+      { p_limit: 3 }
+    );
+    if (!bulkErr && Array.isArray(bulkQuotes)) {
+      quotesOfTheDay = bulkQuotes.map((q) => ({
+        id: q.id,
+        quote_text: q.quote_text,
+        chapter_number: q.chapter_number,
+        author_name: q.author_name,
+        novel_title: q.novel_title,
+        novel_firebase_id: q.novel_firebase_id,
+      }));
+    } else {
+      // Миграция 074 ещё не накачена — fallback на одиночный RPC.
+      const triple = await Promise.all([
+        supabase.rpc('random_public_quote'),
+        supabase.rpc('random_public_quote'),
+        supabase.rpc('random_public_quote'),
+      ]);
+      const seen = new Set<number>();
+      for (const { data } of triple) {
+        const q = Array.isArray(data) ? data[0] : null;
+        if (q && !seen.has(q.id)) {
+          seen.add(q.id);
+          quotesOfTheDay.push({
+            id: q.id,
+            quote_text: q.quote_text,
+            chapter_number: q.chapter_number,
+            author_name: q.author_name,
+            novel_title: q.novel_title,
+            novel_firebase_id: q.novel_firebase_id,
+          });
+        }
       }
     }
   } catch {
-    // миграция 014 не накачена
+    // миграции 014/074 не накачены — блок просто не покажется
   }
 
   // ---- 🔥 Trending: топ-6 новелл по числу новых глав за неделю ----
@@ -839,15 +857,16 @@ export default async function HomePage() {
       {/* ✦ Подборки от редакции */}
       <CollectionsStrip items={collectionsPreview} />
 
-      {/* Личные рекомендации (только если есть, на что опереться) */}
-      <PersonalRecs items={personalRecs} basedOnTitle={personalRecsBaseTitle} />
-
       {/* Выбор по настроению — теперь с превью обложек */}
       <MoodPicker previews={moodPreviews} />
 
-      {/* Забытое и продолжить — личные секции залогиненного юзера */}
-      <ForgottenNovels items={forgottenItems} />
+      {/* Зона «из твоей истории»: продолжить чтение → похожее → забытое.
+          PersonalRecs идут сразу после Continue, чтобы не висеть
+          одиноким блоком где-то в середине страницы. Если у юзера
+          истории нет (или RPC ничего не вернул) — Recs скроются сами. */}
       <ContinueReadingShelf items={continueItems} />
+      <PersonalRecs items={personalRecs} basedOnTitle={personalRecsBaseTitle} />
+      <ForgottenNovels items={forgottenItems} />
 
       {/* Цитаты дня — 3 коротких карточки в полосу, читателей и оригинал.
           Атмосферная вставка между утилитарными блоками. */}

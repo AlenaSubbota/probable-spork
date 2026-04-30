@@ -18540,3 +18540,69 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   color: var(--rose);
   font-weight: 600;
 }
+
+/* ====================================================================
+   PersonalRecs → recs-tail (продолжение Continue Reading)
+   Старая сетка `.recs-grid` больше не используется в JSX, но правила
+   остаются ниже на случай, если что-то ещё цепляется. Новый блок
+   рендерится в стиле .shelf-scroll/.continue-card как продолжение
+   секции «Продолжить чтение».
+   ==================================================================== */
+
+.section-recs-tail {
+  /* Поджимаем верхний отступ — секция логически примыкает к Continue. */
+  padding-top: 4px !important;
+  margin-top: -8px;
+}
+
+.recs-tail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ink-mute);
+  letter-spacing: 0.04em;
+}
+.recs-tail-mark {
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+}
+.recs-tail-label {
+  font-weight: 500;
+}
+.recs-tail-novel {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* Карточка-продолжение: делает .continue-card шире (нужна вторая
+   строка с reason'ом) и добавляет рейтинг-бейдж поверх обложки. */
+.recs-tail-card .body { gap: 4px; }
+.recs-tail-reason {
+  font-size: 11.5px !important;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+.recs-tail-rating {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+/* mini-cover у Continue был position:relative по умолчанию, но
+   подстрахуемся, чтобы абсолютный рейтинг крепился именно к обложке. */
+.recs-tail-card .mini-cover { position: relative; }
+
+@media (max-width: 600px) {
+  .recs-tail-head { font-size: 12.5px; margin-bottom: 10px; }
+  .section-recs-tail { margin-top: -4px; }
+}

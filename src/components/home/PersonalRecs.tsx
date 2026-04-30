@@ -11,49 +11,60 @@ export interface RecommendedNovel {
 
 interface Props {
   items: RecommendedNovel[];
-  /** Новелла, на основе которой подобраны рекомендации. Для подписи. */
+  /** Новелла, на основе которой подобраны рекомендации (для подписи). */
   basedOnTitle: string | null;
 }
 
-// «Тебе должно зайти» — рекомендации для залогиненных, у кого есть
-// история чтения. Используем коллаборативную фильтрацию через RPC
-// (ищем читателей, которые поставили высокий рейтинг той же новелле,
-// что и юзер, и смотрим, что они ещё любят).
+// «Похоже на …» — продолжение полки «Продолжить чтение». Раньше
+// рендерилось отдельной секцией с большим заголовком «Тебе должно
+// зайти» и сеткой — выглядело сыро и одиноко между несвязанными
+// блоками. Теперь это горизонтальная полка в том же визуальном
+// языке, что и ContinueReadingShelf, с маленьким подзаголовком —
+// часть единой зоны «из твоей истории».
 
 export default function PersonalRecs({ items, basedOnTitle }: Props) {
   if (items.length === 0) return null;
 
   return (
-    <section className="container section">
-      <div className="section-head">
-        <h2>Тебе должно зайти</h2>
-        {basedOnTitle && (
-          <span className="more" style={{ cursor: 'default' }}>
-            похоже на «{basedOnTitle}»
-          </span>
-        )}
+    <section className="container section section-recs-tail">
+      <div className="recs-tail-head">
+        <span className="recs-tail-mark" aria-hidden="true">✦</span>
+        <span className="recs-tail-label">
+          {basedOnTitle ? (
+            <>
+              Похоже на «<span className="recs-tail-novel">{basedOnTitle}</span>»
+            </>
+          ) : (
+            'Возможно, тебе зайдёт'
+          )}
+        </span>
       </div>
-      <div className="recs-grid">
+
+      <div className="shelf-scroll">
         {items.map((n) => {
           const cover = getCoverUrl(n.cover_url);
           return (
             <Link
               key={n.firebase_id}
               href={`/novel/${n.firebase_id}`}
-              className="recs-card"
+              className="continue-card recs-tail-card"
             >
-              <div className="recs-cover">
+              <div className="mini-cover">
                 {cover ? (
-                  <img src={cover} alt="" />
+                  <img src={cover} alt={n.title} />
                 ) : (
-                  <div className="placeholder p1">{n.title}</div>
+                  <div className="placeholder p1" style={{ fontSize: 10 }}>
+                    {n.title}
+                  </div>
                 )}
                 {n.average_rating && n.average_rating > 0 && (
-                  <span className="recs-rating">★ {n.average_rating.toFixed(1)}</span>
+                  <span className="recs-tail-rating">★ {n.average_rating.toFixed(1)}</span>
                 )}
               </div>
-              <div className="recs-title">{n.title}</div>
-              <div className="recs-reason">{n.match_reason}</div>
+              <div className="body">
+                <div className="title">{n.title}</div>
+                <div className="meta recs-tail-reason">{n.match_reason}</div>
+              </div>
             </Link>
           );
         })}
