@@ -1200,26 +1200,24 @@ html[data-theme='dark'] .logo-mark {
    обложки становятся книжными «плитками», экран смотрится плотно. */
 @media (max-width: 540px)  { .novel-grid { grid-template-columns: repeat(3, 1fr); gap: 12px 10px; } }
 
-/* Плотная сетка для блока «Новые главы» наверху главной. Обложки
-   уже стандартных, в ряд помещается на 1-2 колонки больше — экран
-   читается как «свежая лента», без воздуха между плитками. */
+/* Плотная сетка для блока «Новые главы» наверху главной. Колонок —
+   столько, сколько физически влезает по ширине: auto-fit с минимумом
+   140px (на мобиле — 100px). Раньше тут стояли фиксированные
+   8/6/5/4/3 колонки на каждом breakpoint'е, и между ними оставались
+   «дырки» — например, при 1250px рендерилось 6 колонок, хотя по
+   факту влезает 8. */
 .novel-grid.novel-grid-dense {
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 14px 12px;
 }
 .novel-grid.novel-grid-dense .novel-title { font-size: 13px; line-height: 1.25; }
 .novel-grid.novel-grid-dense .novel-meta { font-size: 11px; }
-@media (max-width: 1280px) {
-  .novel-grid.novel-grid-dense { grid-template-columns: repeat(6, 1fr); }
-}
-@media (max-width: 1100px) {
-  .novel-grid.novel-grid-dense { grid-template-columns: repeat(5, 1fr); }
-}
-@media (max-width: 860px) {
-  .novel-grid.novel-grid-dense { grid-template-columns: repeat(4, 1fr); gap: 12px; }
-}
 @media (max-width: 540px) {
-  .novel-grid.novel-grid-dense { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .novel-grid.novel-grid-dense {
+    /* Меньший min, иначе на 360px влазит всего 2 колонки */
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 10px;
+  }
   /* Серверный лимит — 12 карточек: телефону этого много, после 6-й
      блок выглядит как «второй экран» под скролл. Прячем хвост, чтобы
      оставить ровно 2 ряда (3×2). Полный список доступен из заголовка
@@ -1236,13 +1234,11 @@ html[data-theme='dark'] .logo-mark {
    но визуально хвост лишний — ссылки «Смотреть все →» и
    «Вся лента →» в section-head ведут на полный список.
 
-   Диапазоны min/max не пересекаются, чтобы для каждой ширины
-   срабатывало ровно одно правило (без «display: none» прилипшего
-   при ресайзе наверх). Числа nth-child(n+X) = (визуальный кап) + 1.
-
-   Регулярная сетка: 6 кол ≥1100, 4 кол 760-1100, 3 кол ≤760.
-   Dense сетка:      8 ≥1280, 6 1100-1280, 5 860-1100, 4 540-860, 3 ≤540.
-*/
+   Регулярная сетка (Популярное) — фиксированные 6/4/3 колонки на
+   breakpoint'ах, кап через nth-child(n+X) с непересекающимися
+   диапазонами min/max (иначе display:none «слипается» при ресайзе).
+   Dense сетка (Новые главы) — auto-fit, кап через clip-path (см.
+   ниже), потому что col_count при auto-fit заранее неизвестен. */
 @media (min-width: 1101px) {
   .novel-grid-tight > .novel-card:nth-child(n + 7) { display: none; }
 }
@@ -1254,26 +1250,30 @@ html[data-theme='dark'] .logo-mark {
   .novel-grid-tight > .novel-card:nth-child(n + 7) { display: none; }
 }
 
-@media (min-width: 1281px) {
-  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 9) { display: none; }
-}
-@media (min-width: 1101px) and (max-width: 1280px) {
-  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 7) { display: none; }
-}
-@media (min-width: 861px) and (max-width: 1100px) {
-  /* 5 кол × 2 ряда — на мини-десктопе оставляем больше «ленты»,
-     иначе одного ряда из 5 мало */
-  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 11) { display: none; }
-}
-@media (min-width: 541px) and (max-width: 860px) {
-  /* 4 кол × 2 ряда */
-  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 9) { display: none; }
-}
-@media (max-width: 540px) {
-  /* Дублируем кап ≤540 (n+7) явно через -tight: исходный селектор
-     .novel-grid.novel-grid-dense выше уже это делает, но если в
-     будущем dense дефолт поменяют, tight гарантированно остаётся. */
-  .novel-grid-tight.novel-grid-dense > .novel-card:nth-child(n + 7) { display: none; }
+/* Tight + dense: ровно один ряд видимых карточек на всех экранах
+   шире 540px. С auto-fit количество колонок = столько, сколько
+   физически влазит, и nth-child(n+X) cap'ы по breakpoint'ам уже не
+   работают (col_count неизвестен заранее). Вместо них — клип в
+   один ряд:
+
+     • grid-template-rows: max-content — 1 explicit-ряд по высоте
+       контента;
+     • grid-auto-rows: 0 — implicit-ряды (2-й и далее) нулевой высоты;
+     • row-gap: 0 — без пустой полосы под клипнутыми рядами;
+     • clip-path: inset(-50px 0 0 0) — клипает только снизу.
+       Сверху оставляем 50px «свободы», чтобы hover-lift на обложках
+       (.novel-cover translateY -3px) и тени не обрезались.
+
+   На мобиле (≤540) правило не применяется — там 2 ряда нужны
+   через display:none для 7+ карточек (см. .novel-grid.novel-grid-dense
+   выше). */
+@media (min-width: 541px) {
+  .novel-grid-tight.novel-grid-dense {
+    grid-template-rows: max-content;
+    grid-auto-rows: 0;
+    row-gap: 0;
+    clip-path: inset(-50px 0 0 0);
+  }
 }
 
 /* Поджимаем sectionа c tight-сеткой: высота этих блоков «ела»
