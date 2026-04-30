@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
-import { COLLECTIONS as STATIC_COLLECTIONS } from '@/lib/collections';
 
 export const metadata = { title: 'Подборки — Chaptify' };
 
@@ -20,17 +19,6 @@ type DbCollection = {
 export default async function CollectionsIndexPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
-  // Берём опубликованные подборки + свои черновики (если автор) +
-  // всё (если админ). Реализуем тремя запросами для чистоты RLS.
-  const promises: Array<Promise<{ data: DbCollection[] | null }>> = [
-    supabase
-      .from('collections')
-      .select('id, slug, title, tagline, emoji, novel_ids, is_published, is_featured, owner_id, updated_at')
-      .eq('is_published', true)
-      .order('is_featured', { ascending: false })
-      .order('updated_at', { ascending: false }) as unknown as Promise<{ data: DbCollection[] | null }>,
-  ];
 
   let myDrafts: DbCollection[] = [];
   let isAdmin = false;
@@ -55,13 +43,13 @@ export default async function CollectionsIndexPage() {
     myDrafts = (drafts ?? []) as DbCollection[];
   }
 
-  const [{ data: published }] = await Promise.all(promises);
+  const { data: published } = await supabase
+    .from('collections')
+    .select('id, slug, title, tagline, emoji, novel_ids, is_published, is_featured, owner_id, updated_at')
+    .eq('is_published', true)
+    .order('is_featured', { ascending: false })
+    .order('updated_at', { ascending: false });
   const dbPublished = (published ?? []) as DbCollection[];
-
-  const dbSlugSet = new Set(dbPublished.map((c) => c.slug));
-  // Статические подборки показываем как «системные» — они не в БД,
-  // но фигурируют на сайте как редакторские, заданные кодом.
-  const systemList = STATIC_COLLECTIONS.filter((s) => !dbSlugSet.has(s.slug));
 
   return (
     <main className="container collections-index">
@@ -103,29 +91,7 @@ export default async function CollectionsIndexPage() {
         </section>
       )}
 
-      {systemList.length > 0 && (
-        <section className="collections-index-section">
-          <h2>Системные</h2>
-          <p className="collections-index-sub">
-            Заданы редакцией в коде сайта.
-          </p>
-          <ul className="collections-index-grid">
-            {systemList.map((s) => (
-              <li key={s.slug} className="collections-index-card">
-                <Link href={`/collection/${s.slug}`} className="collections-index-card-link">
-                  <span className="collections-index-card-emoji">{s.emoji}</span>
-                  <span className="collections-index-card-body">
-                    <span className="collections-index-card-title">{s.title}</span>
-                    <span className="collections-index-card-tagline">{s.tagline}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {dbPublished.length === 0 && myDrafts.length === 0 && systemList.length === 0 && (
+      {dbPublished.length === 0 && myDrafts.length === 0 && (
         <div className="empty-state">
           <p>Подборок пока нет.</p>
           {canCreate && (
@@ -189,4 +155,3 @@ function pluralNovels(n: number): string {
   if (mod10 >= 2 && mod10 <= 4) return 'новеллы';
   return 'новелл';
 }
-

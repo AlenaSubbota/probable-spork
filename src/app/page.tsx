@@ -17,7 +17,6 @@ import HeroGuest from '@/components/home/HeroGuest';
 import TopOfWeek, { type TopOfWeekItem } from '@/components/home/TopOfWeek';
 import CollectionsStrip, { type CollectionPreview } from '@/components/home/CollectionsStrip';
 import PersonalRecs, { type RecommendedNovel } from '@/components/home/PersonalRecs';
-import { COLLECTIONS } from '@/lib/collections';
 import { MOODS, type MoodKey } from '@/lib/catalog';
 import Link from 'next/link';
 import { getCoverUrl, formatAuthorPrimary, pluralRu } from '@/lib/format';
@@ -672,46 +671,7 @@ export default async function HomePage() {
     // миграция 073 не накачена — DB-подборок просто не покажем
   }
 
-  // ---- Статические подборки из lib/collections.ts: добиваем хвост.
-  const dbSlugs = new Set(dbCollectionsPreview.map((c) => c.slug));
-  const staticCollectionsPreview: CollectionPreview[] = COLLECTIONS
-    .filter((c) => !dbSlugs.has(c.slug))
-    .map((c) => {
-      let matches: PoolNovel[] = [];
-      if (c.novelIds && c.novelIds.length > 0) {
-        const ids = new Set(c.novelIds);
-        matches = novelPool.filter((n) => ids.has(n.firebase_id));
-      } else if (c.smartFilter) {
-        const f = c.smartFilter;
-        matches = novelPool.filter((n) => {
-          if (f.country && n.country !== f.country) return false;
-          if (f.minRating !== undefined && (n.average_rating ?? 0) < f.minRating)
-            return false;
-          if (f.genres && f.genres.length > 0 && !poolMatchesGenres(n, f.genres))
-            return false;
-          return true;
-        });
-      }
-      return {
-        slug: c.slug,
-        title: c.title,
-        tagline: c.tagline,
-        emoji: c.emoji,
-        count: matches.length,
-        covers: matches.slice(0, 3).map((n) => ({
-          firebase_id: n.firebase_id,
-          cover_url: n.cover_url,
-          title: n.title,
-        })),
-      };
-    })
-    .filter((c) => c.count > 0);
-
-  // DB-подборки идут первыми, статика — следом.
-  const collectionsPreview: CollectionPreview[] = [
-    ...dbCollectionsPreview,
-    ...staticCollectionsPreview,
-  ];
+  const collectionsPreview: CollectionPreview[] = dbCollectionsPreview;
 
   // ---- Превью настроений: до 3 обложек на каждое настроение ----
   const moodPreviews: Record<MoodKey, { covers: string[] }> = {} as Record<
