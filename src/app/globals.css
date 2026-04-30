@@ -1981,89 +1981,167 @@ html[data-theme='dark'] .logo-mark {
 }
 
 /* ---------- footer ---------- */
+/* Стиль книжного колофона: центрированный фронтиспис с лого, слоган
+   в serif italic, орнаментальный разделитель «✦», ряд основных
+   ссылок через бул-точки и низ с копирайтом + юр-ссылками.
+   Заменяет прежнюю 4-колоночную сетку, которая на узких экранах
+   выглядела грузно и «корпоративно». */
 
 .site-footer {
   margin-top: 96px;
-  padding: 64px 0 36px;
+  padding: 56px 0 28px;
   border-top: 1px solid var(--border);
-  background: var(--bg-soft);
+  background:
+    radial-gradient(800px 200px at 50% 0%, var(--accent-wash) 0%, transparent 70%),
+    var(--bg-soft);
   color: var(--ink-soft);
   font-size: 14px;
   line-height: 1.55;
 }
-
-/* Главная сетка: бренд занимает 2× ширины колонки. На узких — схлопывается. */
-.site-footer-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 56px;
-  margin-bottom: 56px;
+.site-footer-colophon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
 }
 
-.site-footer-brand { max-width: 360px; }
-
-/* Бренд в футере использует общий компонент .logo / .logo-mark из шапки —
-   единый знак на сайте, чтобы не было ощущения двух разных логотипов.
-   Просто отбиваем его от таглайна вертикальным отступом. */
-.site-footer-brand .logo { margin-bottom: 18px; }
+/* Брендовая марка: квадратный логотип + название Chaptify рядом. */
+.site-footer-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 60%, var(--gold) 110%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: filter 0.15s;
+}
+.site-footer-mark:hover { filter: brightness(1.1); }
+.site-footer-mark-square {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 30% 30%,
+      color-mix(in srgb, var(--gold) 60%, var(--accent)) 0%,
+      var(--accent) 60%,
+      var(--accent-hover) 100%);
+  color: var(--surface-2);
+  -webkit-text-fill-color: var(--surface-2);
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--gold) 50%, transparent),
+    0 4px 10px -2px rgba(140, 90, 60, 0.4),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 28%, transparent);
+}
+.site-footer-mark-name { line-height: 1; }
 
 .site-footer-tagline {
   margin: 0;
-  color: var(--ink-mute);
+  font-family: var(--font-serif);
   font-style: italic;
+  font-size: 15px;
   line-height: 1.65;
-  max-width: 34ch;
-}
-
-.site-footer-col { min-width: 0; }
-
-.site-footer-head {
-  margin: 0 0 20px;
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--ink-mute);
-}
-
-.site-footer-links {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  font-size: 14px;
-}
-.site-footer-links a {
   color: var(--ink-soft);
+  max-width: 36ch;
+}
+
+/* Орнамент: горизонтальная линия — глиф ✦ — линия. Тонко и по-книжному. */
+.site-footer-ornament {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 6px 0 4px;
+  width: 100%;
+  max-width: 280px;
+}
+.site-footer-ornament-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--border-strong) 50%,
+    transparent 100%);
+}
+.site-footer-ornament-glyph {
+  font-size: 14px;
+  color: var(--accent);
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+/* Основная навигация — буллеты между ссылками вместо отдельных колонок. */
+.site-footer-primary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.site-footer-primary-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.site-footer-primary a {
+  color: var(--ink);
   text-decoration: none;
+  font-weight: 600;
   transition: color 0.16s ease;
 }
-.site-footer-links a:hover,
-.site-footer-links a:focus-visible {
-  color: var(--accent);
-}
+.site-footer-primary a:hover,
+.site-footer-primary a:focus-visible { color: var(--accent); }
 
-.site-footer-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
-  font-size: 13px;
+.site-footer-dot {
   color: var(--ink-mute);
+  opacity: 0.55;
+  font-size: 12px;
+  user-select: none;
 }
 
-.site-footer-copy { letter-spacing: 0.005em; }
-
-.site-footer-legal {
+/* Низ: копирайт + юр-ссылки, разделены тонкой рамкой сверху. */
+.site-footer-tail {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 28px;
+  gap: 8px 18px;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  width: 100%;
+}
+.site-footer-copy { letter-spacing: 0.005em; }
+.site-footer-by {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+.site-footer-by:hover { text-decoration: underline; }
+.site-footer-legal {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+}
+.site-footer-legal-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
 }
 .site-footer-legal a {
   color: var(--ink-mute);
@@ -2071,118 +2149,25 @@ html[data-theme='dark'] .logo-mark {
   transition: color 0.16s ease;
 }
 .site-footer-legal a:hover,
-.site-footer-legal a:focus-visible {
-  color: var(--accent);
-}
+.site-footer-legal a:focus-visible { color: var(--accent); }
 
-/* На планшетах: бренд во всю ширину сверху, ссылки в три колонки снизу. */
-@media (max-width: 1024px) {
-  .site-footer-grid {
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 40px;
-  }
-  .site-footer-brand {
-    grid-column: 1 / -1;
-    max-width: 480px;
-  }
-}
-
-/* Между планшетом и телефоном: 760px — ужимаем gap и чуть подтягиваем
-   столбцы. Бренд ещё во всю ширину, ссылки в три колонки, но без воздуха. */
-@media (max-width: 760px) {
+/* Мобильная адаптация: уменьшаем отступы и шрифты, низ — стопкой. */
+@media (max-width: 720px) {
   .site-footer {
-    margin-top: 80px;
-    padding: 52px 0 32px;
+    margin-top: 72px;
+    padding: 44px 0 24px;
   }
-  .site-footer-grid {
-    gap: 32px;
-    margin-bottom: 44px;
-  }
-  .site-footer-brand .logo { font-size: 20px; }
+  .site-footer-mark { font-size: 20px; }
+  .site-footer-tagline { font-size: 14.5px; max-width: 32ch; }
+  .site-footer-primary { gap: 6px; font-size: 13.5px; }
+  .site-footer-tail { flex-direction: column; gap: 10px; margin-top: 18px; padding-top: 18px; }
 }
-
-/* На мобиле — отдельный «фронтиспис»: бренд по центру, слоган в serif,
-   декоративный разделитель «· · ·» из акцента, ссылки в две колонки —
-   плотнее и нишевее, без длинной унылой простыни. */
-@media (max-width: 600px) {
-  .site-footer {
-    margin-top: 64px;
-    padding: 44px 0 28px;
-  }
-  .site-footer-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 26px 28px;
-    margin-bottom: 28px;
-  }
-  /* Бренд — центрированный фронтиспис над сеткой ссылок. */
-  .site-footer-brand {
-    grid-column: 1 / -1;
-    max-width: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    margin-bottom: 4px;
-  }
-  .site-footer-brand .logo { margin-bottom: 14px; justify-content: center; }
-  .site-footer-tagline {
-    max-width: 32ch;
-    margin: 0 auto;
-    /* Лора — для книжного, «литературного» вида на мобильной странице. */
-    font-family: var(--font-serif);
-    font-size: 14.5px;
-    line-height: 1.7;
-  }
-  /* Декоративный разделитель между брендом и колонками ссылок. */
-  .site-footer-brand::after {
-    content: "·  ·  ·";
-    display: block;
-    margin: 22px auto 0;
-    color: var(--accent-soft);
-    letter-spacing: 0.6em;
-    font-size: 14px;
-    /* letter-spacing сдвигает контент вправо — компенсируем. */
-    text-indent: 0.6em;
-  }
-  .site-footer-head { margin-bottom: 12px; font-size: 11px; letter-spacing: 0.16em; }
-  .site-footer-links { gap: 9px; font-size: 14px; }
-
-  /* Низ — центрирован, юр-ссылки разделены тонкими буллетами. */
-  .site-footer-bottom {
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding-top: 22px;
-    text-align: center;
-  }
-  .site-footer-copy { font-size: 12.5px; }
-  .site-footer-legal {
-    gap: 0;
-    flex-wrap: wrap;
-    justify-content: center;
-    row-gap: 6px;
-  }
-  .site-footer-legal a {
-    padding: 0 12px;
-    border-right: 1px solid var(--border);
-    line-height: 1;
-  }
-  .site-footer-legal a:last-child { border-right: none; }
-}
-
-/* Узкие телефоны (≤430): мельче шрифт, чуть плотнее, остальное — наследуется. */
-@media (max-width: 430px) {
-  .site-footer {
-    margin-top: 56px;
-    padding: 40px 0 24px;
-    font-size: 13.5px;
-  }
-  .site-footer-grid { gap: 22px 22px; }
+@media (max-width: 480px) {
+  .site-footer { padding: 36px 0 20px; }
   .site-footer-tagline { font-size: 14px; max-width: 28ch; }
-  .site-footer-brand::after { margin-top: 18px; font-size: 13px; }
-  .site-footer-links { font-size: 13.5px; gap: 8px; }
-  .site-footer-bottom { gap: 10px; font-size: 12.5px; }
-  .site-footer-legal a { padding: 0 10px; font-size: 12.5px; }
+  .site-footer-primary { gap: 4px; font-size: 13px; row-gap: 8px; }
+  .site-footer-primary-item { gap: 6px; }
+  .site-footer-ornament { max-width: 220px; gap: 12px; }
 }
 
 /* ---------- continue reading shelf ---------- */
@@ -17797,4 +17782,160 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
   .home-community-grid { grid-template-columns: 1fr; gap: 14px; }
   .home-community-poll { grid-column: auto; }
   .home-community-cell { padding: 16px; }
+}
+
+/* ====================================================================
+   HOMEPAGE POLISH — апрель 2026 (правки по обратной связи Алёны)
+   ==================================================================== */
+
+/* ---------- Полоса из 3 цитат на главной ---------- */
+
+.quotes-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.quotes-strip .quote-card {
+  height: 100%;
+  padding: 22px 22px 18px;
+  display: flex;
+  flex-direction: column;
+}
+.quotes-strip .quote-mark {
+  font-size: 80px;
+  top: -8px;
+}
+.quotes-strip .quote-text {
+  font-size: 14.5px;
+  line-height: 1.55;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+.quotes-strip .quote-meta {
+  font-size: 12px;
+  margin-top: auto;
+}
+
+@media (max-width: 880px) {
+  .quotes-strip { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .quotes-strip .quote-card:nth-child(3) { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .quotes-strip { grid-template-columns: 1fr; gap: 12px; }
+  .quotes-strip .quote-card:nth-child(3) { grid-column: auto; }
+  .quotes-strip .quote-card { padding: 18px 18px 14px; }
+  .quotes-strip .quote-mark { font-size: 60px; }
+  .quotes-strip .quote-text { font-size: 14px; -webkit-line-clamp: 4; }
+}
+
+/* Старая community-grid больше не используется — оставлены пустыми
+   правилами, чтобы не ломать прежние ссылки в DOM, если что-то
+   в проде их подцепит. Скрываем, если попадутся. */
+.home-community-grid > .home-community-cell:empty { display: none; }
+
+/* ---------- PersonalRecs: уменьшить превью, гарантировать 6 в ряд ---------- */
+
+/* Перебиваем правило выше (auto-fit ≥140px давало гигантские карточки
+   при широком экране). Теперь явная сетка по числу колонок. */
+.recs-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1100px) { .recs-grid { grid-template-columns: repeat(5, 1fr); } }
+@media (max-width: 900px)  { .recs-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 700px)  { .recs-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
+@media (max-width: 500px)  { .recs-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
+@media (max-width: 380px)  { .recs-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.recs-card { gap: 6px; }
+.recs-cover { aspect-ratio: 3 / 4; max-width: 100%; }
+.recs-title {
+  font-size: 13px;
+  -webkit-line-clamp: 2;
+}
+.recs-reason { font-size: 11px; }
+
+/* ---------- MoodPicker rich: 6 настроений в одну строку ---------- */
+
+.mood-grid-rich {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1100px) { .mood-grid-rich { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 720px)  { .mood-grid-rich { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
+@media (max-width: 500px)  { .mood-grid-rich { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
+
+.mood-card-rich {
+  padding: 12px !important;
+  gap: 10px;
+}
+.mood-card-rich .mood-card-head { gap: 8px; }
+.mood-card-rich .emoji { font-size: 20px !important; }
+.mood-card-rich .label { font-size: 13.5px !important; }
+.mood-card-rich .mood-card-covers { gap: 4px; }
+.mood-card-rich .mood-card-cover { border-radius: 3px; }
+
+/* ---------- CommentsFeed: компактный mobile-вариант ---------- */
+/* Реальные классы — comments-feed-compact-*. Ужимаем аватар, шрифты
+   и padding'и: лента из 6 комментариев теперь укладывается в ~1.5
+   экрана на мобиле вместо четырёх. */
+@media (max-width: 600px) {
+  .comments-feed-compact { gap: 6px !important; }
+  .comments-feed-compact-link {
+    padding: 8px 10px !important;
+    gap: 10px !important;
+  }
+  .comments-feed-compact-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
+    flex-shrink: 0;
+  }
+  .comments-feed-compact-line {
+    font-size: 12.5px !important;
+    line-height: 1.35 !important;
+    flex-wrap: wrap !important;
+  }
+  .comments-feed-compact-novel,
+  .comments-feed-compact-ch {
+    font-size: 12px !important;
+  }
+  .comments-feed-compact-time {
+    font-size: 11px !important;
+    margin-top: 2px;
+  }
+  .comments-feed-compact-arrow {
+    font-size: 14px !important;
+    opacity: 0.5;
+  }
+  .comments-feed-spoiler-summary {
+    font-size: 11.5px !important;
+    padding: 4px 10px !important;
+  }
+  .comments-feed-spoiler-text {
+    font-size: 12.5px !important;
+    padding: 8px 12px !important;
+    line-height: 1.45 !important;
+  }
+}
+
+/* ---------- StarOfTheWeek: больше воздуха внутри карточки ---------- */
+/* Раньше внутри community-grid карточка прижималась к рамке.
+   После выноса в standalone-секцию она снова получает свой
+   собственный padding из исходных стилей. Здесь только лёгкая
+   правка под мобильную ширину — добавляем чуть больше gap. */
+@media (max-width: 600px) {
+  .star-of-week-card {
+    padding: 18px 16px !important;
+  }
+  .star-of-week-stats {
+    gap: 12px !important;
+  }
 }

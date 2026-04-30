@@ -11,38 +11,41 @@ export interface QuoteItem {
 
 interface Props {
   quote: QuoteItem | null;
+  /** В режиме compact компонент рендерит только саму карточку без
+      обёртки section.container — для использования в сетке полосы
+      из нескольких цитат на главной. */
+  compact?: boolean;
 }
 
-// Одна случайная публичная цитата. Читатели сохраняют строки при чтении;
-// если ставят галочку «показать всем» — попадает сюда. Атмосферный блок
-// для главной: ощущение книжного клуба, а не магазина.
-export default function QuoteOfTheDay({ quote }: Props) {
+export default function QuoteOfTheDay({ quote, compact = false }: Props) {
   if (!quote) return null;
   const target = quote.novel_firebase_id
     ? `/novel/${quote.novel_firebase_id}/${quote.chapter_number}`
     : null;
 
-  return (
-    <section className="container section">
-      <div className="quote-card">
-        <div className="quote-mark" aria-hidden="true">
-          ❝
-        </div>
-        <blockquote className="quote-text">{quote.quote_text}</blockquote>
-        <div className="quote-meta">
-          <span className="quote-author">
-            — {quote.author_name ?? 'Читатель'}
-          </span>
-          {target && quote.novel_title && (
-            <>
-              <span className="quote-sep">·</span>
-              <Link href={target} className="quote-source">
-                «{quote.novel_title}», глава {quote.chapter_number}
-              </Link>
-            </>
-          )}
-        </div>
+  const card = (
+    <div className="quote-card">
+      <div className="quote-mark" aria-hidden="true">
+        ❝
       </div>
-    </section>
+      <blockquote className="quote-text">{quote.quote_text}</blockquote>
+      <div className="quote-meta">
+        <span className="quote-author">
+          — {quote.author_name ?? 'Читатель'}
+        </span>
+        {target && quote.novel_title && (
+          <>
+            <span className="quote-sep">·</span>
+            <Link href={target} className="quote-source">
+              «{quote.novel_title}», глава {quote.chapter_number}
+            </Link>
+          </>
+        )}
+      </div>
+    </div>
   );
+
+  if (compact) return card;
+
+  return <section className="container section">{card}</section>;
 }

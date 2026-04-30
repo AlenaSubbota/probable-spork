@@ -14,13 +14,13 @@ export default function HeroGuest() {
         <div className="hero-guest-copy">
           <span className="hero-guest-eyebrow">
             <span className="hero-guest-eyebrow-mark" aria-hidden="true">茶</span>
-            Chaptify · восточные новеллы по-русски
+            Chaptify · азиатские новеллы по-русски
           </span>
           <h1 className="hero-guest-title">
             Корея. Китай. Япония.
             <br />
             <span className="hero-guest-title-soft">Глава за главой —</span>{' '}
-            <em>в темпе остывающего чая.</em>
+            <em>в человеческом переводе.</em>
           </h1>
           <p className="hero-guest-lead">
             Кураторский каталог любительских и профессиональных переводов.
