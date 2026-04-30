@@ -24,7 +24,7 @@ export default function ContactsPage() {
             <span className="contact-label">Поддержка</span>
             <a
               className="contact-value"
-              href="https://t.me/chaptifybot"
+              href="https://t.me/chaptifybot?start=support"
               target="_blank"
               rel="noreferrer"
             >
@@ -52,7 +52,7 @@ export default function ContactsPage() {
               abuse@chaptify.ru
             </a>
             <span className="contact-hint">
-              Нарушение авторских прав, плагиат, оскорбления и любые жалобы
+              Нарушение авторских прав, plagiat, оскорбления и любые жалобы
               на контент. Подробности — в{' '}
               <Link href="/rules">правилах сообщества</Link>.
             </span>
