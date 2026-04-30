@@ -13,6 +13,13 @@ import JournalStrip, { type JournalItem } from '@/components/home/JournalStrip';
 import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
 import StarOfTheWeek, { type StarOfTheWeekData } from '@/components/home/StarOfTheWeek';
+import HeroGuest from '@/components/home/HeroGuest';
+import CountryTabs from '@/components/home/CountryTabs';
+import TopOfWeek, { type TopOfWeekItem } from '@/components/home/TopOfWeek';
+import CollectionsStrip, { type CollectionPreview } from '@/components/home/CollectionsStrip';
+import PersonalRecs, { type RecommendedNovel } from '@/components/home/PersonalRecs';
+import { COLLECTIONS } from '@/lib/collections';
+import { MOODS, type MoodKey } from '@/lib/catalog';
 import Link from 'next/link';
 import { getCoverUrl, formatAuthorPrimary, pluralRu } from '@/lib/format';
 
@@ -487,8 +494,207 @@ export default async function HomePage() {
     // миграция 042 ещё не накачена — блок не покажется
   }
 
+  // ---- Топ недели по рейтингу: новеллы с самым активным голосованием
+  // ---- за последние 7 дней. В отличие от «На волне» — это про качество.
+  let topOfWeek: TopOfWeekItem[] = [];
+  try {
+    const weekAgoIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const { data: weekRatings } = await supabase
+      .from('novel_ratings')
+      .select('novel_id, rating')
+      .gte('created_at', weekAgoIso);
+    const agg = new Map<number, { sum: number; count: number }>();
+    for (const r of weekRatings ?? []) {
+      const cur = agg.get(r.novel_id) ?? { sum: 0, count: 0 };
+      cur.sum += Number(r.rating) || 0;
+      cur.count += 1;
+      agg.set(r.novel_id, cur);
+    }
+    // Минимум 3 голоса, чтобы случайная пятёрка не выводила в топ.
+    const ranked = Array.from(agg.entries())
+      .filter(([, v]) => v.count >= 3)
+      .map(([id, v]) => ({ id, avg: v.sum / v.count, count: v.count }))
+      .sort((a, b) => b.avg - a.avg || b.count - a.count)
+      .slice(0, 6);
+    if (ranked.length > 0) {
+      const ids = ranked.map((r) => r.id);
+      const { data: nv } = await supabase
+        .from('novels_view')
+        .select('id, firebase_id, title, cover_url')
+        .in('id', ids)
+        .eq('moderation_status', 'published');
+      const byId = new Map((nv ?? []).map((n) => [n.id, n]));
+      topOfWeek = ranked
+        .map((r) => {
+          const n = byId.get(r.id);
+          if (!n) return null;
+          return {
+            firebase_id: n.firebase_id,
+            title: n.title,
+            cover_url: n.cover_url,
+            weekly_avg: r.avg,
+            weekly_votes: r.count,
+          } satisfies TopOfWeekItem;
+        })
+        .filter((x): x is TopOfWeekItem => x !== null);
+    }
+  } catch {
+    // молча — блок не критичен
+  }
+
+  // ---- Пул топ-новелл для превью подборок и настроений ----
+  // Один запрос → партиционируем в JS под несколько секций сразу.
+  type PoolNovel = {
+    id: number;
+    firebase_id: string;
+    title: string;
+    cover_url: string | null;
+    genres: unknown;
+    average_rating: number | null;
+    country: string | null;
+  };
+  let novelPool: PoolNovel[] = [];
+  try {
+    const { data: pool } = await supabase
+      .from('novels_view')
+      .select('id, firebase_id, title, cover_url, genres, average_rating, country')
+      .eq('moderation_status', 'published')
+      .order('average_rating', { ascending: false, nullsFirst: false })
+      .limit(150);
+    novelPool = (pool ?? []) as PoolNovel[];
+  } catch {
+    // ok — превью просто будут пустыми
+  }
+
+  const poolMatchesGenres = (n: PoolNovel, genres: string[]): boolean => {
+    if (!Array.isArray(n.genres)) return false;
+    const set = new Set(genres);
+    for (const g of n.genres) {
+      if (typeof g === 'string' && set.has(g)) return true;
+    }
+    return false;
+  };
+
+  // ---- Превью подборок: до 3 обложек на каждую коллекцию ----
+  const collectionsPreview: CollectionPreview[] = COLLECTIONS.map((c) => {
+    let matches: PoolNovel[] = [];
+    if (c.novelIds && c.novelIds.length > 0) {
+      const ids = new Set(c.novelIds);
+      matches = novelPool.filter((n) => ids.has(n.firebase_id));
+    } else if (c.smartFilter) {
+      const f = c.smartFilter;
+      matches = novelPool.filter((n) => {
+        if (f.country && n.country !== f.country) return false;
+        if (f.minRating !== undefined && (n.average_rating ?? 0) < f.minRating)
+          return false;
+        if (f.genres && f.genres.length > 0 && !poolMatchesGenres(n, f.genres))
+          return false;
+        return true;
+      });
+    }
+    return {
+      slug: c.slug,
+      title: c.title,
+      tagline: c.tagline,
+      emoji: c.emoji,
+      count: matches.length,
+      covers: matches.slice(0, 3).map((n) => ({
+        firebase_id: n.firebase_id,
+        cover_url: n.cover_url,
+        title: n.title,
+      })),
+    };
+  }).filter((c) => c.count > 0);
+
+  // ---- Превью настроений: до 3 обложек на каждое настроение ----
+  const moodPreviews: Record<MoodKey, { covers: string[] }> = {} as Record<
+    MoodKey,
+    { covers: string[] }
+  >;
+  for (const m of MOODS) {
+    const matches = novelPool.filter((n) => {
+      if ((n.average_rating ?? 0) < m.minRating) return false;
+      return poolMatchesGenres(n, m.genres);
+    });
+    moodPreviews[m.key] = {
+      covers: matches
+        .slice(0, 3)
+        .map((n) => n.cover_url)
+        .filter((x): x is string => !!x),
+    };
+  }
+
+  // ---- Личные рекомендации: «похоже на то, что ты недавно читал» ----
+  // Используем коллаборативный RPC по последней прочитанной новелле.
+  let personalRecs: RecommendedNovel[] = [];
+  let personalRecsBaseTitle: string | null = null;
+  if (user) {
+    try {
+      const { data: profile2 } = await supabase
+        .from('profiles')
+        .select('last_read, bookmarks')
+        .eq('id', user.id)
+        .maybeSingle();
+      type LastReadEntry = { novelId: number; chapterId: number; timestamp: string };
+      const lastRead = (profile2?.last_read || {}) as Record<string, LastReadEntry>;
+      const mostRecent = Object.values(lastRead).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )[0];
+      if (mostRecent) {
+        const { data: simRows } = await supabase.rpc('get_similar_novels_by_readers', {
+          p_novel_id: mostRecent.novelId,
+          p_limit: 8,
+        });
+        const { data: baseNovel } = await supabase
+          .from('novels')
+          .select('title')
+          .eq('id', mostRecent.novelId)
+          .maybeSingle();
+        personalRecsBaseTitle = baseNovel?.title ?? null;
+
+        // Исключаем то, что уже в закладках или уже читал.
+        const bookmarks = profile2?.bookmarks;
+        const bookmarkSet = new Set<string>(
+          Array.isArray(bookmarks)
+            ? (bookmarks as string[])
+            : bookmarks && typeof bookmarks === 'object'
+            ? Object.keys(bookmarks as Record<string, unknown>)
+            : []
+        );
+        const readNovelIds = new Set(Object.values(lastRead).map((v) => v.novelId));
+
+        type SimRow = {
+          firebase_id: string;
+          title: string;
+          cover_url: string | null;
+          average_rating: number | null;
+          match_count: number;
+          id: number;
+        };
+        personalRecs = ((simRows ?? []) as SimRow[])
+          .filter((r) => !readNovelIds.has(r.id) && !bookmarkSet.has(r.firebase_id))
+          .slice(0, 6)
+          .map((r) => ({
+            firebase_id: r.firebase_id,
+            title: r.title,
+            cover_url: r.cover_url,
+            average_rating: r.average_rating ? Number(r.average_rating) : null,
+            match_reason: `${r.match_count} читателей оценили обе`,
+          }));
+      }
+    } catch {
+      // молча
+    }
+  }
+
   return (
     <main>
+      {/* Гостевой герой — только для незалогиненного посетителя */}
+      {!user && <HeroGuest />}
+
+      {/* Вкладки страны оригинала: Корея / Китай / Япония */}
+      <CountryTabs />
+
       {/* HERO: что реально читают прямо сейчас */}
       <ReadingNow items={readingNowItems} totalReadersNow={totalReadersNow} />
 
@@ -538,42 +744,63 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Новости админа */}
-      <LatestNews items={latestNews} unreadCount={unreadNewsCount} />
+      {/* ★ Топ недели — по рейтингу за последние 7 дней (про качество) */}
+      <TopOfWeek items={topOfWeek} />
 
-      {/* Журнал: статьи, обзоры, интервью */}
-      <JournalStrip items={journalItems} />
-
-      {/* 🔥 На волне — новеллы с самым активным темпом глав за неделю */}
+      {/* 🔥 На волне — по скорости выхода глав (про активность) */}
       <TrendingNovels items={trendingItems} />
 
-      {/* ✦ Звезда недели — переводчик с максимальным ростом */}
-      {starOfTheWeek && <StarOfTheWeek data={starOfTheWeek} />}
+      {/* ✦ Подборки от редакции */}
+      <CollectionsStrip items={collectionsPreview} />
 
-      {/* Цитата дня — случайная публичная */}
-      <QuoteOfTheDay quote={quoteOfTheDay} />
+      {/* Личные рекомендации (только если есть, на что опереться) */}
+      <PersonalRecs items={personalRecs} basedOnTitle={personalRecsBaseTitle} />
 
-      {/* Выбор по настроению */}
-      <MoodPicker />
+      {/* Выбор по настроению — теперь с превью обложек */}
+      <MoodPicker previews={moodPreviews} />
 
-      {/* Голосование за следующую новеллу */}
-      {pollData && (
-        <NovelPoll
-          pollId={pollData.id}
-          pollTitle={pollData.title}
-          pollDescription={pollData.description}
-          options={pollData.options}
-          myVoteOptionId={pollData.myVoteOptionId}
-          isAuthed={!!user}
-        />
-      )}
-
-      {/* Забытое */}
+      {/* Забытое и продолжить — личные секции залогиненного юзера */}
       <ForgottenNovels items={forgottenItems} />
-
       <ContinueReadingShelf items={continueItems} />
 
-      {/* Лента свежих комментариев */}
+      {/* «Жизнь Chaptify» — компактный community-блок: цитата, звезда,
+          опрос. На десктопе это 3-колоночная сетка, на мобильном —
+          стопкой. Заменяет три отдельные секции, которые раньше шли
+          подряд и растягивали страницу. */}
+      <section className="container section">
+        <div className="section-head">
+          <h2>Жизнь Chaptify</h2>
+          <Link href="/feed" className="more">
+            Активность сообщества →
+          </Link>
+        </div>
+        <div className="home-community-grid">
+          <div className="home-community-cell home-community-quote">
+            <QuoteOfTheDay quote={quoteOfTheDay} />
+          </div>
+          {starOfTheWeek && (
+            <div className="home-community-cell home-community-star">
+              <StarOfTheWeek data={starOfTheWeek} />
+            </div>
+          )}
+          {pollData && (
+            <div className="home-community-cell home-community-poll">
+              <NovelPoll
+                pollId={pollData.id}
+                pollTitle={pollData.title}
+                pollDescription={pollData.description}
+                options={pollData.options}
+                myVoteOptionId={pollData.myVoteOptionId}
+                isAuthed={!!user}
+              />
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Журнал, новости, лента комментариев — «редакторская» зона */}
+      <JournalStrip items={journalItems} />
+      <LatestNews items={latestNews} unreadCount={unreadNewsCount} />
       <CommentsFeed comments={commentsFeed} />
 
       {/* Популярное */}

@@ -26,6 +26,10 @@ interface CatalogParams {
   /** slug команды-переводчиков. Если задан — каталог фильтруется
       по novels.team_id = (id команды по slug). */
   team?: string;
+  /** Страна оригинала: kr / cn / jp / other. Совпадает с типом
+      Country из lib/admin. Используется на главной для быстрых
+      переходов «Корея / Китай / Япония». */
+  country?: string;
 }
 
 export default async function CatalogPage({
@@ -96,6 +100,10 @@ export default async function CatalogPage({
 
   if (params.age && ['6+', '12+', '16+', '18+'].includes(params.age)) {
     query = query.eq('age_rating', params.age);
+  }
+
+  if (params.country && ['kr', 'cn', 'jp', 'other'].includes(params.country)) {
+    query = query.eq('country', params.country);
   }
 
   // Для mood — только порог по рейтингу фильтруем в SQL (0 включаем).
@@ -171,14 +179,40 @@ export default async function CatalogPage({
     return qs ? `/catalog?${qs}` : '/catalog';
   };
 
+  // Заголовок и подзаголовок зависят от активных фильтров: mood → название
+  // настроения, country → страна оригинала, иначе — общий каталог.
+  const COUNTRY_TITLES: Record<string, { title: string; tagline: string }> = {
+    kr: {
+      title: 'Корейские новеллы',
+      tagline: 'Дорамы, ромфэнтези, школьные арки — то, что лучше всего вышло из Кореи.',
+    },
+    cn: {
+      title: 'Китайские новеллы',
+      tagline: 'Сянься, культивация, дворцовые интриги — масштабные истории Поднебесной.',
+    },
+    jp: {
+      title: 'Японские новеллы',
+      tagline: 'Исэкай, повседневность, мистика — то, чем славится японская проза.',
+    },
+    other: {
+      title: 'Другие страны',
+      tagline: 'Новеллы за пределами стандартной восточной тройки.',
+    },
+  };
+  const countryHeader = params.country ? COUNTRY_TITLES[params.country] ?? null : null;
+
   return (
     <main className="container">
-      {/* Заголовок + описание активного mood */}
+      {/* Заголовок + описание активного mood / страны */}
       <div className="catalog-header">
-        <h1>{mood ? mood.label : 'Каталог новелл'}</h1>
+        <h1>
+          {mood ? mood.label : countryHeader ? countryHeader.title : 'Каталог новелл'}
+        </h1>
         <p style={{ color: 'var(--ink-mute)', margin: '6px 0 0' }}>
           {mood
             ? mood.tagline
+            : countryHeader
+            ? countryHeader.tagline
             : 'Найди следующую любимую историю — по жанру, настроению или времени чтения.'}
         </p>
       </div>
@@ -198,7 +232,7 @@ export default async function CatalogPage({
             <div className="catalog-count">
               Найдено <strong>{totalCount}</strong>{' '}
               {pluralNovels(totalCount)}
-              {(params.genre || params.time || params.mood || params.status || teamFilter) && (
+              {(params.genre || params.time || params.mood || params.status || params.country || teamFilter) && (
                 <Link href="/catalog" className="more" style={{ marginLeft: 14 }}>
                   Сбросить фильтры
                 </Link>
