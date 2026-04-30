@@ -87,6 +87,7 @@ export default async function SiteHeader() {
             не громоздить 7 текстовых ссылок в один ряд. */}
         <nav className="main-nav" aria-label="Каталог и подборки">
           <Link href="/catalog">Каталог</Link>
+          <Link href="/collections">Подборки</Link>
           <Link href="/feed">Лента</Link>
           <Link href="/news" className="nav-with-badge">
             Новости
