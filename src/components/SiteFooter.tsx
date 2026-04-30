@@ -1,89 +1,72 @@
 import Link from 'next/link';
 
-// Подвал сайта. Состоит из двух зон:
-//
-// 1. Главная сетка: бренд (лого + строчка-таглайн) + три колонки ссылок
-//    (Каталог / Сообщество / Сервис). Заголовки колонок — small-caps с
-//    разрядкой, ссылки — мягкие, на hover уходят в --accent.
-//
-// 2. Нижняя строка: копирайт слева, юридические ссылки справа,
-//    разделена тонкой рамкой сверху.
+// Подвал в стиле книжного колофона: центрированный фронтиспис с лого,
+// краткий слоган в serif italic, орнаментальный разделитель «✦», ряд
+// основных навигационных ссылок через бул-точки и строка низа с
+// копирайтом и юр-ссылками. Без 4-колоночной сетки — на узких экранах
+// она выглядела дёшево и грузно.
+
+const PRIMARY_LINKS: Array<{ href: string; label: string }> = [
+  { href: '/catalog', label: 'Каталог' },
+  { href: '/feed', label: 'Лента' },
+  { href: '/news', label: 'Журнал' },
+  { href: '/translator/apply', label: 'Переводчикам' },
+  { href: '/help', label: 'Помощь' },
+];
+
+const LEGAL_LINKS: Array<{ href: string; label: string }> = [
+  { href: '/terms', label: 'Условия' },
+  { href: '/privacy', label: 'Конфиденциальность' },
+  { href: '/cookies', label: 'Cookies' },
+];
 
 export default function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
     <footer className="site-footer">
-      <div className="container site-footer-grid">
-        <div className="site-footer-brand">
-          <Link href="/" className="logo" aria-label="Chaptify">
-            <div className="logo-mark">C</div>
-            Chaptify
-          </Link>
-          <p className="site-footer-tagline">
-            Корейские, китайские, японские новеллы —
-            <br />
-            глава за главой, в темпе остывающего чая.
-          </p>
+      <div className="container site-footer-colophon">
+        <Link href="/" className="site-footer-mark" aria-label="Chaptify">
+          <span className="site-footer-mark-square" aria-hidden="true">C</span>
+          <span className="site-footer-mark-name">Chaptify</span>
+        </Link>
+
+        <p className="site-footer-tagline">
+          Азиатские новеллы по-русски —
+          <br />
+          главами, в человеческом переводе.
+        </p>
+
+        <div className="site-footer-ornament" aria-hidden="true">
+          <span className="site-footer-ornament-rule" />
+          <span className="site-footer-ornament-glyph">✦</span>
+          <span className="site-footer-ornament-rule" />
         </div>
 
-        <nav className="site-footer-col" aria-label="Каталог">
-          <h4 className="site-footer-head">Каталог</h4>
-          <ul className="site-footer-links">
-            <li>
-              <Link href="/catalog?sort=new">Новинки</Link>
-            </li>
-            <li>
-              <Link href="/catalog">По жанрам</Link>
-            </li>
-            <li>
-              <Link href="/catalog">Подборки</Link>
-            </li>
-            <li>
-              <Link href="/catalog">Авторы</Link>
-            </li>
-          </ul>
+        <nav className="site-footer-primary" aria-label="Основная навигация">
+          {PRIMARY_LINKS.map((l, i) => (
+            <span key={l.href} className="site-footer-primary-item">
+              {i > 0 && <span className="site-footer-dot" aria-hidden="true">·</span>}
+              <Link href={l.href}>{l.label}</Link>
+            </span>
+          ))}
         </nav>
 
-        <nav className="site-footer-col" aria-label="Сообщество">
-          <h4 className="site-footer-head">Сообщество</h4>
-          <ul className="site-footer-links">
-            <li>
-              <Link href="/feed">Лента</Link>
-            </li>
-            <li>
-              <Link href="/translator/apply">Переводчикам</Link>
-            </li>
-            <li>
-              <Link href="/help">Помощь</Link>
-            </li>
-          </ul>
-        </nav>
-
-        <nav className="site-footer-col" aria-label="Сервис">
-          <h4 className="site-footer-head">Сервис</h4>
-          <ul className="site-footer-links">
-            <li>
-              <Link href="/about">О проекте</Link>
-            </li>
-            <li>
-              <Link href="/contacts">Контакты</Link>
-            </li>
-            <li>
-              <Link href="/rules">Правила</Link>
-            </li>
-          </ul>
-        </nav>
-      </div>
-
-      <div className="container site-footer-bottom">
-        <div className="site-footer-copy">
-          © {year} Chaptify · Спокойного чтения
-        </div>
-        <div className="site-footer-legal">
-          <Link href="/terms">Условия</Link>
-          <Link href="/privacy">Конфиденциальность</Link>
-          <Link href="/cookies">Cookies</Link>
+        <div className="site-footer-tail">
+          <span className="site-footer-copy">
+            © {year} Chaptify · переводы от{' '}
+            <Link href="https://tene.fun" className="site-footer-by">
+              tene.fun
+            </Link>
+          </span>
+          <nav className="site-footer-legal" aria-label="Юридическая информация">
+            {LEGAL_LINKS.map((l, i) => (
+              <span key={l.href} className="site-footer-legal-item">
+                {i > 0 && <span className="site-footer-dot" aria-hidden="true">·</span>}
+                <Link href={l.href}>{l.label}</Link>
+              </span>
+            ))}
+          </nav>
         </div>
       </div>
     </footer>

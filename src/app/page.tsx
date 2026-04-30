@@ -14,7 +14,6 @@ import QuoteOfTheDay, { type QuoteItem } from '@/components/home/QuoteOfTheDay';
 import TrendingNovels, { type TrendingNovel } from '@/components/home/TrendingNovels';
 import StarOfTheWeek, { type StarOfTheWeekData } from '@/components/home/StarOfTheWeek';
 import HeroGuest from '@/components/home/HeroGuest';
-import CountryTabs from '@/components/home/CountryTabs';
 import TopOfWeek, { type TopOfWeekItem } from '@/components/home/TopOfWeek';
 import CollectionsStrip, { type CollectionPreview } from '@/components/home/CollectionsStrip';
 import PersonalRecs, { type RecommendedNovel } from '@/components/home/PersonalRecs';
@@ -345,20 +344,31 @@ export default async function HomePage() {
     // миграция 015 не накачена — блок тихо не рендерится
   }
 
-  // ---- Цитата дня ----
-  let quoteOfTheDay: QuoteItem | null = null;
+  // ---- Цитаты дня: до 3-х случайных публичных цитат для community-полосы.
+  // RPC возвращает по одной случайной — дёргаем три раза параллельно
+  // и дедуплицируем по id. Если получилось меньше 3-х (мало цитат в БД)
+  // — отрисуем сколько есть.
+  let quotesOfTheDay: QuoteItem[] = [];
   try {
-    const { data: quoteRows } = await supabase.rpc('random_public_quote');
-    const q = Array.isArray(quoteRows) ? quoteRows[0] : null;
-    if (q) {
-      quoteOfTheDay = {
-        id: q.id,
-        quote_text: q.quote_text,
-        chapter_number: q.chapter_number,
-        author_name: q.author_name,
-        novel_title: q.novel_title,
-        novel_firebase_id: q.novel_firebase_id,
-      };
+    const triple = await Promise.all([
+      supabase.rpc('random_public_quote'),
+      supabase.rpc('random_public_quote'),
+      supabase.rpc('random_public_quote'),
+    ]);
+    const seen = new Set<number>();
+    for (const { data } of triple) {
+      const q = Array.isArray(data) ? data[0] : null;
+      if (q && !seen.has(q.id)) {
+        seen.add(q.id);
+        quotesOfTheDay.push({
+          id: q.id,
+          quote_text: q.quote_text,
+          chapter_number: q.chapter_number,
+          author_name: q.author_name,
+          novel_title: q.novel_title,
+          novel_firebase_id: q.novel_firebase_id,
+        });
+      }
     }
   } catch {
     // миграция 014 не накачена
@@ -692,9 +702,6 @@ export default async function HomePage() {
       {/* Гостевой герой — только для незалогиненного посетителя */}
       {!user && <HeroGuest />}
 
-      {/* Вкладки страны оригинала: Корея / Китай / Япония */}
-      <CountryTabs />
-
       {/* HERO: что реально читают прямо сейчас */}
       <ReadingNow items={readingNowItems} totalReadersNow={totalReadersNow} />
 
@@ -763,40 +770,38 @@ export default async function HomePage() {
       <ForgottenNovels items={forgottenItems} />
       <ContinueReadingShelf items={continueItems} />
 
-      {/* «Жизнь Chaptify» — компактный community-блок: цитата, звезда,
-          опрос. На десктопе это 3-колоночная сетка, на мобильном —
-          стопкой. Заменяет три отдельные секции, которые раньше шли
-          подряд и растягивали страницу. */}
-      <section className="container section">
-        <div className="section-head">
-          <h2>Жизнь Chaptify</h2>
-          <Link href="/feed" className="more">
-            Активность сообщества →
-          </Link>
-        </div>
-        <div className="home-community-grid">
-          <div className="home-community-cell home-community-quote">
-            <QuoteOfTheDay quote={quoteOfTheDay} />
+      {/* Цитаты дня — 3 коротких карточки в полосу, читателей и оригинал.
+          Атмосферная вставка между утилитарными блоками. */}
+      {quotesOfTheDay.length > 0 && (
+        <section className="container section">
+          <div className="section-head">
+            <h2>На полях книг</h2>
+            <span className="more" style={{ cursor: 'default' }}>
+              {quotesOfTheDay.length === 1 ? 'цитата дня' : 'цитаты дня'}
+            </span>
           </div>
-          {starOfTheWeek && (
-            <div className="home-community-cell home-community-star">
-              <StarOfTheWeek data={starOfTheWeek} />
-            </div>
-          )}
-          {pollData && (
-            <div className="home-community-cell home-community-poll">
-              <NovelPoll
-                pollId={pollData.id}
-                pollTitle={pollData.title}
-                pollDescription={pollData.description}
-                options={pollData.options}
-                myVoteOptionId={pollData.myVoteOptionId}
-                isAuthed={!!user}
-              />
-            </div>
-          )}
-        </div>
-      </section>
+          <div className="quotes-strip">
+            {quotesOfTheDay.map((q) => (
+              <QuoteOfTheDay key={q.id} quote={q} compact />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ✦ Звезда недели — переводчик с максимальным ростом */}
+      {starOfTheWeek && <StarOfTheWeek data={starOfTheWeek} />}
+
+      {/* Голосование за следующую новеллу */}
+      {pollData && (
+        <NovelPoll
+          pollId={pollData.id}
+          pollTitle={pollData.title}
+          pollDescription={pollData.description}
+          options={pollData.options}
+          myVoteOptionId={pollData.myVoteOptionId}
+          isAuthed={!!user}
+        />
+      )}
 
       {/* Журнал, новости, лента комментариев — «редакторская» зона */}
       <JournalStrip items={journalItems} />
