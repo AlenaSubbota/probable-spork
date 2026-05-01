@@ -73,7 +73,7 @@ export default function DeleteAccountSection({ userName }: Props) {
     // Сразу разлогиниваем — после анонимизации сессия по факту
     // ничего не значит, не хочется, чтобы юзер видел свой кастрированный
     // профиль и пугался.
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'global' });
     router.push('/');
   };
 

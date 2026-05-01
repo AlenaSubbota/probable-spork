@@ -35,6 +35,52 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  // Security headers. CSP — defense-in-depth для UGC HTML (описания,
+  // главы, новости). При найденной XSS он не даст утянуть данные на
+  // attacker.com и блокирует inline-script в загруженной главе.
+  // 'unsafe-inline' для style-src оставлен — Next встраивает критический
+  // CSS как inline; если нужно ужесточить, генерь nonce в middleware.
+  async headers() {
+    const supabaseHost = (() => {
+      try {
+        return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname;
+      } catch {
+        return '';
+      }
+    })();
+    const csp = [
+      "default-src 'self'",
+      // Next дёргает inline-bootstrap, оставляем 'unsafe-inline' для script
+      // и 'unsafe-eval' для dev-mode HMR. На проде HMR нет, но React Server
+      // Components в Next 16 могут тащить eval в каких-то корнер-кейсах —
+      // безопаснее держать здесь, чем сломать прод.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org",
+      "style-src 'self' 'unsafe-inline'",
+      `img-src 'self' data: blob: ${supabaseHost ? `https://${supabaseHost}` : ''} https://tene.fun https://chaptify.ru https://t.me`.trim(),
+      `connect-src 'self' ${supabaseHost ? `https://${supabaseHost} wss://${supabaseHost}` : ''} https://tene.fun`.trim(),
+      "font-src 'self' data:",
+      "frame-src 'self' https://oauth.telegram.org https://t.me",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ');
+
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: csp },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

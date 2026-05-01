@@ -53,7 +53,10 @@ export default function UserMenu({
     if (!confirm('Выйти из аккаунта?')) return;
     setBusy(true);
     const supabase = createClient();
-    await supabase.auth.signOut();
+    // scope: 'global' инвалидирует refresh_token на сервере Supabase —
+    // если он ранее утёк (XSS, расширение, бэкап с диска), злоумышленник
+    // не сможет продолжать пользоваться сессией после нашего logout.
+    await supabase.auth.signOut({ scope: 'global' });
     // Hard reload — SSR рендер layout увидит очищенные cookies
     window.location.href = '/';
     router.refresh();

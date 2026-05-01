@@ -50,29 +50,27 @@ export async function GET(
 
   const forceGenerate = req.nextUrl.searchParams.get('gen') === '1';
 
-  // Режим 1: готовый файл из novels.epub_path
+  // Режим 1: готовый файл из novels.epub_path.
+  // ВАЖНО: bucket жёстко 'epub', key обязан начинаться с `${novel.id}/`.
+  // Иначе переводчик через подмену epub_path может либо открытый редирект
+  // на свой URL, либо тянуть signed-URL на чужие файлы из chapter_content
+  // (paywall bypass). Прибитый bucket + scoping по novel.id это закрывают.
   if (novel.epub_path && !forceGenerate) {
-    const path = String(novel.epub_path).trim();
-    if (/^https?:\/\//i.test(path)) {
-      return NextResponse.redirect(path);
+    const raw = String(novel.epub_path).trim();
+    // отбрасываем full URL и path traversal
+    if (!/^https?:\/\//i.test(raw)) {
+      const key = raw.replace(/^\/+/, '').replace(/^epub\//, '');
+      const expectedPrefix = `${novel.id}/`;
+      if (key.startsWith(expectedPrefix) && !key.includes('..')) {
+        const { data: signed, error } = await supabase.storage
+          .from('epub')
+          .createSignedUrl(key, 60, { download: `${novel.title}.epub` });
+        if (!error && signed?.signedUrl) {
+          return NextResponse.redirect(signed.signedUrl);
+        }
+      }
     }
-    let bucket = 'epub';
-    let key = path.replace(/^\/+/, '');
-    const slashIdx = key.indexOf('/');
-    if (
-      slashIdx > 0 &&
-      ['epub', 'chapter_content', 'covers'].includes(key.slice(0, slashIdx))
-    ) {
-      bucket = key.slice(0, slashIdx);
-      key = key.slice(slashIdx + 1);
-    }
-    const { data: signed, error } = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(key, 60, { download: `${novel.title}.epub` });
-    if (!error && signed?.signedUrl) {
-      return NextResponse.redirect(signed.signedUrl);
-    }
-    // если не получилось — падаем в on-demand
+    // если путь некорректен или signed-url не получили — идём в on-demand
   }
 
   // Режим 2: on-demand сборка по уровню доступа
@@ -161,9 +159,20 @@ export async function GET(
         if (!c.content_path) {
           return { number: c.chapter_number, html: '<p><em>Текст отсутствует.</em></p>' };
         }
+        // defense-in-depth: путь главы должен жить в каталоге своей новеллы
+        // (большинство в `${novel.id}/...` или `${firebase_id}/...`),
+        // и без path traversal. Иначе переводчик через UPDATE chapter
+        // мог бы тянуть файл из чужой новеллы.
+        const cp = String(c.content_path);
+        const okPrefix =
+          cp.startsWith(`${novel.id}/`) ||
+          (novel.firebase_id && cp.startsWith(`${novel.firebase_id}/`));
+        if (!okPrefix || cp.includes('..')) {
+          return { number: c.chapter_number, html: '<p><em>Недопустимый путь.</em></p>' };
+        }
         const { data: file } = await supabase.storage
           .from('chapter_content')
-          .download(c.content_path);
+          .download(cp);
         if (!file) {
           return { number: c.chapter_number, html: '<p><em>Не удалось загрузить.</em></p>' };
         }
@@ -174,22 +183,39 @@ export async function GET(
     fetched.push(...results);
   }
 
-  // Обложка — если cover_url это http(s), скачаем.
+  // Обложка: тянем только если URL https и хост — наш Supabase Storage.
+  // Иначе SSRF: переводчик через cover_url может заставить сервер сходить
+  // на http://169.254.169.254 (cloud metadata), localhost-сервисы и т.п.
   let coverBytes: Uint8Array | null = null;
   let coverContentType: string | null = null;
   if (novel.cover_url) {
     try {
-      const coverUrl = /^https?:\/\//i.test(novel.cover_url)
-        ? novel.cover_url
-        : null;
-      if (coverUrl) {
-        const res = await fetch(coverUrl);
+      const u = new URL(novel.cover_url);
+      const supabaseHost = new URL(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!
+      ).hostname;
+      const allowedHosts = new Set([
+        supabaseHost,
+        'tene.fun',
+        'chaptify.ru',
+      ]);
+      if (
+        u.protocol === 'https:' &&
+        allowedHosts.has(u.hostname) &&
+        !/^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname)
+      ) {
+        const res = await fetch(u.toString(), {
+          signal: AbortSignal.timeout(5000),
+        });
         if (res.ok) {
           const ct = res.headers.get('content-type') ?? 'image/jpeg';
-          if (ct.startsWith('image/')) {
+          const len = Number(res.headers.get('content-length') ?? 0);
+          if (ct.startsWith('image/') && len < 5_000_000) {
             const buf = new Uint8Array(await res.arrayBuffer());
-            coverBytes = buf;
-            coverContentType = ct;
+            if (buf.byteLength < 5_000_000) {
+              coverBytes = buf;
+              coverContentType = ct;
+            }
           }
         }
       }

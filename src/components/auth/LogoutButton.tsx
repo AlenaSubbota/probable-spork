@@ -23,7 +23,7 @@ export default function LogoutButton({
     if (!confirm('Выйти из аккаунта?')) return;
     setBusy(true);
     const supabase = createClient();
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'global' });
     // Используем полный редирект чтобы гарантировать очистку всех
     // кэшей RSC/layout.
     window.location.href = '/';

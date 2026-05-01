@@ -24,26 +24,46 @@ export default function AuthCallbackPage() {
       const supabase = createClient();
       const url = new URL(window.location.href);
       const code = url.searchParams.get('code');
-      const next = url.searchParams.get('next') || '/';
+      const rawNext = url.searchParams.get('next') || '/';
+
+      // Защита от open-redirect: next должен быть only-relative.
+      // Без проверки `?next=//evil.com` или `?next=https://evil.com`
+      // уносит залогиненного юзера на фишинг.
+      const next =
+        rawNext.startsWith('/') &&
+        !rawNext.startsWith('//') &&
+        !rawNext.startsWith('/\\')
+          ? rawNext
+          : '/';
+
+      // Перед свежим OAuth-входом инвалидируем любую старую сессию,
+      // чтобы избежать code-injection: атакующий навёл жертву на
+      // /?code=ATTACKER_CODE&next=/admin/... — если у жертвы была
+      // старая сессия, её можно было бы редиректнуть туда под старым
+      // юзером. signOut без await — если падёт, не блокируем exchange.
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
 
       // @supabase/ssr browser-client при создании сам видит ?code= в URL
-      // и делает exchangeCodeForSession автоматически (detectSessionInUrl
-      // включён по умолчанию). Наш ручной exchange ниже — подстраховка
-      // на случай если автоматический не прошёл: если сессия уже есть —
-      // ручной вернёт ошибку 'code already used', её игнорируем.
+      // и делает exchangeCodeForSession автоматически. Наш ручной exchange
+      // ниже — фолбэк. Ошибки логируем, чтобы не пропустить replay/чужой
+      // code, но в UI остаёмся тихими.
+      let exchangeOk = false;
       if (code) {
-        await supabase.auth.exchangeCodeForSession(code).catch(() => {
-          // молча — проверим итог через getSession ниже
-        });
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          console.warn('[auth/callback] exchange failed:', error.message);
+        } else {
+          exchangeOk = true;
+        }
       }
 
       // Даём auth-events долететь (setSession асинхронно пишет cookie)
       await new Promise((r) => setTimeout(r, 100));
 
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Hard reload — SSR увидит свежую auth-cookie и отрендерит шапку
-        // с профилем вместо гостевых кнопок.
+      // Сессия валидна ТОЛЬКО если этот вход прошёл exchange успешно.
+      // Иначе возможна старая сессия, не относящаяся к текущему code.
+      if (session && (exchangeOk || !code)) {
         window.location.href = next;
       } else {
         setMessage('Не удалось войти. Перенаправляем…');

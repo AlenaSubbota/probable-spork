@@ -46,8 +46,17 @@ export default function AvatarPicker({
   // ---- Файл upload ----
   const handleFile = async (file: File) => {
     setError(null);
-    if (!file.type.startsWith('image/')) {
-      setError('Нужен файл-картинка (jpg, png, webp).');
+    // Whitelist именно растровых форматов. SVG исключён намеренно:
+    // SVG может содержать <script>, и при отдаче на same-origin
+    // (`/sb-storage/...`) исполнится в DOM как XSS.
+    const ALLOWED_MIME: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+    };
+    const safeExt = ALLOWED_MIME[file.type];
+    if (!safeExt) {
+      setError('Нужен файл-картинка: jpg, png или webp.');
       return;
     }
     if (file.size > 3 * 1024 * 1024) {
@@ -56,8 +65,9 @@ export default function AvatarPicker({
     }
     setUploading(true);
     const supabase = createClient();
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    // расширение берём строго из MIME, не из user-supplied filename —
+    // иначе .svg/.html прокатывает мимо проверки.
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
     const { error: upErr } = await supabase.storage
       .from('avatars')
       .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
@@ -126,7 +136,7 @@ export default function AvatarPicker({
           <input
             ref={inputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
