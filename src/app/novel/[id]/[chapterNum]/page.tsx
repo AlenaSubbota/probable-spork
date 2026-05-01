@@ -293,9 +293,10 @@ export default async function ChapterPage({ params }: PageProps) {
   const shouldUseProxy = !user && !chapter.is_paid && !!chapter.content_path;
 
   // Обёртка для inline-сообщения «не удалось загрузить» — показывает
-  // короткий текст + ссылку «Попробовать снова» (просто перезагружает
-  // страницу). Раньше при сетевом сбое читатель видел лишь красную
-  // строку и не знал, что можно retry'ить.
+  // короткий текст + button «Попробовать снова». Раньше тут был
+  // <a href=""> который в Chrome навигировал на корень / просто
+  // менял URL без перезагрузки — retry не работал. Теперь
+  // настоящий <button onclick="location.reload()">.
   const renderLoadError = (
     title: string,
     detail?: string,
@@ -305,7 +306,7 @@ export default async function ChapterPage({ params }: PageProps) {
       ? `<div class="chapter-load-error-detail">${escapeHtml(detail)}</div>`
       : '';
     const retry = showRetry
-      ? '<a href="" class="btn btn-ghost" style="margin-top:12px">↻ Попробовать снова</a>'
+      ? '<button type="button" class="btn btn-ghost" style="margin-top:12px" onclick="location.reload()">↻ Попробовать снова</button>'
       : '';
     return `<div class="chapter-load-error"><strong>${escapeHtml(title)}</strong>${safeDetail}${retry}</div>`;
   };
