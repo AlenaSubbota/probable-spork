@@ -59,11 +59,17 @@ export default function ReaderBottomBar({
   const atLastPage = isPages ? currentPage >= totalPages - 1 : true;
 
   // Куда ведёт кнопка ◀: либо на предыдущую страницу (pages, не первая),
-  // либо на предыдущую главу (?end=1 — стартуем там с конца).
+  // либо на предыдущую главу. ?end=1 (стартуем там с конца) только в
+  // pages-режиме, где переход «назад» = «продолжить листать справа
+  // налево». В scroll-режиме читатель ожидает, что прошлая глава
+  // откроется с заголовка, а не у самого низа — иначе непонятно,
+  // куда листать дальше.
   const prevHref =
     !isPages || atFirstPage
       ? prevChapterNumber !== null && novelFirebaseId
-        ? `/novel/${novelFirebaseId}/${prevChapterNumber}?end=1`
+        ? isPages
+          ? `/novel/${novelFirebaseId}/${prevChapterNumber}?end=1`
+          : `/novel/${novelFirebaseId}/${prevChapterNumber}`
         : null
       : null;
 
