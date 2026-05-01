@@ -3,6 +3,20 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
 
+  // ВАЖНО: isomorphic-dompurify тащит внутри себя dompurify, у которого
+  // в исходниках 5 свободных ссылок на `Element` (DOM-глобал). Когда Next
+  // в режиме `output:'standalone'` бандлит этот пакет в server bundle,
+  // ссылки на `Element` остаются необвязанными — на сервере глобала нет,
+  // и при первом же рендере страницы с sanitizeUgcHtml падает
+  // `ReferenceError: Element is not defined`. Это вылезло после того, как
+  // chapter/novel/news начали санитизироваться SSR-side.
+  //
+  // serverExternalPackages говорит Next: не упаковывай эти пакеты в bundle,
+  // оставь обычный require() из node_modules — тогда jsdom (он в Next-ском
+  // auto-extern листе) подтянется со своими DOM-глобалами и DOMPurify
+  // заработает корректно.
+  serverExternalPackages: ['isomorphic-dompurify', 'dompurify'],
+
   // Проксируем картинки обложек и аватарок с легаси-домена tene.fun
   // через chaptify.ru. Safari desktop-у плохо резолвится /связывается
   // с tene.fun (DNS/TLS/ITP пакет блокирует ресурсы до одномашинного
