@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
@@ -7,6 +8,65 @@ import MarkSeenOnMount from '../MarkSeenOnMount';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+function stripHtmlToPlain(html: string | null | undefined, max = 200): string {
+  if (!html) return '';
+  const text = String(html)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1).trimEnd() + '…';
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const numId = parseInt(id, 10);
+  if (isNaN(numId)) {
+    return { title: 'Новость не найдена', robots: { index: false, follow: false } };
+  }
+
+  const supabase = await createClient();
+  const { data: news } = await supabase
+    .from('news_posts')
+    .select('title, subtitle, body, cover_url, is_published, published_at')
+    .eq('id', numId)
+    .maybeSingle();
+
+  if (!news) {
+    return { title: 'Новость не найдена', robots: { index: false, follow: false } };
+  }
+
+  const title = news.title || 'Новость';
+  const description =
+    news.subtitle?.trim() || stripHtmlToPlain(news.body, 200) || 'Новости и журнал Chaptify';
+  const images = news.cover_url ? [{ url: news.cover_url }] : undefined;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      type: 'article',
+      title,
+      description,
+      images,
+      publishedTime: news.published_at ?? undefined,
+    },
+    twitter: {
+      card: images ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      images: images ? images.map((i) => i.url) : undefined,
+    },
+    robots: news.is_published ? undefined : { index: false, follow: false },
+  };
 }
 
 export default async function SingleNewsPage({ params }: PageProps) {
