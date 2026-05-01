@@ -1,7 +1,12 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Используем `npm install` вместо `npm ci`, потому что lockfile может
+# слегка отставать от package.json (например после ручного редактирования
+# зависимостей через PR). npm install терпит расхождение и достроит
+# lockfile inside-container. Минус: чуть медленнее, плюс: build не падает
+# на checksum mismatch.
+RUN npm install --no-audit --no-fund
 
 FROM node:20-alpine AS build
 WORKDIR /app

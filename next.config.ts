@@ -3,17 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
 
-  // НЕ ТРОГАТЬ без понимания: попытка вернуть DOMPurify через
-  // isomorphic-dompurify ломает прод. dompurify имеет 5 свободных
-  // ссылок на DOM-глобал `Element`; в Next 16 + output:'standalone'
-  // standalone-build вшивает пакет в server bundle ИГНОРИРУЯ
-  // serverExternalPackages — `Element` остаётся unbound и каждая
-  // SSR-страница с sanitizeUgcHtml валится `ReferenceError: Element
-  // is not defined`. История: коммиты d058d3d → 8b0d3da → 43b6719.
-  // Сейчас sanitize.ts использует regex-стриппер, без DOMPurify —
-  // serverExternalPackages здесь как страховка на случай если
-  // санитайзер заменят обратно.
-  serverExternalPackages: ['isomorphic-dompurify', 'dompurify'],
+  // ВНИМАНИЕ: НЕ возвращай isomorphic-dompurify / DOMPurify в зависимости.
+  // dompurify имеет 5 свободных ссылок на DOM-глобал `Element`; в Next 16
+  // + output:'standalone' standalone-build вшивает пакет в server bundle
+  // ИГНОРИРУЯ serverExternalPackages — `Element` остаётся unbound и каждая
+  // SSR-страница с sanitizeUgcHtml валится `ReferenceError: Element is not
+  // defined`. История: коммиты d058d3d → 8b0d3da → 43b6719. Сейчас санитайзер
+  // (src/lib/sanitize.ts) использует sanitize-html — pure JS, htmlparser2,
+  // без DOM-глобалов.
 
   // Проксируем картинки обложек и аватарок с легаси-домена tene.fun
   // через chaptify.ru. Safari desktop-у плохо резолвится /связывается

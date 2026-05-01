@@ -41,7 +41,7 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
 export function cleanHtml(input: string): string {
   if (!input) return '';
   if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
-    // На SSR DOMParser недоступен — fallback на серверный регекс-санитайзер.
+    // На SSR DOMParser недоступен — fallback на серверный санитайзер.
     return sanitizeUgcHtml(input);
   }
 
@@ -241,77 +241,112 @@ function escapeHtml(s: string): string {
 }
 
 // -----------------------------------------------------------
-// АВАРИЙНЫЙ серверный санитайзер UGC HTML.
+// Серверный санитайзер UGC HTML.
 //
 // История:
-//   - Изначально на сервере использовался isomorphic-dompurify (DOMPurify+jsdom).
-//   - В Next 16 + output:'standalone' DOMPurify попадал в server bundle
-//     с unbounded ссылкой на DOM-глобал `Element`. На сервере глобала нет
-//     → `ReferenceError: Element is not defined` на КАЖДОМ SSR-рендере
-//     страниц с UGC (новелла, глава, новость, модерация). Прод лежал.
-//   - serverExternalPackages в next.config.ts не помог: standalone-build
-//     всё равно вшивал DOMPurify в bundle.
+//   - v1: isomorphic-dompurify → в Next 16 standalone build вшивал
+//     dompurify в server-bundle с unbounded ссылкой на DOM-глобал
+//     `Element`. Прод падал `ReferenceError: Element is not defined`.
+//     serverExternalPackages не помог. Коммиты d058d3d / 8b0d3da.
+//   - v2: regex-стриппер (43b6719). Работал, но слабый против
+//     обфусцированных XSS (HTML-сущности, unicode, вложенные
+//     <scr<script>ipt>, mixed-case атрибуты).
+//   - v3 (эта): sanitize-html — pure JS, использует htmlparser2,
+//     без DOM-глобалов. Покрывает обфускацию через настоящий парсер,
+//     гарантированно работает в Node-bundle.
 //
-// Эта ревизия — выкинули DOMPurify полностью, заменили на regex-стриппер.
-// Слабее, чем DOMPurify, но:
-//   - Не зависит от DOM-глобалов, гарантированно работает в Node-bundle.
-//   - Покрывает основные XSS-векторы: <script>, <iframe>, <object>,
-//     <embed>, <link>, <meta>, <form>, <svg>, <noscript>, <style>,
-//     <template>, on*-handlers, javascript:/vbscript:/data:/file:/about:/
-//     blob:-URL-схемы, HTML-комментарии (включая conditional comments).
-//   - Translator UGC у нас обычно cleanHtml() прогнан клиентом до сабмита,
-//     то есть «грязный» HTML на сервере встречается редко.
-//
-// План на «нормальный» фикс:
-//   - Перейти на `sanitize-html` (pure JS, без jsdom, без DOM-глобалов),
-//     ИЛИ настроить DOMPurify через ручной jsdom-instance (без
-//     isomorphic-dompurify).
-//   - Покрыть тестами bypass-векторы.
+// Whitelist подобран под существующий редактор (тот же KEEP_TAGS) +
+// сноски/details. Защита javascript:-схем — через allowedSchemes.
+// CSP в next.config.ts закрывает defense-in-depth.
 // -----------------------------------------------------------
 
-const STRIP_TAGS_RE =
-  /<(script|style|iframe|object|embed|noscript|form|template|svg)\b[^>]*>[\s\S]*?<\/\1>/gi;
+import sanitizeHtml from 'sanitize-html';
 
-const VOID_DANGEROUS_RE = /<(meta|link|base|input|button|frame|frameset)\b[^>]*\/?>/gi;
+const ALLOWED_CLASS_TOKENS_FOR_TAG: Record<string, Set<string>> = {
+  p:   new Set(['fn-inline']),
+  sup: new Set(['fn-ref']),
+};
 
-// on*-обработчики в атрибутах: onclick, onerror, ontoggle, onload и т.п.
-const ON_ATTR_RE = /\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi;
+function filterClassId(
+  attribs: Record<string, string>,
+  tag: 'p' | 'sup',
+): Record<string, string> {
+  const out: Record<string, string> = { ...attribs };
 
-// Опасные URL-схемы внутри атрибутов href/src/action и т.д.
-const DANGEROUS_URL_RE = /\b(?:javascript|vbscript|data|file|about|blob)\s*:/gi;
+  if (out.class) {
+    const allowed = ALLOWED_CLASS_TOKENS_FOR_TAG[tag];
+    const tokens = out.class.split(/\s+/).filter((t) => allowed.has(t));
+    if (tokens.length > 0) out.class = tokens.join(' ');
+    else delete out.class;
+  }
 
-// Голые открывающие теги опасных элементов без закрытия.
-const ORPHAN_OPEN_TAG_RE =
-  /<(script|iframe|object|embed|svg|form|noscript|style|template)\b[^>]*>/gi;
+  if (out.id) {
+    // id для якоря сноски: только формат fn-N
+    if (!(tag === 'p' && /^fn-\d+$/.test(out.id))) delete out.id;
+  }
+
+  return out;
+}
+
+const UGC_OPTIONS: sanitizeHtml.IOptions = {
+  allowedTags: [
+    'p', 'br', 'strong', 'em', 'u', 's', 'h3',
+    'blockquote', 'details', 'summary', 'sup',
+    // ссылки в описаниях/новостях
+    'a',
+    // картинки в новостях/описаниях
+    'img', 'figure', 'figcaption',
+  ],
+  allowedAttributes: {
+    p:    ['style', 'class', 'id'],
+    h3:   ['style'],
+    sup:  ['class', 'data-fn-id', 'data-fn-text'],
+    a:    ['href', 'target', 'rel'],
+    img:  ['src', 'alt', 'title', 'width', 'height', 'loading', 'decoding'],
+  },
+  // Только http/https/mailto. Запрещены javascript:, vbscript:, data:,
+  // file:, about:, blob:. Без явного списка sanitize-html по дефолту
+  // допускает много схем (включая ftp), мы ужимаем.
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
+  // Запрещаем protocol-relative `//evil.com` (по дефолту разрешено).
+  allowProtocolRelative: false,
+  // Style: только text-align:center на <p>/<h3>.
+  allowedStyles: {
+    p:  { 'text-align': [/^center$/] },
+    h3: { 'text-align': [/^center$/] },
+  },
+  selfClosing: ['img', 'br'],
+  // Парсим style-атрибут чтобы фильтровать через allowedStyles.
+  parseStyleAttributes: true,
+  // Опасные теги вырезаем ВМЕСТЕ с содержимым (по дефолту sanitize-html
+  // сохраняет text внутри <script>!).
+  disallowedTagsMode: 'discard',
+  transformTags: {
+    a: (tagName, attribs) => {
+      const out: Record<string, string> = { ...attribs };
+      if (out.target === '_blank') {
+        // Принудительный rel=noopener против reverse tab-nabbing.
+        out.rel = 'noopener noreferrer';
+      } else {
+        delete out.target;
+      }
+      return { tagName, attribs: out };
+    },
+    p: (tagName, attribs) => ({ tagName, attribs: filterClassId(attribs, 'p') }),
+    sup: (tagName, attribs) => ({ tagName, attribs: filterClassId(attribs, 'sup') }),
+    img: (tagName, attribs) => {
+      const out: Record<string, string> = { ...attribs };
+      if (!out.loading) out.loading = 'lazy';
+      if (!out.decoding) out.decoding = 'async';
+      return { tagName, attribs: out };
+    },
+  },
+};
 
 export function sanitizeUgcHtml(input: string | null | undefined): string {
   if (!input) return '';
-  let s = String(input);
-
-  // 1. Уносим целиком опасные блоки с содержимым (несколько проходов
-  //    на случай вложенности).
-  for (let i = 0; i < 3; i++) {
-    const before = s;
-    s = s.replace(STRIP_TAGS_RE, '');
-    if (s === before) break;
-  }
-
-  // 2. Void-теги типа <meta>, <link>.
-  s = s.replace(VOID_DANGEROUS_RE, '');
-
-  // 3. on*-обработчики со всех тегов.
-  s = s.replace(ON_ATTR_RE, '');
-
-  // 4. Опасные URL-схемы → пустая строка. Ловим в любом контексте.
-  s = s.replace(DANGEROUS_URL_RE, '');
-
-  // 5. Голые открывающие теги без закрытия (битый HTML).
-  s = s.replace(ORPHAN_OPEN_TAG_RE, '');
-
-  // 6. HTML-комментарии (могут содержать conditional <!--[if IE]>...).
-  s = s.replace(/<!--[\s\S]*?-->/g, '');
-
-  return s;
+  return sanitizeHtml(String(input), UGC_OPTIONS);
 }
 
 // Только http/https/anchor и path-relative БЕЗ '//' префикса.
