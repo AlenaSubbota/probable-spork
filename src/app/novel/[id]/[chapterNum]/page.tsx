@@ -14,6 +14,7 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 import ReaderContent from '@/components/ReaderContent';
+import { sanitizeUgcHtml } from '@/lib/sanitize';
 import ChapterPaywall from '@/components/reader/ChapterPaywall';
 import CommentsSection from '@/components/CommentsSection';
 import ChapterThanks from '@/components/reader/ChapterThanks';
@@ -359,7 +360,12 @@ export default async function ChapterPage({ params }: PageProps) {
       .eq('novel_id', novel.id),
   ]);
 
-  let finalContent = rawText ?? '';
+  // Текст главы — UGC, может содержать <script>/<img onerror>/<svg onload>
+  // от любого переводчика. Прогон через DOMPurify ОБЯЗАТЕЛЕН здесь
+  // (на сервере), потому что ReaderContent рендерит через
+  // dangerouslySetInnerHTML, а cleanHtml() из @/lib/sanitize работает
+  // только в браузере.
+  let finalContent = sanitizeUgcHtml(rawText ?? '');
 
   const glossary = (glossaryRaw ?? []).map((g) => ({
     term_original: g.term_original as string,
