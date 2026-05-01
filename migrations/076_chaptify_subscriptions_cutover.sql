@@ -2,21 +2,21 @@
 -- 076: добиваем переезд читателей-сторон с public.subscriptions
 --      на public.chaptify_subscriptions
 --
--- Аудит после фикса 075 показал ещё четыре места, где код
+-- Аудит после фикса 075 показал ещё три места, где код Chaptify
 -- ходил в мёртвую таблицу public.subscriptions:
 --
---   1) can_read_chapter()           — проверка пейволла и раннего
---                                     доступа. Активный подписчик
---                                     Chaptify не мог прочитать
---                                     платную главу, за которую
---                                     платил.
---   2) get_user_subscription_status() — всегда возвращал active=false.
---   3) star_translator_of_the_week()  — CTE `subs` считал 0 новых
+--   1) get_user_subscription_status() — всегда возвращал active=false.
+--   2) star_translator_of_the_week()  — CTE `subs` считал 0 новых
 --                                       подписчиков за неделю.
---   4) trigger on_subscription_insert_notify висит на subscriptions
+--   3) trigger on_subscription_insert_notify висит на subscriptions
 --      и ловит INSERT-ы, которых там больше не бывает →
 --      переводчику не приходит уведомление «новый подписчик»
 --      ни в сайт, ни в TG-бот.
+--
+-- can_read_chapter() намеренно НЕ трогаем: миграция 036 явно
+-- закрепила за ней tene-флоу (subscriptions), а сайт Chaptify
+-- с миграции 053 ходит в can_read_chapter_chaptify, которая уже
+-- читает chaptify_subscriptions.
 --
 -- Чинить всё одной миграцией: схемы chaptify_subscriptions /
 -- subscriptions полностью совпадают (user_id, translator_id,
@@ -24,61 +24,7 @@
 -- поменять имя таблицы.
 -- ============================================================
 
--- ---------- 1. can_read_chapter -----------------------------------
-
-CREATE OR REPLACE FUNCTION public.can_read_chapter(
-  p_user uuid, p_novel bigint, p_chapter integer
-) RETURNS boolean
-  LANGUAGE plpgsql STABLE SECURITY DEFINER AS $$
-DECLARE
-  v_is_paid      boolean;
-  v_translator   uuid;
-  v_early_until  timestamptz;
-BEGIN
-  SELECT c.is_paid, n.translator_id, c.early_access_until
-  INTO v_is_paid, v_translator, v_early_until
-  FROM public.chapters c
-  JOIN public.novels   n ON n.id = c.novel_id
-  WHERE c.novel_id = p_novel AND c.chapter_number = p_chapter
-  LIMIT 1;
-
-  IF v_early_until IS NOT NULL AND v_early_until > now() THEN
-    IF EXISTS (
-      SELECT 1 FROM public.chaptify_subscriptions
-      WHERE user_id = p_user AND translator_id = v_translator
-        AND status = 'active' AND (expires_at IS NULL OR expires_at > now())
-    ) THEN RETURN true; END IF;
-
-    IF EXISTS (
-      SELECT 1 FROM public.chapter_purchases
-      WHERE user_id = p_user AND novel_id = p_novel AND chapter_number = p_chapter
-    ) THEN RETURN true; END IF;
-
-    RETURN false;
-  END IF;
-
-  IF NOT v_is_paid THEN RETURN true; END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM public.chaptify_subscriptions
-    WHERE user_id       = p_user
-      AND translator_id = v_translator
-      AND status        = 'active'
-      AND (expires_at IS NULL OR expires_at > now())
-  ) THEN RETURN true; END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM public.chapter_purchases
-    WHERE user_id        = p_user
-      AND novel_id       = p_novel
-      AND chapter_number = p_chapter
-  ) THEN RETURN true; END IF;
-
-  RETURN false;
-END $$;
-
-
--- ---------- 2. get_user_subscription_status ----------------------
+-- ---------- 1. get_user_subscription_status ---------------------
 
 CREATE OR REPLACE FUNCTION public.get_user_subscription_status(p_user uuid)
 RETURNS jsonb
@@ -93,7 +39,7 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
 $$;
 
 
--- ---------- 3. star_translator_of_the_week -----------------------
+-- ---------- 2. star_translator_of_the_week ----------------------
 
 CREATE OR REPLACE FUNCTION public.star_translator_of_the_week()
 RETURNS TABLE(
@@ -177,15 +123,14 @@ AS $$
 $$;
 
 
--- ---------- 4. Триггер «новый подписчик» переезжает на ------------
+-- ---------- 3. Триггер «новый подписчик» переезжает на ------------
 --               chaptify_subscriptions
 --
 -- Старый триггер on_subscription_insert_notify оставляем висеть
--- на public.subscriptions «на всякий случай» — в новые подписки
--- туда никто не пишет, спам не грозит. Дублировать на
--- chaptify_subscriptions нельзя простым CREATE TRIGGER (имя
--- триггера привязано к таблице, но имя должно быть уникально
--- глобально), даём отдельное имя.
+-- на public.subscriptions — в эту таблицу никто не пишет,
+-- срабатываний не будет, спам не грозит. Дублируем поведение
+-- на chaptify_subscriptions под отдельным именем (имя триггера
+-- в Postgres глобальное).
 
 DROP TRIGGER IF EXISTS on_chaptify_subscription_insert_notify
   ON public.chaptify_subscriptions;
