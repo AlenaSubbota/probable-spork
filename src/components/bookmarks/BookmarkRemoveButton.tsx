@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface Props {
   firebaseId: string;
@@ -29,8 +30,13 @@ export default function BookmarkRemoveButton({
 }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const { items: toasts, push, dismiss } = useToasts();
 
   const handleRemove = async () => {
+    // confirm() используется намеренно — нативный диалог проще, чем
+    // кастомный модалок, а действие потенциально потеряет прогресс
+    // чтения. Для непросто-важных подтверждений нужен бы кастомный
+    // ConfirmDialog, но «удалить из закладок» того не стоит.
     if (!confirm(`Убрать «${title}» из библиотеки?`)) return;
     setBusy(true);
     const supabase = createClient();
@@ -71,23 +77,26 @@ export default function BookmarkRemoveButton({
 
     setBusy(false);
     if (error) {
-      alert(`Не получилось удалить: ${error.message}`);
+      push('error', `Не получилось удалить: ${error.message}`);
       return;
     }
     router.refresh();
   };
 
   return (
-    <button
-      type="button"
-      className="btn btn-ghost"
-      onClick={handleRemove}
-      disabled={busy}
-      title="Убрать из библиотеки"
-      aria-label="Убрать из библиотеки"
-      style={{ height: 34, width: 38, padding: 0, fontSize: 14 }}
-    >
-      {busy ? '…' : '🗑'}
-    </button>
+    <>
+      <button
+        type="button"
+        className="btn btn-ghost"
+        onClick={handleRemove}
+        disabled={busy}
+        title="Убрать из библиотеки"
+        aria-label="Убрать из библиотеки"
+        style={{ height: 34, width: 38, padding: 0, fontSize: 14 }}
+      >
+        {busy ? '…' : '🗑'}
+      </button>
+      <ToastStack items={toasts} onDismiss={dismiss} />
+    </>
   );
 }
