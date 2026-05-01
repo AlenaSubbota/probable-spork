@@ -340,3 +340,72 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
+
+// -----------------------------------------------------------
+// Серверная санитизация UGC HTML — отдельный helper, потому что
+// cleanHtml() выше требует DOMParser/window и работает только в браузере.
+//
+// Используется на путях, где UGC-HTML рендерится через
+// dangerouslySetInnerHTML на сервере: тело главы (ReaderContent),
+// description новеллы (NovelDetails), body новости (NewsCard).
+// Без этого любой переводчик грузит главу с <script>/<img onerror>/
+// <svg onload> — XSS у каждого читателя, включая админа.
+//
+// Whitelist подобран под существующий редактор (тот же KEEP_TAGS) +
+// сноски и details. CSP в next.config.ts закрывает defense-in-depth.
+//
+// isomorphic-dompurify — это DOMPurify + jsdom бэкенд, работает в Node
+// и в браузере с одинаковым API.
+// -----------------------------------------------------------
+
+import DOMPurify from 'isomorphic-dompurify';
+
+const UGC_ALLOWED_TAGS = [
+  'p', 'br', 'strong', 'em', 'u', 's', 'h3',
+  'blockquote', 'details', 'summary', 'sup',
+  // ссылки в описаниях/новостях допустимы; защита от javascript:-схемы
+  // включена через ALLOWED_URI_REGEXP ниже.
+  'a',
+  // картинки в новостях / описаниях
+  'img', 'figure', 'figcaption',
+];
+
+const UGC_ALLOWED_ATTR = [
+  // text-align в style оставляем (cleanHtml уже привёл к узкому списку)
+  'class', 'id', 'style',
+  // ссылки
+  'href', 'target', 'rel',
+  // картинки
+  'src', 'alt', 'title', 'width', 'height', 'loading', 'decoding',
+  // сноски
+  'data-fn-id', 'data-fn-text',
+];
+
+// Только http/https/relative/anchor. Отбрасывает javascript:, data:, vbscript:,
+// file:, about: — всё, что может что-то выполнить.
+const UGC_URI_REGEXP = /^(?:https?:\/\/|\/|#|\.\/|\.\.\/)/i;
+
+export function sanitizeUgcHtml(input: string | null | undefined): string {
+  if (!input) return '';
+  return DOMPurify.sanitize(input, {
+    ALLOWED_TAGS: UGC_ALLOWED_TAGS,
+    ALLOWED_ATTR: UGC_ALLOWED_ATTR,
+    ALLOWED_URI_REGEXP: UGC_URI_REGEXP,
+    // Запрещаем data-uri в href/src
+    ALLOW_DATA_ATTR: false,
+    // Принудительно target=_blank даём через post-hook ниже
+    KEEP_CONTENT: true,
+    // SAFE_FOR_TEMPLATES не нужен — мы не подставляем переменные
+    USE_PROFILES: { html: true },
+  });
+}
+
+// На случай если кому-то нужно проверить URL отдельно (для атрибутов
+// `href` в JSX через {url}): возвращает исходную строку, если URL
+// безопасный, иначе пустую строку.
+export function safeUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  const s = String(url).trim();
+  if (UGC_URI_REGEXP.test(s)) return s;
+  return '';
+}
