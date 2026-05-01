@@ -1,19 +1,25 @@
 -- ============================================================
 -- 075: trg_notify_new_chapter и bulk_publish_chapters
---      переезжают на chaptify_subscriptions
+--      переезжают на chaptify_subscriptions + автор видит свои
+--      публикации (Tene-style)
 --
--- Проблема: оба места, где мы выбираем «кому слать уведомление
+-- Проблема 1: оба места, где мы выбираем «кому слать уведомление
 -- о новой главе», джойнили мёртвую таблицу public.subscriptions.
 -- Каноном с миграции 053 является public.chaptify_subscriptions —
 -- сайт читает и пишет только её (см. также серверный коммит
 -- c3ab77a, который выкинул fallback на subscriptions из бота).
 -- В итоге активные подписчики Chaptify не попадали в выборку,
 -- уведомления в notifications падали только за счёт ветки
--- profiles.bookmarks ?, плюс автор фильтровался WHERE-ом, и
--- chaptify-bot оставался безмолвным.
+-- profiles.bookmarks ?, и chaptify-bot оставался безмолвным.
 --
--- Исправляем обе функции: тот же UNION, только источник
--- подписчиков теперь chaptify_subscriptions. Схема идентична
+-- Проблема 2: автор-переводчик исключался из получателей
+-- (`u.user_id <> v_novel.translator_id`). По обратной связи Алёны
+-- это не нужно — на Тене автор тоже видит свои публикации в боте,
+-- хотим тот же UX. Заводим автора отдельной веткой UNION-а, чтобы
+-- он попал в выборку независимо от того, есть ли у него закладка
+-- или подписка на собственную новеллу.
+--
+-- Схема chaptify_subscriptions идентична subscriptions
 -- (user_id, translator_id, status, expires_at), остальной код
 -- не трогаем.
 -- ============================================================
@@ -83,9 +89,11 @@ BEGIN
     SELECT p.id AS user_id
     FROM public.profiles p
     WHERE p.bookmarks ? v_novel.firebase_id
+    UNION
+    SELECT v_novel.translator_id AS user_id
+    WHERE v_novel.translator_id IS NOT NULL
   ) u
-  WHERE u.user_id IS NOT NULL
-    AND u.user_id <> v_novel.translator_id;
+  WHERE u.user_id IS NOT NULL;
 
   RETURN NEW;
 END $$;
@@ -227,9 +235,11 @@ BEGIN
       SELECT p.id AS user_id
       FROM public.profiles p
       WHERE p.bookmarks ? v_novel.firebase_id
+      UNION
+      SELECT v_novel.translator_id AS user_id
+      WHERE v_novel.translator_id IS NOT NULL
     ) u
-    WHERE u.user_id IS NOT NULL
-      AND u.user_id <> v_novel.translator_id;
+    WHERE u.user_id IS NOT NULL;
     GET DIAGNOSTICS v_notified = ROW_COUNT;
   END IF;
 
