@@ -24,9 +24,52 @@ const lora = Lora({
   display: "swap",
 });
 
+// metadataBase нужен для того чтобы Next правильно резолвил относительные
+// URL в Open Graph / Twitter / canonical. Без него превью в Telegram/VK
+// получают только текст без картинки. Если открываем сайт на staging-домене
+// — переопределить через NEXT_PUBLIC_SITE_URL env.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ?? 'https://chaptify.ru';
+
 export const metadata: Metadata = {
-  title: "Chaptify — читайте новеллы онлайн",
-  description: "Лучшие переводы корейских и японских новелл. Романтика, фэнтези, экшен.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    // template используется страницами для генерации заголовков вида
+    // «Название новеллы — Chaptify». На страницах без своего title
+    // показывается defaultBase (см. ниже).
+    default: 'Chaptify — читайте корейские и японские новеллы онлайн',
+    template: '%s — Chaptify',
+  },
+  description:
+    'Лучшие переводы корейских и японских новелл. Романтика, фэнтези, исэкай, школьные драмы. Удобная читалка, закладки, рекомендации читателей.',
+  applicationName: 'Chaptify',
+  keywords: [
+    'новеллы', 'корейские новеллы', 'японские новеллы', 'ранобэ',
+    'веб-новеллы', 'переводы новелл', 'читать онлайн',
+    'романтическое фэнтези', 'исэкай', 'манхва',
+  ],
+  openGraph: {
+    type: 'website',
+    siteName: 'Chaptify',
+    locale: 'ru_RU',
+    url: SITE_URL,
+    title: 'Chaptify — читайте корейские и японские новеллы онлайн',
+    description:
+      'Лучшие переводы корейских и японских новелл. Удобная читалка, закладки, рекомендации читателей.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Chaptify',
+    description:
+      'Лучшие переводы корейских и японских новелл онлайн.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 // Viewport: device-width + initial-scale=1 — это дефолт Next.js 16, но
