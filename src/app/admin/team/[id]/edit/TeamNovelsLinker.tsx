@@ -66,10 +66,15 @@ export default function TeamNovelsLinker({
 
   const link = async (novelId: number) => {
     setBusyId(novelId);
+    // Defense-in-depth: фильтруем по translator_id явно. RLS должна
+    // запрещать обновление чужих новелл, но не полагаемся только на неё —
+    // если политика когда-нибудь ослабнет, клиент не позволит навесить
+    // чужую новеллу на свою команду.
     const { error } = await supabase
       .from('novels')
       .update({ team_id: teamId })
-      .eq('id', novelId);
+      .eq('id', novelId)
+      .eq('translator_id', currentUserId);
     setBusyId(null);
     if (error) {
       push('error', error.message);
@@ -88,7 +93,8 @@ export default function TeamNovelsLinker({
     const { error } = await supabase
       .from('novels')
       .update({ team_id: null })
-      .eq('id', novelId);
+      .eq('id', novelId)
+      .eq('translator_id', currentUserId);
     setBusyId(null);
     if (error) {
       push('error', error.message);
