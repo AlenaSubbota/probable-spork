@@ -450,7 +450,7 @@ export default async function ChapterPage({ params }: PageProps) {
       similarTranslatorMap = await fetchTranslators(supabase, ids);
     }
   } catch {
-    // RPC ещё not накачена — тихо пропускаем
+    // RPC ещё не накачена — тихо пропускаем
   }
 
   return (
