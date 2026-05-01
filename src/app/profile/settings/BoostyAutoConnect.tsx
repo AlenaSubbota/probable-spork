@@ -88,6 +88,13 @@ export default function BoostyAutoConnect() {
       push('error', `Ошибка: ${res.error ?? 'unknown'}`);
       return;
     }
+    // Защита от баги в RPC: токен ОБЯЗАН быть 64 hex-символа.
+    // Если что-то странное — не подставляем в href, чтобы не дать
+    // attribute-injection через dangerouslySetInnerHTML ниже.
+    if (!/^[0-9a-f]{64}$/i.test(res.token)) {
+      push('error', 'Получен невалидный токен — попробуй ещё раз.');
+      return;
+    }
     setBookmarklet({
       href: buildBookmarkletHref(AUTH_API_URL, res.token),
       expires_at: res.expires_at ?? '',

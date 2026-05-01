@@ -54,10 +54,15 @@ export default function ApplicationsManager({
   const updateStatus = async (appId: number, status: ApplicationStatus) => {
     setBusyId(appId);
     const supabase = createClient();
+    // Defense-in-depth: явно прибиваем update к нашему listingId. RLS
+    // и так должна не дать чужому листингу принять заявку, но если
+    // политика когда-нибудь ослабнет, без этой проверки клиент мог бы
+    // менять статус любой заявки по её id.
     const { error } = await supabase
       .from('marketplace_applications')
       .update({ status })
-      .eq('id', appId);
+      .eq('id', appId)
+      .eq('listing_id', listingId);
     setBusyId(null);
     if (error) {
       pushToast('error', `Не получилось: ${error.message}`);
