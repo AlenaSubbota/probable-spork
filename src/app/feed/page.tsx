@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
-import { getCoverUrl, timeAgo } from '@/lib/format';
+import { getCoverUrl, timeAgo, pluralRu } from '@/lib/format';
 import FeedFilter from '@/components/feed/FeedFilter';
 
 const PAGE_SIZE = 80; // увеличили: после батчинга глав в строки уходит ~3-5
@@ -310,13 +310,4 @@ export default async function FeedPage({
       )}
     </main>
   );
-}
-
-function pluralRu(n: number, one: string, few: string, many: string) {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 19) return many;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
 }
