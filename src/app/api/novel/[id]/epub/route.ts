@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { buildEpub } from '@/lib/epub';
+import { sanitizeUgcHtml } from '@/lib/sanitize';
 
 // Скачивание EPUB для новеллы.
 //
@@ -176,7 +177,13 @@ export async function GET(
         if (!file) {
           return { number: c.chapter_number, html: '<p><em>Не удалось загрузить.</em></p>' };
         }
-        const html = await file.text();
+        const rawHtml = await file.text();
+        // Глава пишется переводчиком и кладётся в storage. До этого
+        // фикса в EPUB вкладывался grossly trusted HTML — регекс-стрип
+        // <script> в epub.ts пропускал <img onerror>, <svg onload>,
+        // <iframe srcdoc>. Многие EPUB-ридеры исполняют JS, поэтому
+        // вредная глава = XSS у каждого читателя.
+        const html = sanitizeUgcHtml(rawHtml);
         return { number: c.chapter_number, html };
       })
     );
