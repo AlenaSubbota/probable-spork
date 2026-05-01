@@ -408,8 +408,20 @@ function registerUgcHooks() {
   // 2) Сужаем style: оставляем только text-align:center на <p>/<h3>.
   // 3) Сужаем class: только fn-ref/fn-inline.
   // 4) Сужаем id: только fn-N (числовая сноска).
-  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-    if (!(node instanceof Element)) return;
+  DOMPurify.addHook('afterSanitizeAttributes', (n) => {
+    // Duck-type вместо `instanceof Element`: на сервере (jsdom-бэкенд
+    // isomorphic-dompurify) глобал `Element` не определён в скоупе
+    // Next-bundle, и instanceof падает с ReferenceError. Для основной
+    // проблемы есть serverExternalPackages в next.config.ts (не бандлим
+    // dompurify вообще), но даже при бандлинге duck-type не упадёт.
+    if (!n || (n as { nodeType?: number }).nodeType !== 1) return;
+    const node = n as unknown as {
+      tagName: string;
+      getAttribute(name: string): string | null;
+      setAttribute(name: string, value: string): void;
+      hasAttribute(name: string): boolean;
+      removeAttribute(name: string): void;
+    };
     const tag = node.tagName;
 
     if (tag === 'A') {
