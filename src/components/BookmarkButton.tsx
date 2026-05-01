@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface Props {
   novelFirebaseId: string;
@@ -18,6 +19,7 @@ const STATUSES = [
 
 export default function BookmarkButton({ novelFirebaseId, initialStatus }: Props) {
   const router = useRouter();
+  const { items: toasts, push, dismiss } = useToasts();
 
   const handleToggle = async (nextStatus: string | null) => {
     const supabase = createClient();
@@ -51,7 +53,7 @@ export default function BookmarkButton({ novelFirebaseId, initialStatus }: Props
       data_to_update: { bookmarks: current },
     });
     if (error) {
-      alert('Не получилось сохранить закладку: ' + error.message);
+      push('error', 'Не получилось сохранить закладку: ' + error.message);
       return;
     }
     router.refresh();
@@ -96,6 +98,7 @@ export default function BookmarkButton({ novelFirebaseId, initialStatus }: Props
           ♡ В закладки
         </button>
       )}
+      <ToastStack items={toasts} onDismiss={dismiss} />
     </div>
   );
 }
