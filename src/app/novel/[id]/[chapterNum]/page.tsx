@@ -219,17 +219,7 @@ export default async function ChapterPage({ params }: PageProps) {
     // существующими профилями, где поле ещё NULL до миграции 037)
     const acceptsCoins = tpAny?.accepts_coins_for_chapters !== false;
 
-    // Тянем также tg_chat_id — для автосинка в ClaimBlock
-    const { data: methodsWithChat } = novel.translator_id
-      ? await supabase
-          .from('translator_payment_methods')
-          .select('id, provider, url, instructions, tg_chat_id')
-          .eq('translator_id', novel.translator_id)
-          .eq('enabled', true)
-          .order('sort_order', { ascending: true })
-      : { data: [] };
-
-    const paymentMethods = ((methodsWithChat ?? methodsRaw ?? []) as Array<{
+    const paymentMethods = ((methodsRaw ?? []) as Array<{
       id: number;
       provider: 'boosty' | 'tribute' | 'vk_donut' | 'patreon' | 'other';
       url: string;
@@ -460,7 +450,7 @@ export default async function ChapterPage({ params }: PageProps) {
       similarTranslatorMap = await fetchTranslators(supabase, ids);
     }
   } catch {
-    // RPC ещё не накачена — тихо пропускаем
+    // RPC ещё not накачена — тихо пропускаем
   }
 
   return (
