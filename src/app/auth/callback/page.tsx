@@ -26,22 +26,35 @@ export default function AuthCallbackPage() {
       const code = url.searchParams.get('code');
       const rawNext = url.searchParams.get('next') || '/';
 
-      // Защита от open-redirect: next должен быть only-relative.
-      // Без проверки `?next=//evil.com` или `?next=https://evil.com`
-      // уносит залогиненного юзера на фишинг.
-      const next =
-        rawNext.startsWith('/') &&
-        !rawNext.startsWith('//') &&
-        !rawNext.startsWith('/\\')
-          ? rawNext
-          : '/';
+      // Защита от open-redirect: парсим next как URL относительно нашего origin
+      // и отбрасываем всё, что после нормализации указывает на чужой хост.
+      // Старая текстовая проверка startsWith('/') пропускала /\evil.com —
+      // Chrome нормализует обратные слеши в // и улетает на фишинг.
+      let next = '/';
+      try {
+        const candidate = new URL(rawNext, window.location.origin);
+        if (
+          candidate.origin === window.location.origin &&
+          candidate.pathname.startsWith('/')
+        ) {
+          next = candidate.pathname + candidate.search + candidate.hash;
+        }
+      } catch {
+        next = '/';
+      }
 
       // Перед свежим OAuth-входом инвалидируем любую старую сессию,
       // чтобы избежать code-injection: атакующий навёл жертву на
       // /?code=ATTACKER_CODE&next=/admin/... — если у жертвы была
       // старая сессия, её можно было бы редиректнуть туда под старым
-      // юзером. signOut без await — если падёт, не блокируем exchange.
-      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      // юзером. Ждём завершения, иначе signOut гонится с exchangeCodeForSession
+      // и может стереть только что установленные cookies.
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        /* fail open: если signOut упал, exchange ниже всё равно
+           перезапишет access/refresh токены атомарно */
+      }
 
       // @supabase/ssr browser-client при создании сам видит ?code= в URL
       // и делает exchangeCodeForSession автоматически. Наш ручной exchange

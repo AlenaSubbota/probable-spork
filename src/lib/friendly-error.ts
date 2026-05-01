@@ -79,7 +79,7 @@ export function friendlyError(err: unknown, fallbackVerb?: string): string {
   // Неизвестная ошибка — отдаём короткий fallback, не голый PG-text.
   // Если очень хочется отлаживать — message всё равно есть в console
   // (сюда мы попадаем после .rpc() и лог сам пишется в DevTools).
-  if (process !== undefined && typeof console !== 'undefined') {
+  if (typeof process !== 'undefined' && typeof console !== 'undefined') {
     // eslint-disable-next-line no-console
     console.warn('[friendlyError] unmapped error:', err);
   }

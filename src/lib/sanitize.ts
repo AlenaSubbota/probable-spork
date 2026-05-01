@@ -75,8 +75,11 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
 export function cleanHtml(input: string): string {
   if (!input) return '';
   if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
-    // На SSR оставляем как есть — компонент-консьюмер должен быть client-only.
-    return input;
+    // На SSR DOMParser недоступен — раньше возвращали input как есть,
+    // что ломает контракт «функция санитизирует». Если кто-то случайно
+    // импортирует cleanHtml в server component, это превращалось в XSS.
+    // Делаем fail-safe fallback на серверный санитайзер.
+    return sanitizeUgcHtml(input);
   }
 
   // Пре-стрип Word/Office-мусора, который ломает DOMParser или
@@ -381,19 +384,86 @@ const UGC_ALLOWED_ATTR = [
   'data-fn-id', 'data-fn-text',
 ];
 
-// Только http/https/relative/anchor. Отбрасывает javascript:, data:, vbscript:,
-// file:, about: — всё, что может что-то выполнить.
-const UGC_URI_REGEXP = /^(?:https?:\/\/|\/|#|\.\/|\.\.\/)/i;
+// Только http/https/anchor и path-relative БЕЗ '//' префикса.
+// `\/(?!\/)` явно запрещает protocol-relative `//evil.com`, которое раньше
+// проходило через `^\/` и улетало на чужой origin в href/src.
+// Отбрасывает javascript:, data:, vbscript:, file:, about: — всё, что
+// может что-то выполнить.
+const UGC_URI_REGEXP = /^(?:https?:\/\/|\/(?!\/)|#|\.\.?\/)/i;
+
+// Префиксы class, разрешённые на UGC: только наши собственные хелперы
+// сносок и центрирования. Любые другие класс-токены атакующий мог бы
+// использовать чтобы переопределить site CSS (например навесить
+// .login-button на свой <p>) или сделать position:fixed-overlay.
+const ALLOWED_CLASS_TOKENS = new Set(['fn-ref', 'fn-inline']);
+
+let hooksRegistered = false;
+function registerUgcHooks() {
+  if (hooksRegistered) return;
+  hooksRegistered = true;
+
+  // 1) Принудительный rel="noopener noreferrer" на любых ссылках с
+  //    target=_blank (защита от reverse tab-nabbing). Раньше комментарий
+  //    обещал такой пост-хук, но его не было.
+  // 2) Сужаем style: оставляем только text-align:center на <p>/<h3>.
+  // 3) Сужаем class: только fn-ref/fn-inline.
+  // 4) Сужаем id: только fn-N (числовая сноска).
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (!(node instanceof Element)) return;
+    const tag = node.tagName;
+
+    if (tag === 'A') {
+      if (node.getAttribute('target') === '_blank') {
+        node.setAttribute('rel', 'noopener noreferrer');
+      } else {
+        // на нецелевых ссылках чистим target — могут быть невалидные значения
+        node.removeAttribute('target');
+      }
+    }
+
+    if (node.hasAttribute('style')) {
+      const style = (node.getAttribute('style') ?? '').toLowerCase();
+      if (
+        (tag === 'P' || tag === 'H3') &&
+        /(^|;)\s*text-align\s*:\s*center\s*(;|$)/.test(style)
+      ) {
+        node.setAttribute('style', 'text-align:center');
+      } else {
+        node.removeAttribute('style');
+      }
+    }
+
+    if (node.hasAttribute('class')) {
+      const tokens = (node.getAttribute('class') ?? '')
+        .split(/\s+/)
+        .filter((t) => ALLOWED_CLASS_TOKENS.has(t));
+      if (tokens.length > 0) {
+        node.setAttribute('class', tokens.join(' '));
+      } else {
+        node.removeAttribute('class');
+      }
+    }
+
+    if (node.hasAttribute('id')) {
+      const id = node.getAttribute('id') ?? '';
+      if (tag === 'P' && /^fn-\d+$/.test(id)) {
+        // оставляем — это id для якоря сноски
+      } else {
+        node.removeAttribute('id');
+      }
+    }
+  });
+}
 
 export function sanitizeUgcHtml(input: string | null | undefined): string {
   if (!input) return '';
+  registerUgcHooks();
   return DOMPurify.sanitize(input, {
     ALLOWED_TAGS: UGC_ALLOWED_TAGS,
     ALLOWED_ATTR: UGC_ALLOWED_ATTR,
     ALLOWED_URI_REGEXP: UGC_URI_REGEXP,
     // Запрещаем data-uri в href/src
     ALLOW_DATA_ATTR: false,
-    // Принудительно target=_blank даём через post-hook ниже
     KEEP_CONTENT: true,
     // SAFE_FOR_TEMPLATES не нужен — мы не подставляем переменные
     USE_PROFILES: { html: true },

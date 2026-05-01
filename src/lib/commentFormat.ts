@@ -80,7 +80,11 @@ export function commentToHtml(input: string): string {
       const clean = url.replace(/[),.!?;:]+$/, ''); // убираем хвостовую пунктуацию
       const tail = url.slice(clean.length);
       if (!isSafeUrl(clean)) return _m;
-      return `${pre}<a href="${clean}" target="_blank" rel="noreferrer noopener">${clean}</a>${tail}`;
+      // href + текст ссылки экранируем — без этого `"` в URL ломал атрибут
+      // и допускал вставку произвольных аттрибутов (URL-парсер `new URL`
+      // принимает `"` в path/query без ошибок).
+      const safeHref = escapeHtml(clean);
+      return `${pre}<a href="${safeHref}" target="_blank" rel="noreferrer noopener">${escapeHtml(clean)}</a>${escapeHtml(tail)}`;
     }
   );
 

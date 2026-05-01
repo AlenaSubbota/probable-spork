@@ -30,18 +30,21 @@ export async function proxy(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
 
   // OAuth failsafe: Supabase иногда усекает redirect_to до origin
-  // и возвращает ?code=... на корень (или любой путь) вместо
-  // /auth/callback. Если видим ?code= на публичной странице —
-  // перекидываем на наш callback-page, он сделает exchange на клиенте.
-  // Важно: используем req.nextUrl.clone() чтобы сохранить внешний host
-  // (chaptify.ru), а не внутренний docker-hostname из req.url.
-  if (code && !path.startsWith('/auth/callback')) {
+  // и возвращает ?code=... на корень. Раньше мы безусловно бросали
+  // редирект на /auth/callback с любого пути — это превращалось в
+  // вектор code-injection: атакующий заводил жертву на
+  // /admin/secret?code=ATT&next=/admin → жертва логинилась под чужим
+  // аккаунтом и сразу попадала на `next`. Теперь поднимаем bounce
+  // только с доверенных корневых путей, где Supabase реально может
+  // приземлиться (домашняя/auth-пути), и — критически — отдаём в
+  // callback ТОЛЬКО `code`, без user-supplied `next`. Защита от
+  // открытого редиректа на стороне callback-страницы тоже остаётся.
+  const codeBounceWhitelist = path === '/' || path.startsWith('/auth/');
+  if (code && !path.startsWith('/auth/callback') && codeBounceWhitelist) {
     const callbackUrl = req.nextUrl.clone();
     callbackUrl.pathname = '/auth/callback';
+    callbackUrl.search = '';
     callbackUrl.searchParams.set('code', code);
-    const next = req.nextUrl.searchParams.get('next');
-    if (next) callbackUrl.searchParams.set('next', next);
-    // чистим вообще все остальные query, на callback их не надо
     return NextResponse.redirect(callbackUrl);
   }
 
@@ -84,7 +87,8 @@ export async function proxy(req: NextRequest) {
     path.startsWith('/login/') ||
     path === '/register' ||
     path.startsWith('/register/') ||
-    path.startsWith('/auth');
+    path === '/auth' ||
+    path.startsWith('/auth/');
   if (isAuthPath) return res;
 
   const needsAuth = isPrefixMatch(path, PROTECTED_PREFIXES);

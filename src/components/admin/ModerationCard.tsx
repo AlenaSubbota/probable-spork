@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { getCoverUrl } from '@/lib/format';
+import { sanitizeUgcHtml } from '@/lib/sanitize';
 
 export interface ModerationNovel {
   id: number;
@@ -90,7 +91,7 @@ export default function ModerationCard({ novel }: Props) {
         {novel.description && (
           <p
             className="moderation-card-desc"
-            dangerouslySetInnerHTML={{ __html: novel.description }}
+            dangerouslySetInnerHTML={{ __html: sanitizeUgcHtml(novel.description) }}
           />
         )}
         {rejecting && (
