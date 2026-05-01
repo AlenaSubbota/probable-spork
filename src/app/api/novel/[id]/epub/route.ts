@@ -150,6 +150,18 @@ export async function GET(
         ? `Бесплатные + ${purchasedSet.size} купленных`
         : 'Только бесплатные главы';
 
+  // Кап на число глав в одном EPUB — защита от OOM/таймаута, если у
+  // подписчика накопилось много тысяч. Сборка идёт в память (zip
+  // буферизуется целиком до отправки клиенту), поэтому жадные запросы
+  // ронят процесс. 2000 глав покрывают любой реалистичный кейс.
+  const MAX_CHAPTERS = 2000;
+  // Кап на размер одной главы, чтобы переводчик не положил процесс,
+  // загрузив 50MB-файл одной главой.
+  const MAX_CHAPTER_BYTES = 2_000_000;
+  if (accessibleChapters.length > MAX_CHAPTERS) {
+    accessibleChapters.length = MAX_CHAPTERS;
+  }
+
   // Качаем html-файлы глав из storage параллельно (батчами, чтобы не уронить)
   const CONCURRENCY = 8;
   const fetched: Array<{ number: number; html: string }> = [];
@@ -178,6 +190,15 @@ export async function GET(
           return { number: c.chapter_number, html: '<p><em>Не удалось загрузить.</em></p>' };
         }
         const rawHtml = await file.text();
+        if (rawHtml.length > MAX_CHAPTER_BYTES) {
+          // Слишком большая глава — не тащим её в EPUB, иначе процесс
+          // заестся буфером. Подменяем на маркер; читатель увидит, что
+          // глава пропущена.
+          return {
+            number: c.chapter_number,
+            html: '<p><em>Глава слишком большая для EPUB. Открой её на сайте.</em></p>',
+          };
+        }
         // Глава пишется переводчиком и кладётся в storage. До этого
         // фикса в EPUB вкладывался grossly trusted HTML — регекс-стрип
         // <script> в epub.ts пропускал <img onerror>, <svg onload>,
