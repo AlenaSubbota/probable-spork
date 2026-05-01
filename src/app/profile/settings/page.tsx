@@ -5,7 +5,6 @@ import SettingsForm from './SettingsForm';
 import LinkedAccounts from './LinkedAccounts';
 import RoadmapEditor from './RoadmapEditor';
 import DeleteAccountSection from '@/components/auth/DeleteAccountSection';
-import { normalizePalette, normalizeSeal } from '@/lib/translator-branding';
 
 export const metadata = { title: 'Настройки — Chaptify' };
 
@@ -36,8 +35,6 @@ export default async function ProfileSettingsPage() {
     quiet_note?: string | null;
     chaptify_bot_chat_id?: number | null;
     accepts_coins_for_chapters?: boolean | null;
-    translator_brand_palette?: string | null;
-    translator_brand_seal?: string | null;
   };
 
   const isTranslator =
@@ -110,8 +107,6 @@ export default async function ProfileSettingsPage() {
           quiet_note: profile.quiet_note ?? '',
           accepts_coins_for_chapters:
             profile.accepts_coins_for_chapters ?? true,
-          translator_brand_palette: normalizePalette(profile.translator_brand_palette),
-          translator_brand_seal: normalizeSeal(profile.translator_brand_seal),
         }}
       />
 

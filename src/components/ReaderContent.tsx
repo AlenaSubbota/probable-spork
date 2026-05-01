@@ -569,6 +569,30 @@ export default function ReaderContent({
       return;
     }
 
+    // Если ни URL-флаг, ни локальная история не относятся к ТЕКУЩЕЙ
+    // главе — по умолчанию начинаем с верха. Иначе браузер/Next.js
+    // могут оставить scrollY от предыдущего роута: пользователь
+    // дочитал главу до низа, кликнул «Следующая глава», и новая
+    // глава открывается тоже у самого низа. Принудительно сбрасываем
+    // позицию здесь; настоящий restore (если progress матчит главу)
+    // отработает следующим setTimeout'ом ниже.
+    let localPreviewMatchesChapter = false;
+    try {
+      const rawPreview = localStorage.getItem(`progress_${novelId}`);
+      if (rawPreview) {
+        const parsed = JSON.parse(rawPreview) as { chapterId?: number };
+        localPreviewMatchesChapter = parsed?.chapterId === chapterNumber;
+      }
+    } catch { /* ignore */ }
+    if (!localPreviewMatchesChapter) {
+      if (settings.readMode === 'pages') {
+        const sc = scrollerRef.current;
+        if (sc) sc.scrollTo({ left: 0, behavior: 'instant' as ScrollBehavior });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+      }
+    }
+
     let cancelled = false;
     type ProgressEntry = {
       chapterId: number;

@@ -105,6 +105,19 @@ export default function ReaderBottomBar({
             min={0}
             max={isPages ? Math.max(0, totalPages - 1) : 100}
             value={isPages ? Math.min(currentPage, totalPages - 1) : scrollPercent}
+            // CSS-переменная --rbb-fill даёт визуальную «заливку» трека
+            // от 0 до текущей позиции (см. globals.css). Без неё
+            // пользователь видит только thumb, и кажется что прогресс
+            // «не работает».
+            style={{
+              ['--rbb-fill' as string]: `${
+                isPages
+                  ? totalPages > 1
+                    ? Math.round((Math.min(currentPage, totalPages - 1) / (totalPages - 1)) * 100)
+                    : 0
+                  : Math.round(scrollPercent)
+              }%`,
+            }}
             onChange={(e) => {
               const val = Number(e.target.value);
               if (isPages) onSeekPage(val);

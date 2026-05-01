@@ -2801,9 +2801,12 @@ html[data-theme='dark'] .logo-mark {
   min-height: 100vh;
 }
 .reader-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  /* По умолчанию НЕ sticky: в scroll-режиме глобальный SiteHeader тоже
+     прилипает к верху, и две sticky-панели на одной координате наезжают
+     друг на друга — у пользователя пропадает доступ к меню профиля.
+     В pages-режиме (когда SiteHeader скрыт классом .reader-pages-mode)
+     возвращаем sticky — там reader-header единственная панель сверху. */
+  position: relative;
   /* color-mix через --surface — фон автоматически темнеет на тёмной теме.
      В обеих темах фон полупрозрачный с blur, чтобы текст под ним немного
      просвечивал, но был читаем. */
@@ -2811,6 +2814,11 @@ html[data-theme='dark'] .logo-mark {
   -webkit-backdrop-filter: saturate(160%) blur(10px);
   backdrop-filter: saturate(160%) blur(10px);
   border-bottom: 1px solid var(--border);
+}
+body.reader-pages-mode .reader-page .reader-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 .reader-header-row {
   /* Grid 1fr auto 1fr — название слева (сжатое), номер главы по центру,
@@ -5125,16 +5133,24 @@ html[data-theme='dark'] .logo-mark {
 }
 .bookmark-fresh-badge {
   position: absolute;
-  top: 6px;
-  left: 6px;
+  top: 4px;
+  left: 4px;
   background: linear-gradient(135deg, var(--gold), #E5B873);
   color: #2B2017;
-  padding: 3px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: 9.5px;
+  line-height: 1.4;
   font-weight: 700;
-  box-shadow: 0 2px 6px rgba(88, 63, 40, 0.25);
+  box-shadow: 0 1px 4px rgba(88, 63, 40, 0.22);
   letter-spacing: 0.02em;
+  /* На обложке 88×117 px эмодзи ✨ + текст не должны занимать четверть
+     карточки — обрезаем «иконку» через font-size, чтобы badge остался
+     лаконичным маркером. */
+  max-width: calc(100% - 8px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .bookmark-card-body {
   display: flex;
@@ -13926,7 +13942,15 @@ html[data-theme='dark'] .reader-bottom-bar {
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: var(--border);
+  /* Заливка прогресса — gradient от --accent (пройдено) до --border (осталось).
+     --rbb-fill ставится из ReaderBottomBar inline-стилем; fallback 0%. */
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--rbb-fill, 0%),
+    var(--border) var(--rbb-fill, 0%),
+    var(--border) 100%
+  );
   border-radius: 999px;
   outline: none;
   cursor: pointer;
@@ -14832,10 +14856,23 @@ html[data-theme='dark'] .novel-team-card-deco { opacity: 0.10; }
   color: var(--ink-mute);
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* На десктопе мета (участники, новеллы, лидер) живёт в одной колонке
+     с eyebrow / именем / описанием. Раньше justify-content/text-align
+     стояли на center, и строка визуально «отрывалась» от текста —
+     участники/новеллы плыли к центру, пока остальное прижато слева.
+     По умолчанию выравниваем по началу строки (как остальной текст). */
+  justify-content: flex-start;
   gap: 6px;
   flex-wrap: wrap;
-  text-align: center;
+  text-align: left;
+}
+@media (max-width: 540px) {
+  /* На мобилке layout схлопывается в 2 колонки и текстовый блок занимает
+     всю ширину — там центр читается мягче и не оспаривает компоновку. */
+  .novel-team-card-meta {
+    justify-content: center;
+    text-align: center;
+  }
 }
 .novel-team-card-meta strong { color: var(--ink-soft); font-weight: 600; }
 .novel-team-card-meta-sep { opacity: 0.45; }

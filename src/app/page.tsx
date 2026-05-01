@@ -141,10 +141,14 @@ export default async function HomePage() {
       shelfTotal = bookmarkIds.length;
 
       if (bookmarkIds.length > 0) {
+        // Раньше тут был slice(0, 12) — на десктопе при 31 закладке
+        // полка обрывалась на 12-й, хотя место было. Поднимаем потолок
+        // до 60 (защита от человека с тысячей закладок) и отдаём всё
+        // в .shelf-strip — горизонтальный скролл поглотит overflow.
         const { data: bookmarkNovels } = await supabase
           .from('novels')
           .select('firebase_id, title, cover_url')
-          .in('firebase_id', bookmarkIds.slice(0, 12));
+          .in('firebase_id', bookmarkIds.slice(0, 60));
 
         shelfItems = (bookmarkNovels || []).map((n) => ({
           firebase_id: n.firebase_id,

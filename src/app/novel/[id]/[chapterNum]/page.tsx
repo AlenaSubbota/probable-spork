@@ -23,7 +23,6 @@ import ThanksMessageForm from '@/components/thanks/ThanksMessageForm';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import { fetchTranslators } from '@/lib/translator';
 import TranslatorSignature from '@/components/branding/TranslatorSignature';
-import { readBrand } from '@/lib/translator-branding';
 
 interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
@@ -421,26 +420,20 @@ export default async function ChapterPage({ params }: PageProps) {
   // commentsSlot != null && currentPage === last).
   let translatorDisplayName: string | null = null;
   let translatorSlugMain: string | null = null;
-  let translatorBrand: ReturnType<typeof readBrand> = null;
   if (novel.translator_id) {
     const { data: tProfile } = await supabase
       .from('profiles')
-      .select('translator_display_name, user_name, translator_slug, translator_brand_palette, translator_brand_seal')
+      .select('translator_display_name, user_name, translator_slug')
       .eq('id', novel.translator_id)
       .maybeSingle();
     const tp = tProfile as {
       translator_display_name?: string | null;
       user_name?: string | null;
       translator_slug?: string | null;
-      translator_brand_palette?: string | null;
-      translator_brand_seal?: string | null;
     } | null;
     translatorDisplayName =
       tp?.translator_display_name || tp?.user_name || null;
     translatorSlugMain = tp?.translator_slug || tp?.user_name || null;
-    // Брендинг: тихо игнорируем, если миграция 071 ещё не накачена
-    // (поля undefined → readBrand вернёт null).
-    translatorBrand = tp ? readBrand(tp) : null;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -463,10 +456,7 @@ export default async function ChapterPage({ params }: PageProps) {
   }
 
   return (
-    <div
-      className="reader-page"
-      data-tr-palette={translatorBrand?.palette ?? undefined}
-    >
+    <div className="reader-page">
       <header className="reader-header">
         <div className="container reader-header-row">
           <Link href={`/novel/${id}`} className="reader-back">
@@ -537,15 +527,14 @@ export default async function ChapterPage({ params }: PageProps) {
                 )}
               </nav>
 
-              {/* Подпись переводчика — «сургучная печать» под главой.
-                 Рендерим только когда есть имя; брендинг (палитра/печать)
-                 опционально. translatorBrand?.seal может быть null —
-                 компонент тогда покажет блок без иконки, только подпись. */}
+              {/* Подпись переводчика под главой. Раньше тут была
+                 «сургучная печать» (брендинг переводчика) — функция
+                 убрана, оставляем простую подпись с именем. */}
               {translatorDisplayName && (
                 <TranslatorSignature
                   name={translatorDisplayName}
                   href={translatorSlugMain ? `/t/${translatorSlugMain}` : null}
-                  seal={translatorBrand?.seal ?? null}
+                  seal={null}
                 />
               )}
 
