@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
 
