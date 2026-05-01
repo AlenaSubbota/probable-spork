@@ -334,9 +334,13 @@ function ClaimStatus({
   return (
     <div className="claim-declined">
       <div>✗ Заявка отклонена переводчиком.</div>
-      <Link href="#" onClick={(e) => { e.preventDefault(); window.location.reload(); }}>
+      <button
+        type="button"
+        className="btn-link"
+        onClick={() => window.location.reload()}
+      >
         Попробовать снова
-      </Link>
+      </button>
     </div>
   );
 }
