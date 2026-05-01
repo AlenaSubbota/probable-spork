@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { sanitizeUgcHtml, safeUrl } from '@/lib/sanitize';
 import NovelCard from '@/components/NovelCard';
 import FirstChapterPreview from '@/components/FirstChapterPreview';
@@ -22,6 +23,65 @@ interface PageProps {
 }
 
 const CHAPTERS_PER_PAGE = 50;
+
+// generateMetadata: динамические OG/Twitter-метаданные на превью в
+// Telegram/VK/Twitter. Без этой функции мессенджеры показывали только
+// глобальный title из layout.tsx, без обложки и описания. Теперь:
+//   - Title: «<Название> — Chaptify» через template из layout
+//   - Description: первое предложение описания (или дефолт)
+//   - OG image: обложка новеллы (через /covers proxy → tene.fun)
+//
+// Запрос идёт ОТДЕЛЬНО от render — Next кэширует обе вызова.
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  const { data: novel } = await supabase
+    .from('novels_view')
+    .select('title, description, cover_url, author, moderation_status, age_rating')
+    .eq('firebase_id', id)
+    .maybeSingle();
+
+  if (!novel || novel.moderation_status !== 'published') {
+    return { title: 'Новелла не найдена', robots: { index: false, follow: false } };
+  }
+
+  // Описание для og:description — берём первое предложение текстом без HTML.
+  const rawDesc = String(novel.description ?? '');
+  const plainDesc = rawDesc
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const description = plainDesc.length > 0
+    ? (plainDesc.length > 200 ? plainDesc.slice(0, 197) + '…' : plainDesc)
+    : `Читайте «${novel.title}» онлайн на Chaptify`;
+
+  const cover = getCoverUrl(novel.cover_url);
+  const url = `/novel/${id}`;
+
+  return {
+    title: novel.title,
+    description,
+    openGraph: {
+      type: 'article',
+      title: novel.title,
+      description,
+      url,
+      images: cover ? [{ url: cover, alt: novel.title }] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: novel.title,
+      description,
+      images: cover ? [cover] : undefined,
+    },
+    // 18+ новеллы не индексируем — снижает шанс блокировки в Яндекс/Google.
+    robots: novel.age_rating === '18+'
+      ? { index: false, follow: false }
+      : { index: true, follow: true },
+    alternates: { canonical: url },
+  };
+}
 
 function formatChapterDate(published: string | null) {
   if (!published) return '';
