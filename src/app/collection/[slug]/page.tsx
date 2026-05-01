@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
@@ -252,21 +253,57 @@ function pluralNovels(n: number): string {
   return 'новелл';
 }
 
+function stripDescription(text: string | null | undefined, max = 200): string {
+  if (!text) return '';
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max - 1).trimEnd() + '…';
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
-}) {
+}): Promise<Metadata> {
   const { slug } = await params;
   const supabase = await createClient();
   const { data: dbRow } = await supabase
     .from('collections')
-    .select('title, tagline')
+    .select('title, tagline, description, emoji, is_published')
     .eq('slug', slug)
     .maybeSingle();
-  if (!dbRow) return { title: 'Подборка не найдена' };
+
+  if (!dbRow) {
+    return { title: 'Подборка не найдена', robots: { index: false, follow: false } };
+  }
+
+  const row = dbRow as {
+    title: string;
+    tagline: string | null;
+    description: string | null;
+    emoji: string | null;
+    is_published: boolean;
+  };
+
+  const title = row.title;
+  const description =
+    row.tagline?.trim() ||
+    stripDescription(row.description, 200) ||
+    'Подборка новелл на Chaptify';
+
   return {
-    title: `${(dbRow as { title: string }).title} — Chaptify`,
-    description: (dbRow as { tagline: string | null }).tagline ?? undefined,
+    title,
+    description,
+    openGraph: {
+      type: 'website',
+      title,
+      description,
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
+    },
+    robots: row.is_published ? undefined : { index: false, follow: false },
   };
 }
