@@ -6,7 +6,7 @@ COPY package*.json ./
 # зависимостей через PR). npm install терпит расхождение и достроит
 # lockfile inside-container. Минус: чуть медленнее, плюс: build не падает
 # на checksum mismatch.
-RUN npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 FROM node:20-alpine AS build
 WORKDIR /app
