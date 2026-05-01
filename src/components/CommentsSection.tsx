@@ -7,6 +7,7 @@ import { timeAgo } from '@/lib/format';
 import { commentToHtml } from '@/lib/commentFormat';
 import CommentToolbar from './CommentToolbar';
 import ReportButton from './ReportButton';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface Comment {
   id: number;
@@ -43,6 +44,7 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const { items: toasts, push, dismiss } = useToasts();
 
   const [newText, setNewText] = useState('');
   const [replyTo, setReplyTo] = useState<number | null>(null);
@@ -127,7 +129,7 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
     });
     setSubmitting(false);
     if (error) {
-      alert(`Ошибка отправки: ${error.message}`);
+      push('error', `Ошибка отправки: ${error.message}`);
       return;
     }
     if (parentId === null) setNewText('');
@@ -206,12 +208,12 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
       p_text: trimmed,
     });
     if (error) {
-      alert(`Не удалось сохранить: ${error.message}`);
+      push('error', `Не удалось сохранить: ${error.message}`);
       return;
     }
     const res = (data ?? {}) as { ok?: boolean; error?: string };
     if (!res.ok) {
-      alert(`Не удалось сохранить: ${res.error ?? 'unknown'}`);
+      push('error', `Не удалось сохранить: ${res.error ?? 'unknown'}`);
       return;
     }
     cancelEdit();
@@ -224,12 +226,12 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
       p_comment_id: id,
     });
     if (error) {
-      alert(`Ошибка: ${error.message}`);
+      push('error', `Ошибка: ${error.message}`);
       return;
     }
     const res = (data ?? {}) as { ok?: boolean; error?: string };
     if (!res.ok) {
-      alert(`Не удалось: ${res.error ?? 'unknown'}`);
+      push('error', `Не удалось: ${res.error ?? 'unknown'}`);
       return;
     }
     loadComments();
@@ -461,6 +463,8 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
           {topLevel.map((c) => renderOne(c, 0))}
         </div>
       )}
+
+      <ToastStack items={toasts} onDismiss={dismiss} />
     </section>
   );
 }
