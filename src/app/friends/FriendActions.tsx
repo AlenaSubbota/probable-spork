@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
+import { useToasts, ToastStack } from '@/components/ui/Toast';
 
 interface Props {
   otherId: string;
@@ -15,16 +16,17 @@ export default function FriendActions({ otherId, requestId, kind }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const supabase = createClient();
+  const { items: toasts, push, dismiss } = useToasts();
 
   // Раньше ошибки RPC просто проглатывались — кнопка анимировалась
   // в busy и возвращалась обратно, юзер не понимал, прошло или нет.
-  // Теперь любую ошибку показываем alert'ом с понятным текстом.
+  // Теперь любую ошибку показываем тостом.
   const showRpcError = (action: string, err: unknown) => {
     const msg =
       err && typeof err === 'object' && 'message' in err
         ? String((err as { message: unknown }).message)
         : 'неизвестная ошибка';
-    alert(`Не получилось ${action}: ${msg}`);
+    push('error', `Не получилось ${action}: ${msg}`);
   };
 
   const doAccept = async () => {
@@ -87,6 +89,7 @@ export default function FriendActions({ otherId, requestId, kind }: Props) {
         <button type="button" className="btn btn-ghost" onClick={doDecline} disabled={busy}>
           Отклонить
         </button>
+        <ToastStack items={toasts} onDismiss={dismiss} />
       </div>
     );
   }
@@ -98,6 +101,7 @@ export default function FriendActions({ otherId, requestId, kind }: Props) {
         <button type="button" className="btn btn-ghost" onClick={doCancel} disabled={busy}>
           Отменить
         </button>
+        <ToastStack items={toasts} onDismiss={dismiss} />
       </div>
     );
   }
@@ -110,6 +114,7 @@ export default function FriendActions({ otherId, requestId, kind }: Props) {
       <button type="button" className="btn btn-ghost" onClick={doUnfriend} disabled={busy}>
         Удалить
       </button>
+      <ToastStack items={toasts} onDismiss={dismiss} />
     </div>
   );
 }
