@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
@@ -15,9 +16,40 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: PageProps) {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  return { title: `Команда ${slug} — Chaptify` };
+  const supabase = await createClient();
+  const team = await fetchTeamBySlug(supabase, slug);
+  if (!team) {
+    return { title: 'Команда не найдена', robots: { index: false, follow: false } };
+  }
+  const title = `Команда ${team.name}`;
+  const novelsLine =
+    typeof team.novel_count === 'number'
+      ? ` · ${team.novel_count} ${pluralNovels(team.novel_count)}`
+      : '';
+  const description =
+    team.description?.trim() ||
+    `Команда переводчиков ${team.name} на Chaptify${novelsLine}.`;
+  const images = team.avatar_url || team.banner_url
+    ? [{ url: (team.banner_url || team.avatar_url)! }]
+    : undefined;
+  return {
+    title,
+    description,
+    openGraph: {
+      type: 'profile',
+      title,
+      description,
+      images,
+    },
+    twitter: {
+      card: images ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      images: images ? images.map((i) => i.url) : undefined,
+    },
+  };
 }
 
 export default async function TeamPage({ params }: PageProps) {
