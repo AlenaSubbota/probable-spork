@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { timeAgo, getCoverUrl } from '@/lib/format';
 import { newsTypeMeta } from '@/lib/news';
+import { sanitizeUgcHtml } from '@/lib/sanitize';
 
 export interface NewsItem {
   id: number;
@@ -48,7 +49,7 @@ export default function NewsCard({ news, compact }: Props) {
       {!compact && (
         <div
           className="news-card-body novel-content"
-          dangerouslySetInnerHTML={{ __html: news.body }}
+          dangerouslySetInnerHTML={{ __html: sanitizeUgcHtml(news.body) }}
         />
       )}
 
