@@ -527,14 +527,13 @@ export default async function ChapterPage({ params }: PageProps) {
                 )}
               </nav>
 
-              {/* Подпись переводчика под главой. Раньше тут была
-                 «сургучная печать» (брендинг переводчика) — функция
-                 убрана, оставляем простую подпись с именем. */}
+              {/* Подпись переводчика — типографский орнамент под
+                 главой («конец письма»). Раньше здесь была сургучная
+                 печать брендинга; функция убрана. */}
               {translatorDisplayName && (
                 <TranslatorSignature
                   name={translatorDisplayName}
                   href={translatorSlugMain ? `/t/${translatorSlugMain}` : null}
-                  seal={null}
                 />
               )}
 

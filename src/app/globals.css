@@ -9236,11 +9236,14 @@ html[data-theme='dark'] .translator-tab.is-active {
   flex-wrap: wrap;
 }
 
-/* Age badge в правом верхнем углу карточки */
+/* Age badge в правом верхнем углу карточки. Раньше right: 40px
+   зарезервированы под bookmark-btn, но в каталожной NovelCard её нет,
+   и бейдж зависал «по центру сверху», как будто оторвался. Прижимаем
+   к правому краю — симметрично rating-chip слева. */
 .age-badge-card {
   position: absolute;
   top: 8px;
-  right: 40px;
+  right: 8px;
   padding: 2px 7px;
   background: var(--rose);
   color: #fff;
@@ -9248,6 +9251,12 @@ html[data-theme='dark'] .translator-tab.is-active {
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
+  box-shadow: 0 1px 4px rgba(43, 32, 23, 0.18);
+}
+/* Если на этой же обложке есть bookmark-btn (top:8px right:8px),
+   сдвигаем age-бейдж левее, чтобы они не наслаивались. */
+.novel-cover:has(.bookmark-btn) .age-badge-card {
+  right: 44px;
 }
 
 /* ---------- NovelCard hover tooltip ---------- */
@@ -16833,75 +16842,81 @@ a.thanks-inbox-item-name:hover { color: var(--accent); }
    как раньше. Это гарантирует «нет брендинга = ноль изменений».
    ========================================================= */
 
-/* Подпись переводчика под главой («сургучная печать»). Появляется
-   на финальной странице читалки + у себя на профиле. */
+/* Подпись переводчика — типографский орнамент «конец письма» в самом
+   низу главы (перед обсуждением). Без фона и рамок: тонкая рулетка
+   с центральным флёроном и двустрочный signoff под ней. Раньше тут
+   была сургучная печать брендинга — функция убрана, и просто пустая
+   карточка с именем выглядела сиротливо. Орнаментальный divider
+   читается как осознанный «финиш» главы. */
 .tr-signature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 36px auto 28px;
+  padding: 0 16px;
+  max-width: 560px;
+  text-align: center;
+}
+.tr-signature-rule {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 22px 24px;
-  margin: 28px auto;
-  max-width: 560px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background:
-    linear-gradient(135deg, var(--tr-wash, var(--accent-wash)) 0%, transparent 60%),
-    var(--surface);
-  position: relative;
-  overflow: hidden;
+  width: 100%;
+  color: var(--accent);
 }
-.tr-signature::before {
-  /* Тонкая золотая жилка слева — как нить с печатью на письме. */
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: var(--tr-accent, var(--accent));
+.tr-signature-rule-line {
+  flex: 1;
+  height: 1px;
+  /* edge-fade: линия растворяется к краям, центр держим золотистым */
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--gold) 55%, transparent) 50%,
+    transparent 100%
+  );
 }
-.tr-signature-seal {
-  width: 56px;
-  height: 56px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--tr-accent, var(--accent));
-  color: var(--surface);
-  /* Едва заметная «вмятина» — намёк на оттиск. */
-  box-shadow:
-    inset 0 0 0 2px color-mix(in srgb, var(--tr-accent, var(--accent)) 70%, white 30%),
-    0 2px 6px color-mix(in srgb, var(--tr-accent, var(--accent)) 40%, transparent);
-  animation: trSealStamp .55s cubic-bezier(.2,.7,.2,1) both;
-}
-.tr-signature-seal svg {
-  width: 28px;
-  height: 28px;
-  fill: currentColor;
+.tr-signature-rule-mark {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--accent);
+  /* Лёгкое свечение, как тиснение по бумаге. */
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--gold) 40%, transparent);
 }
 .tr-signature-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  align-items: center;
   min-width: 0;
+  max-width: 100%;
 }
 .tr-signature-label {
-  font-size: 11.5px;
-  letter-spacing: .12em;
+  font-size: 10.5px;
+  letter-spacing: .24em;
   text-transform: uppercase;
   color: var(--ink-mute);
 }
 .tr-signature-name {
   font-family: var(--font-serif);
-  font-size: 19px;
+  font-size: 20px;
+  font-style: italic;
+  font-weight: 600;
   color: var(--ink);
   text-decoration: none;
-  font-weight: 600;
   /* Длинные ники держим на одной строке — у нас контейнер max-width 560 */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+  transition: color .15s;
 }
-.tr-signature-name:hover { color: var(--tr-accent, var(--accent)); }
+.tr-signature-name:hover { color: var(--accent); }
+@media (max-width: 540px) {
+  .tr-signature { margin: 28px auto 20px; gap: 10px; }
+  .tr-signature-rule-mark { font-size: 16px; }
+  .tr-signature-name { font-size: 18px; }
+}
 
 @keyframes trSealStamp {
   0%   { opacity: 0; transform: scale(.4) rotate(-12deg); }
