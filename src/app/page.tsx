@@ -43,6 +43,11 @@ export default async function HomePage() {
       .from('novels_view')
       .select('*')
       .eq('moderation_status', 'published')
+      // Без фильтра по NULL новеллы без опубликованных глав висят
+      // в самом верху ленты «Новых глав» с датой «недавно» — Postgres
+      // по умолчанию ставит NULL'ы первыми при DESC. Блок именно про
+      // НОВЫЕ ГЛАВЫ, поэтому отбрасываем то, у чего глав ещё нет.
+      .not('latest_chapter_published_at', 'is', null)
       .order('latest_chapter_published_at', { ascending: false })
       .limit(12),
   ]);
