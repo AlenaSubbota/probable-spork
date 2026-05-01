@@ -151,7 +151,14 @@ export default async function ChapterPage({ params }: PageProps) {
       { data: myClaim },
       { data: methodsRaw },
     ] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+      // Explicit column list — раньше был `select('*')`, но мигр. 083
+      // отзывает SELECT на payout_tribute_secret/payout_tribute_webhook_token
+      // у anon/authenticated. SELECT * стал бы permission denied.
+      supabase
+        .from('profiles')
+        .select('coin_balance, telegram_id, role, is_admin')
+        .eq('id', user.id)
+        .maybeSingle(),
       novel.translator_id
         ? supabase
             .from('profiles')
