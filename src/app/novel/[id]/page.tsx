@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { sanitizeUgcHtml, safeUrl } from '@/lib/sanitize';
 import NovelCard from '@/components/NovelCard';
 import FirstChapterPreview from '@/components/FirstChapterPreview';
 import SimilarByReaders from '@/components/SimilarByReaders';
@@ -835,9 +836,9 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                     Внешний переводчик · не зарегистрирован у нас
                   </div>
                 </div>
-                {novel.external_translator_url ? (
+                {safeUrl(novel.external_translator_url) ? (
                   <a
-                    href={novel.external_translator_url}
+                    href={safeUrl(novel.external_translator_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-ghost"
@@ -937,7 +938,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
         {novel.description && (
           <div className="desc">
             <strong>Описание.</strong>{' '}
-            <span dangerouslySetInnerHTML={{ __html: novel.description }} />
+            <span dangerouslySetInnerHTML={{ __html: sanitizeUgcHtml(novel.description) }} />
           </div>
         )}
 
@@ -968,19 +969,21 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             <h3 className="external-links-title">Оригинал</h3>
             <div className="external-links-list">
               {(novel.external_links as Array<{ label: string; url: string }>).map(
-                (link, i) =>
-                  link.url ? (
+                (link, i) => {
+                  const safe = safeUrl(link.url);
+                  return safe ? (
                     <a
                       key={i}
-                      href={link.url}
+                      href={safe}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="external-link"
                     >
-                      <span>{link.label || hostnameOf(link.url)}</span>
+                      <span>{link.label || hostnameOf(safe)}</span>
                       <span className="external-link-arrow" aria-hidden="true">↗</span>
                     </a>
-                  ) : null
+                  ) : null;
+                }
               )}
             </div>
           </section>

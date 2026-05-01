@@ -13,7 +13,12 @@ interface Props {
 }
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || 'tenebrisverbot';
-const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://tene.fun';
+// AUTH_API_URL — без дефолта. Сервис мин-валидации Telegram-подписи и
+// выпуска Supabase-сессии = trust root. Дефолт на чужой домен ('tene.fun')
+// при отсутствии ENV приводил бы к тому, что любой контролирующий tene.fun
+// мог бы выпускать сессии на chaptify-юзеров. Лучше упасть на этапе сборки
+// /рантайма, чем тихо подменить trust-root.
+const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL;
 
 export default function AuthForm({ mode }: Props) {
   const [email, setEmail] = useState('');
@@ -80,6 +85,13 @@ export default function AuthForm({ mode }: Props) {
   }) => {
     setError(null);
     setStatus('busy');
+    if (!AUTH_API_URL) {
+      // Без явного ENV не отправляем widget-payload никуда —
+      // см. комментарий у AUTH_API_URL про trust-root.
+      setError('Auth-сервис не настроен. Сообщи администратору (NEXT_PUBLIC_AUTH_API_URL).');
+      setStatus('error');
+      return;
+    }
     try {
       const resp = await fetch(`${AUTH_API_URL}/auth/telegram`, {
         method: 'POST',
