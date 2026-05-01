@@ -84,24 +84,34 @@ export default async function FriendsPage() {
       ? detectReadingNow(other.last_read ?? null)
       : { state: 'away' as const, timestamp: null, entry: null };
 
-    const href = !missing ? `/u/${otherId}` : '#';
+    const profileHref = !missing ? `/u/${otherId}` : null;
 
     return (
       <div key={r.id} className="friend-row">
-        <Link href={href} className="friend-avatar">
-          {!missing && other.translator_avatar_url ? (
-            <img src={other.translator_avatar_url} alt="" />
-          ) : (
-            <span>{initial}</span>
-          )}
-          {reading.state === 'reading' && (
-            <span className="friend-online-dot" title="Читает сейчас" />
-          )}
-        </Link>
-        <div className="friend-body">
-          <Link href={href} className="friend-name">
-            {name}
+        {profileHref ? (
+          <Link href={profileHref} className="friend-avatar">
+            {!missing && other.translator_avatar_url ? (
+              <img src={other.translator_avatar_url} alt="" />
+            ) : (
+              <span>{initial}</span>
+            )}
+            {reading.state === 'reading' && (
+              <span className="friend-online-dot" title="Читает сейчас" />
+            )}
           </Link>
+        ) : (
+          <span className="friend-avatar friend-avatar--missing" aria-disabled="true">
+            <span>{initial}</span>
+          </span>
+        )}
+        <div className="friend-body">
+          {profileHref ? (
+            <Link href={profileHref} className="friend-name">
+              {name}
+            </Link>
+          ) : (
+            <span className="friend-name friend-name--missing">{name}</span>
+          )}
           {reading.state === 'reading' && (
             <div className="friend-status friend-status--online">
               читает сейчас
