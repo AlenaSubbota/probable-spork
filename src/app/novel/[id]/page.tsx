@@ -70,14 +70,22 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
 
   if (novelError || !novel) notFound();
 
+  // Explicit column list — раньше был `select('*')`, но мигр. 083 отзывает
+  // SELECT на payout_tribute_secret/payout_tribute_webhook_token у roles
+  // anon/authenticated. SELECT * стал бы permission denied.
   const { data: viewerProfile } = user
-    ? await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+    ? await supabase
+        .from('profiles')
+        .select('role, is_admin, bookmarks, last_read')
+        .eq('id', user.id)
+        .maybeSingle()
     : { data: null };
 
   const vp = viewerProfile as {
     role?: string;
     is_admin?: boolean;
     bookmarks?: unknown;
+    last_read?: unknown;
   } | null;
   const viewerIsAdmin = vp?.is_admin === true || vp?.role === 'admin';
 
