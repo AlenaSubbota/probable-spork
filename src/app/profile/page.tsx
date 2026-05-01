@@ -8,6 +8,7 @@ import BookDiet from '@/components/profile/BookDiet';
 import ReadingTotals from '@/components/profile/ReadingTotals';
 import LogoutButton from '@/components/auth/LogoutButton';
 import TranslatorTabs from '@/components/translator/TranslatorTabs';
+import TeamInvitesBlock from '@/components/profile/TeamInvitesBlock';
 import { cleanGenres } from '@/lib/format';
 
 // Локализация ролей в команде. Дублируется в /u/[id] — общая
@@ -254,13 +255,25 @@ export default async function ProfilePage() {
     role: string;
     is_owner: boolean;
   }> = [];
+  let pendingInvites: Array<{
+    team_id: number;
+    slug: string;
+    name: string;
+    avatar_url: string | null;
+    role: string;
+  }> = [];
   try {
+    // Тянем accepted_at тоже — миграция 078 разделила состояния. Если
+    // accepted_at IS NULL — это pending-инвайт, показываем отдельным
+    // блоком ниже (с кнопками accept/decline). В список «мои команды»
+    // он не попадает.
     const { data: memberships } = await supabase
       .from('team_members')
-      .select('role, team:translator_teams(id, slug, name, avatar_url, owner_id, is_archived)')
+      .select('role, accepted_at, team:translator_teams(id, slug, name, avatar_url, owner_id, is_archived)')
       .eq('user_id', user.id);
     type Row = {
       role: string;
+      accepted_at: string | null;
       team: {
         id: number;
         slug: string;
@@ -270,8 +283,12 @@ export default async function ProfilePage() {
         is_archived: boolean;
       } | null;
     };
-    teamsList = (memberships as Row[] | null ?? [])
-      .filter((m) => m.team && !m.team.is_archived)
+    const rows = (memberships as Row[] | null ?? []).filter(
+      (m) => m.team && !m.team.is_archived,
+    );
+    teamsList = rows
+      // accepted_at IS NULL → ещё не принято, не считается членством
+      .filter((m) => m.accepted_at !== null)
       .map((m) => ({
         id: m.team!.id,
         slug: m.team!.slug,
@@ -284,8 +301,17 @@ export default async function ProfilePage() {
         if (a.is_owner !== b.is_owner) return a.is_owner ? -1 : 1;
         return a.name.localeCompare(b.name, 'ru');
       });
+    pendingInvites = rows
+      .filter((m) => m.accepted_at === null && m.team!.owner_id !== user.id)
+      .map((m) => ({
+        team_id: m.team!.id,
+        slug: m.team!.slug,
+        name: m.team!.name,
+        avatar_url: m.team!.avatar_url,
+        role: m.role,
+      }));
   } catch {
-    // мигр. 056 ещё не накачена
+    // мигр. 056 / 078 ещё не накачены — игнорируем
   }
 
   // ---- Счётчики ----
@@ -438,6 +464,8 @@ export default async function ProfilePage() {
           <LogoutButton />
         </div>
       </div>
+
+      <TeamInvitesBlock invites={pendingInvites} />
 
       {teamsList.length > 0 && (
         <section className="user-profile-teams">
