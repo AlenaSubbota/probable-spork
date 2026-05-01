@@ -150,6 +150,9 @@ export default async function AdminDashboard() {
               <Link href="/admin/polls" className="btn btn-ghost">
                 🗳 Опросы
               </Link>
+              <Link href="/admin/collections" className="btn btn-ghost">
+                ✦ Подборки
+              </Link>
               <MarkStaleAbandonedButton />
             </>
           )}
