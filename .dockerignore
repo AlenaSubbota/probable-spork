@@ -1,0 +1,32 @@
+.git
+.gitignore
+.githooks
+.github
+.next
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Секреты — критично, иначе COPY . . затянет их в build-контекст и они
+# окажутся в слое образа.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Локальная разработка / тулинг — не нужны в проде.
+.vscode
+.idea
+.DS_Store
+.viminfo
+.zsh_history
+*.md
+docs
+scripts
+README*
+
+# Артефакты тестов / отчётов
+coverage
+.nyc_output
