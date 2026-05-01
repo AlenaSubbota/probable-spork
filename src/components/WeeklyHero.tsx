@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { formatCount } from '@/lib/format';
- 
+
 interface TranslatorBreakdown {
   name: string;
   count: number;
   tint?: 'coffee' | 'leaf';
 }
- 
+
 interface Props {
   newChaptersThisWeek: number;
   totalChapters: number;
@@ -19,7 +19,7 @@ interface Props {
   } | null;
   translators: TranslatorBreakdown[];
 }
- 
+
 export default function WeeklyHero({
   newChaptersThisWeek,
   totalChapters,
@@ -40,7 +40,7 @@ export default function WeeklyHero({
           </h1>
           <p>
             Всего {formatCount(totalChapters)} глав в {totalNovels}{' '}
-            {pluralNovels(totalNovels)}. Прогресс чтения и монетки синхронизированы с tene.fun.
+            {pluralNovelsLocative(totalNovels)}. Прогресс чтения и монетки синхронизированы с tene.fun.
           </p>
           {latestChapter && (
             <div
@@ -85,7 +85,7 @@ export default function WeeklyHero({
             </Link>
           </div>
         </div>
- 
+
         <div className="hero-side">
           {translators.length > 0 ? (
             translators.map((t) => (
@@ -101,8 +101,7 @@ export default function WeeklyHero({
                   {t.name}
                 </span>
                 <h3>
-                  {t.count}{' '}
-                  {t.count === 1 ? 'глава' : t.count < 5 ? 'главы' : 'глав'} за неделю
+                  {t.count} {pluralChaptersAccusative(t.count)} за неделю
                 </h3>
                 <p style={{ margin: 0, color: 'var(--ink-mute)', fontSize: 13 }}>
                   {t.count === 0 ? 'Пока тихо, скоро обновится.' : 'Свежие переводы подъехали.'}
@@ -110,12 +109,19 @@ export default function WeeklyHero({
               </div>
             ))
           ) : (
+            // Раньше тут был placeholder «Закрытое тестирование / Совсем
+            // скоро публичный запуск» — после старта читатели видели его
+            // как баннер «сайт ещё не работает». Теперь нейтральный CTA
+            // в каталог.
             <div className="hero-card">
-              <span className="note">Бета</span>
-              <h3>Закрытое тестирование</h3>
-              <p style={{ margin: 0, color: 'var(--ink-mute)', fontSize: 13 }}>
-                Совсем скоро — публичный запуск.
+              <span className="note">Каталог</span>
+              <h3>Загляни в каталог</h3>
+              <p style={{ margin: 0, color: 'var(--ink-mute)', fontSize: 13, marginBottom: 12 }}>
+                На этой неделе глав мало — но в каталоге есть из чего выбрать.
               </p>
+              <Link href="/catalog" className="btn btn-ghost" style={{ height: 32, fontSize: 13 }}>
+                Открыть →
+              </Link>
             </div>
           )}
         </div>
@@ -123,7 +129,7 @@ export default function WeeklyHero({
     </section>
   );
 }
- 
+
 function pluralChapters(n: number) {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -132,8 +138,21 @@ function pluralChapters(n: number) {
   if (mod10 >= 2 && mod10 <= 4) return 'новые главы';
   return 'новых глав';
 }
- 
-function pluralNovels(n: number) {
+
+// Винительный падеж: «N глав/главу/главы» — используется в «N глав за неделю»
+// у translator-карточек. Раньше было `n < 5 ? 'главы' : 'глав'` — кривое
+// для 11–14 ('главы' вместо 'глав') и 21 ('глав' вместо 'главу'). Теперь
+// корректная русская плюрализация.
+function pluralChaptersAccusative(n: number) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 19) return 'глав';
+  if (mod10 === 1) return 'глава';
+  if (mod10 >= 2 && mod10 <= 4) return 'главы';
+  return 'глав';
+}
+
+function pluralNovelsLocative(n: number) {
   const mod10 = n % 10;
   const mod100 = n % 100;
   if (mod100 >= 11 && mod100 <= 19) return 'новеллах';
