@@ -13,6 +13,8 @@ import ReportButton from '@/components/ReportButton';
 import AdultGate from '@/components/AdultGate';
 import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
 import MyNovelHistory from '@/components/novel/MyNovelHistory';
+import StarRating from '@/components/novel/StarRating';
+import CommentsSection from '@/components/CommentsSection';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
 import { fetchTranslators } from '@/lib/translator';
@@ -148,6 +150,25 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     last_read?: unknown;
   } | null;
   const viewerIsAdmin = vp?.is_admin === true || vp?.role === 'admin';
+
+  // Моя оценка из novel_ratings — нужна для подсветки звёзд под обложкой.
+  // Тянем только если есть user; не падаем, если миграция/таблица не
+  // развёрнута (legacy tene-таблица).
+  let myRating: number | null = null;
+  if (user) {
+    try {
+      const { data: rrow } = await supabase
+        .from('novel_ratings')
+        .select('rating')
+        .eq('novel_id', novel.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const r = (rrow as { rating?: number } | null)?.rating;
+      myRating = typeof r === 'number' && r >= 1 && r <= 5 ? r : null;
+    } catch {
+      myRating = null;
+    }
+  }
 
   // Текущий статус в закладках для переключателя
   let bookmarkStatus: string | null = null;
@@ -722,6 +743,14 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
               </div>
             </div>
 
+            <StarRating
+              novelId={novel.id}
+              initialMyRating={myRating}
+              averageRating={novel.average_rating ?? null}
+              ratingCount={novel.rating_count ?? null}
+              isLoggedIn={!!user}
+            />
+
             {genres.length > 0 && (
               <div className="tags">
                 {genres.map((g) => (
@@ -1264,6 +1293,28 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             </div>
           </>
         )}
+      </section>
+
+      {/* Отзывы на новеллу. Работают поверх таблицы comments через
+          chapter_number=0 (та же схема, что у tene). Сам id="reviews"
+          нужен для якоря из уведомлений: legacy URL
+          /novel/<id>/chapter/0#comment-707 редиректится на
+          /novel/<id>#reviews и далее браузер сам скроллит к
+          #comment-707, который теперь генерируется в
+          CommentsSection. */}
+      <section id="reviews" className="container section novel-reviews-block">
+        <CommentsSection
+          novelId={novel.id}
+          chapterNumber={0}
+          heading="Отзывы"
+          inputPlaceholder="Что понравилось, что нет — пара строк уже помогает другим читателям выбрать."
+          emptyText="Отзывов пока нет. Стань первым — переводчику и читателям важно твоё мнение."
+          guestPrompt={
+            <>
+              <Link href="/login" className="more">Войти</Link>, чтобы оставить отзыв.
+            </>
+          }
+        />
       </section>
     </main>
   );
