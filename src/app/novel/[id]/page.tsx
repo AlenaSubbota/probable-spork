@@ -14,6 +14,7 @@ import AdultGate from '@/components/AdultGate';
 import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
 import MyNovelHistory from '@/components/novel/MyNovelHistory';
 import StarRating from '@/components/novel/StarRating';
+import NovelTabs from '@/components/novel/NovelTabs';
 import CommentsSection from '@/components/CommentsSection';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
@@ -693,6 +694,18 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                 {novel.average_rating > 0 ? Number(novel.average_rating).toFixed(1) : '—'}
               </span>
             </div>
+
+            {/* Звёзды живут под обложкой — компактно, центрированно.
+                Раньше блок был внутри .novel-info вместе с метриками,
+                но дизайн просил «аккуратно под обложкой» — там у блока
+                естественная узкая ширина и выделяющийся акцент. */}
+            <StarRating
+              novelId={novel.id}
+              initialMyRating={myRating}
+              averageRating={novel.average_rating ?? null}
+              ratingCount={novel.rating_count ?? null}
+              isLoggedIn={!!user}
+            />
           </div>
 
           <div className="novel-info">
@@ -742,14 +755,6 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
                 <div className="label">прочтений</div>
               </div>
             </div>
-
-            <StarRating
-              novelId={novel.id}
-              initialMyRating={myRating}
-              averageRating={novel.average_rating ?? null}
-              ratingCount={novel.rating_count ?? null}
-              isLoggedIn={!!user}
-            />
 
             {genres.length > 0 && (
               <div className="tags">
@@ -1032,6 +1037,18 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           </div>
         </div>
 
+        {/* Sticky-навигация: прокрутка к разделам страницы. Якоря —
+            id="info"/"chapters"/"reviews" ниже. NovelTabs сам выбирает
+            активный таб через IntersectionObserver. */}
+        <NovelTabs
+          tabs={[
+            { id: 'info', label: 'О тайтле' },
+            { id: 'chapters', label: 'Главы' },
+            { id: 'reviews', label: 'Отзывы' },
+          ]}
+        />
+
+        <div id="info" className="novel-info-block">
         {novel.description && (
           <div className="desc">
             <strong>Описание.</strong>{' '}
@@ -1101,8 +1118,9 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             novelIsCompleted={!!novel.is_completed}
           />
         )}
+        </div>
 
-        <div className="chapter-list">
+        <div id="chapters" className="chapter-list">
           <div className="chapter-list-head">
             <h3>Главы ({totalChapters})</h3>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
