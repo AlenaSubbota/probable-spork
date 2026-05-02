@@ -1,22 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
 
 // Telegram Login Widget в режиме `data-auth-url` редиректит браузер сюда
 // после успешной авторизации в @chaptifybot. Параметры подписаны токеном
 // бота — валидируем подпись через `auth-service-chaptify` (общий сервис,
 // тот же что использовал старый client-side fetch на /auth/telegram).
 //
-// Зачем нужен этот route, если auth-service сам отдаёт session:
-// - в data-auth-url виджет делает полноразмерный навигейшн (а не postMessage
-//   как старый data-onauth), значит client-side JS-обработчик не запустится
-//   и нужно поставить cookies на сервере прямо в этот же HTTP-ответ;
-// - этот же route корректно работает в in-app браузере Telegram —
-//   там как раз не было postMessage между попапом и opener'ом, и старый
-//   data-onauth отказывал тихо.
+// Архитектурное замечание про cookies:
 //
-// Путь специально не /auth/telegram — на проде nginx перехватывает этот
-// префикс и шлёт в supabase-auth-tg-chaptify напрямую (см. PROGRESS-AUTH.md).
-// Если переименуешь — обнови data-auth-url в TelegramLoginWidget.tsx.
+// Сначала мы пробовали ставить supabase auth-cookies прямо тут, на
+// сервере, через `createServerClient(...).auth.setSession(...)`. Но
+// setSession под капотом делает HTTP-вызов `getUser` на
+// NEXT_PUBLIC_SUPABASE_URL для валидации только что выпущенного
+// access_token. Из docker-контейнера chaptify-web этот вызов идёт
+// через extra_hosts → host-gateway → внешний nginx → внутренний
+// Supabase, и в нашей сетке этот круг подвисал — nginx upstream
+// timeout заворачивал юзеру 502 ДО того, как handler успевал отдать
+// ответ.
+//
+// Решение: handler здесь проверяет подпись и забирает access/refresh
+// токены, но cookies ставятся на КЛИЕНТЕ через `/auth/tg/finalize`
+// (см. соседний page.tsx). Токены передаём через URL-fragment (`#`),
+// который не уходит в HTTP-запрос (а значит и в access logs / Referer
+// / nginx upstream). Это убирает сетевую петлю и любые server-side
+// вызовы к Supabase из этого route.
+//
+// Путь специально не /auth/telegram — на проде nginx перехватывает
+// этот префикс и шлёт в supabase-auth-tg-chaptify напрямую (см.
+// PROGRESS-AUTH.md). Если переименуешь — обнови data-auth-url в
+// TelegramLoginWidget.tsx.
 
 interface WidgetData {
   id: number;
@@ -58,17 +69,11 @@ export async function GET(request: NextRequest) {
   };
 
   // Базовый URL auth-сервиса. Предпочитаем внутренний docker-host
-  // (без TLS, без выхода в интернет, без round-trip через nginx) —
-  // это устраняет сетевую петлю, при которой контейнер chaptify-web
-  // ходил бы на свой же chaptify.ru снаружи и обратно.
-  // Fallback — NEXT_PUBLIC_AUTH_API_URL (он же используется на клиенте,
-  // например для linking-flow на /profile/settings).
+  // (без TLS, без выхода в интернет, без round-trip через nginx).
+  // Fallback — NEXT_PUBLIC_AUTH_API_URL.
   const authApiUrl =
     process.env.AUTH_API_INTERNAL_URL || process.env.NEXT_PUBLIC_AUTH_API_URL;
   if (!authApiUrl) {
-    // Без явного ENV не отправляем widget-payload никуда — иначе любой,
-    // кто контролирует дефолт, мог бы подменить trust-root. Лучше тихий
-    // отказ, чем отправка подписанных данных на чужой сервис.
     return htmlResponse(errorHtml('tg_not_configured'));
   }
 
@@ -81,7 +86,6 @@ export async function GET(request: NextRequest) {
       cache: 'no-store',
       // Жёсткий timeout: иначе зависший fetch (DNS/TLS/upstream) дотянет
       // до nginx upstream_read_timeout и вернёт 502 без шансов на errorHtml.
-      // 10s покрывает медленный COLD-start auth-service-chaptify.
       signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) {
@@ -97,30 +101,9 @@ export async function GET(request: NextRequest) {
     return htmlResponse(errorHtml('tg_no_session'));
   }
 
-  // HTML-ответ + Set-Cookie от @supabase/ssr на ОДНОМ ответе. Когда
-  // браузер отрисует HTML и JS закроет попап / сделает навигейшн,
-  // cookies уже лежат на chaptify.ru first-party.
-  const response = htmlResponse(successHtml());
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (list) => {
-          list.forEach((c) => response.cookies.set(c.name, c.value, c.options));
-        },
-      },
-    }
-  );
-
-  await supabase.auth.setSession({
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-  });
-
-  return response;
+  // HTML с навигейшном на /auth/tg/finalize#at=...&rt=...
+  // Hash НЕ уходит в HTTP-запрос — handoff остаётся на клиенте.
+  return htmlResponse(handoffHtml(session.access_token, session.refresh_token));
 }
 
 function htmlResponse(html: string): NextResponse {
@@ -128,36 +111,52 @@ function htmlResponse(html: string): NextResponse {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      // Кешировать нечего: ответ зависит от подписанных query.
+      // Кешировать нечего: ответ зависит от подписанных query и
+      // содержит свежие токены — никакого CDN-кеша.
       'Cache-Control': 'no-store',
+      // Не светить странице referrer'ом дальше — токены в hash, но
+      // на всякий случай.
+      'Referrer-Policy': 'no-referrer',
     },
   });
 }
 
-function successHtml(): string {
-  // Виджет может работать в двух режимах:
-  //   1) Popup — открыт maan-окном, после редиректа сюда есть window.opener.
-  //      Обновляем opener (чтобы SSR-шапка увидела свежие cookies) и
-  //      закрываем попап.
-  //   2) Full-page (in-app TG, или когда popup заблокирован) — opener'а
-  //      нет, делаем навигейшн в текущем окне.
+function handoffHtml(accessToken: string, refreshToken: string): string {
+  // JSON.stringify экранирует кавычки. Вставка в JS-литерал безопасна,
+  // т.к. JWT по формату не содержит </script> или подобного.
+  // На всякий случай дополнительно экранируем '<' → '<' —
+  // защита от теоретического HTML-injection если когда-нибудь access_token
+  // начнёт содержать произвольные символы.
+  const at = JSON.stringify(accessToken).replace(/</g, '\\u003C');
+  const rt = JSON.stringify(refreshToken).replace(/</g, '\\u003C');
+
+  // Виджет может работать в двух режимах (popup / full-page) — finalize
+  // разруливает оба. Тут просто навигация туда же, в зависимости от
+  // того, есть ли opener.
   return `<!doctype html>
 <meta charset="utf-8">
 <title>Готово</title>
 <script>
   (function () {
+    var at = ${at};
+    var rt = ${rt};
+    // Передаём токены через URL-fragment — он живёт только в браузере,
+    // не уходит в HTTP-запрос, не пишется в access logs.
+    var dest = '/auth/tg/finalize#at=' + encodeURIComponent(at)
+             + '&rt=' + encodeURIComponent(rt);
     try {
       if (window.opener && !window.opener.closed) {
-        window.opener.location.href = '/';
+        // Popup-режим: главное окно ведём на finalize, попап закрываем.
+        window.opener.location.replace(dest);
         window.close();
         return;
       }
-    } catch (_) { /* cross-origin opener — ниже fallback */ }
-    window.location.replace('/');
+    } catch (_) { /* cross-origin opener — fallthrough */ }
+    window.location.replace(dest);
   })();
 </script>
 <noscript>
-  <p>Готово. <a href="/">Вернись на главную</a>, если страница не обновилась автоматически.</p>
+  <p>Включи JavaScript, чтобы завершить вход.</p>
 </noscript>`;
 }
 
