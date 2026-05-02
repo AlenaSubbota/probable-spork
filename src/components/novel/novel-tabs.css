@@ -1,0 +1,74 @@
+/* Sticky-таб-бар на странице новеллы. Цель — лёгкая горизонтальная
+   полоска с подчёркиванием на активном (как у Ranobe.fun из скриншота),
+   которая прилипает к верху при скролле. Никаких эмодзи / эмодзи-иконок
+   в табах — только текст. */
+
+.novel-tabs-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 18px 0 14px;
+  background: var(--bg, #FAF6EC);
+  /* лёгкий низ-бордер вместо коробчатой рамки — табы должны казаться
+     продолжением шапки страницы */
+  border-bottom: 1px solid var(--border, #E0D6BF);
+  /* мини-тень под бар, чтобы при скролле было видно отделение от
+     контента; тень очень мягкая, не «карточная» */
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  /* Если у проекта свой sticky-header — поднимаем над ним. Если нет
+     —  top:0 ляжет под URL-bar. */
+}
+
+.novel-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* aligned с .container'ом — макс-ширина и центрирование */
+  max-width: var(--page-max, 1180px);
+  margin: 0 auto;
+  padding: 0 var(--page-pad, 20px);
+}
+
+.novel-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.novel-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 14px 4px;
+  margin: 0 12px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-mute, #8E7E5E);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease;
+  /* убираем синюю нативную подсветку при тапе на iOS */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.novel-tab:hover {
+  color: var(--ink-soft, #6E5F47);
+}
+
+.novel-tab.is-active {
+  color: var(--ink, #2A2418);
+  border-bottom-color: var(--accent, #C99466);
+}
+
+@media (max-width: 720px) {
+  .novel-tabs {
+    padding: 0 16px;
+  }
+  .novel-tab {
+    font-size: 14px;
+    padding: 12px 4px;
+    margin-right: 8px;
+  }
+}
