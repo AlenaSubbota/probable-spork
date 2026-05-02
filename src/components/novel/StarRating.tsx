@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
 
@@ -19,9 +20,9 @@ interface Props {
 //   - запись через RPC set_my_novel_rating (мигр. 086), не прямой upsert;
 //   - повторный клик на ту же звезду = снять оценку (rating=0);
 //   - hover показывает превью желтых звёзд до курсора;
-//   - оптимистично обновляем подпись «Моя оценка», но средняя пересчитывается
-//     на сервере триггером — её просим router.refresh() обновить, а не врём
-//     пользователю фейковыми числами.
+//   - оптимистично обновляем «Моя оценка», а среднюю просим пересчитать
+//     через router.refresh() — server-side триггер уже обновил novel_stats
+//     к моменту, когда RPC вернулся.
 export default function StarRating({
   novelId,
   initialMyRating,
@@ -29,6 +30,7 @@ export default function StarRating({
   ratingCount,
   isLoggedIn,
 }: Props) {
+  const router = useRouter();
   const [myRating, setMyRating] = useState<number | null>(initialMyRating);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
@@ -63,16 +65,9 @@ export default function StarRating({
         setMyRating(prev);
         return;
       }
-      // Триггер обновит novel_stats — но клиент его сам не увидит без
-      // re-fetch. Просим Next подтянуть свежие SSR-данные новеллы.
-      // Делаем через location.reload в фоне, чтобы пересчитанная
-      // средняя тут же попала в шапку.
-      // (router.refresh() не достаёт до server-component-кэша через
-      // RPC-граница, поэтому жёсткий reload надёжнее.)
-      // Не блокируем взаимодействие — пользователь увидит обновление
-      // через секунду.
-      // NOTE: если reload раздражает, можно убрать и оставить только
-      // мою оценку — средняя обновится при следующей навигации.
+      // Триггер обновил novel_stats. Просим Next подтянуть свежий SSR
+      // — server component перерисует metric с новой средней.
+      router.refresh();
     });
   };
 
