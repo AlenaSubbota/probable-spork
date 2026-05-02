@@ -20,6 +20,26 @@ interface Props {
 // Раньше все действия (админка, новая новелла, настройки и т.д.) были
 // прямо в шапке отдельными кнопками — получалось два ряда и тесно.
 // Здесь собираем всё под аватарку; шапка становится компактнее.
+// Внутри TG Mini App «выход» бесполезен: TelegramMiniAppAutoLogin при
+// следующем рендере увидит initData и тут же залогинит юзера обратно.
+// Флаг tg_explicit_logout в localStorage не выживает закрытие Mac TG
+// Desktop. Поэтому в Mini App пункт меню превращается в «Закрыть Chaptify»
+// и вызывает Telegram.WebApp.close() — та же стратегия, что в LogoutButton.
+type TgWebApp = {
+  initData?: string;
+  close?: () => void;
+};
+
+function getTelegramWebApp(): TgWebApp | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const w = window as unknown as { Telegram?: { WebApp?: TgWebApp } };
+  return w.Telegram?.WebApp;
+}
+
+function hasMiniAppInitData(): boolean {
+  return !!getTelegramWebApp()?.initData;
+}
+
 export default function UserMenu({
   userName,
   avatarUrl,
@@ -30,6 +50,8 @@ export default function UserMenu({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Детектим только на клиенте, чтобы не было SSR hydration-mismatch.
+  const [inMiniApp, setInMiniApp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Закрытие на клик вне и на Escape
@@ -49,7 +71,44 @@ export default function UserMenu({
     };
   }, [open]);
 
+  // SDK telegram-web-app.js грузится после маунта (через
+  // TelegramMiniAppAutoLogin → <Script afterInteractive>), поэтому initData
+  // на первом рендере может отсутствовать даже в настоящем Mini App.
+  // Поллим до 3 секунд.
+  useEffect(() => {
+    if (hasMiniAppInitData()) {
+      setInMiniApp(true);
+      return;
+    }
+    let cancelled = false;
+    let attempts = 0;
+    const tick = () => {
+      if (cancelled) return;
+      attempts++;
+      if (hasMiniAppInitData()) {
+        setInMiniApp(true);
+        return;
+      }
+      if (attempts < 30) setTimeout(tick, 100);
+    };
+    setTimeout(tick, 100);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleLogout = async () => {
+    if (inMiniApp) {
+      // В Mini App не делаем signOut: сессия привязана к TG-аккаунту,
+      // и auto-login всё равно вернёт юзера. Просто закрываем приложение.
+      try {
+        getTelegramWebApp()?.close?.();
+      } catch {
+        /* ignore — на старых клиентах метода может не быть */
+      }
+      return;
+    }
+
     if (!confirm('Выйти из аккаунта?')) return;
     setBusy(true);
     const supabase = createClient();
@@ -160,8 +219,12 @@ export default function UserMenu({
               <span>…</span>
             ) : (
               <>
-                <span className="user-menu-icon" aria-hidden="true">↩</span>
-                <span>Выйти из аккаунта</span>
+                <span className="user-menu-icon" aria-hidden="true">
+                  {inMiniApp ? '✕' : '↩'}
+                </span>
+                <span>
+                  {inMiniApp ? 'Закрыть Chaptify' : 'Выйти из аккаунта'}
+                </span>
               </>
             )}
           </button>
