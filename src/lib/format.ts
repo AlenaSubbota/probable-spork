@@ -2,9 +2,27 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 // Timestamp-rand формат, который создаёт наш CoverUpload: `<ms>-<rand>.<ext>`
 const UPLOAD_RE = /^\d{10,}-[a-z0-9]{4,}\./i;
 
+// Прямые URL на tene.fun (исторически в БД хранятся именно так:
+//   https://tene.fun/storage/v1/object/public/<bucket>/<path> — Supabase
+//   https://tene.fun/covers/<filename>                        — легаси-статика)
+// переписываем на same-origin /sb-storage/<...> или /covers/<...>. Иначе
+// браузер ходит напрямую к tene.fun, минуя chaptify.ru-nginx-кэш и упираясь
+// в Safari ITP — там loading-индикатор висит «вечно», пока tene.fun не
+// догрузит ресурсы.
+const TENE_STORAGE_RE = /^https?:\/\/(?:www\.)?tene\.fun\/storage\/(.+)$/i;
+const TENE_COVERS_RE  = /^https?:\/\/(?:www\.)?tene\.fun\/covers\/(.+)$/i;
+
+function rewriteTeneUrl(url: string): string {
+  const s = url.match(TENE_STORAGE_RE);
+  if (s) return `/sb-storage/${s[1]}`;
+  const c = url.match(TENE_COVERS_RE);
+  if (c) return `/covers/${c[1]}`;
+  return url;
+}
+
 export function getCoverUrl(path: string | null | undefined) {
   if (!path) return null;
-  if (path.startsWith('http')) return path;
+  if (path.startsWith('http')) return rewriteTeneUrl(path);
 
   // Все пути ниже возвращаем как same-origin relative URLs (`/covers/*`,
   // `/sb-storage/*`) — Next.config rewrites проксирует их через наш
