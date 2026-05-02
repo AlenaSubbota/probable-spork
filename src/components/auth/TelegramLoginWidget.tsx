@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 interface TelegramUser {
   id: number;
@@ -88,6 +89,15 @@ function detectTelegramWebView(): boolean {
   return /Telegram(?:-iOS|-Android|Bot)?/i.test(ua);
 }
 
+function getMiniAppInitData(): string | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as {
+    Telegram?: { WebApp?: { initData?: string } };
+  };
+  const id = w.Telegram?.WebApp?.initData;
+  return id && id.length > 0 ? id : null;
+}
+
 export default function TelegramLoginWidget(props: Props) {
   const { botName } = props;
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -102,9 +112,36 @@ export default function TelegramLoginWidget(props: Props) {
   // SSR/первый рендер на клиенте: считаем что НЕ в WebView, чтобы
   // hydration совпал. Реальный детект — в useEffect после маунта.
   const [inWebView, setInWebView] = useState(false);
+  // Внутри настоящего Mini App (есть initData) виджет не нужен — у нас
+  // подписанный initData прямо под рукой, обмениваем его на сессию через
+  // /auth/tg/initdata одним кликом. SDK telegram-web-app.js загружается
+  // компонентом TelegramMiniAppAutoLogin, поэтому здесь мы просто ждём
+  // появления initData до 3 секунд.
+  const [miniAppInitData, setMiniAppInitData] = useState<string | null>(null);
 
   useEffect(() => {
     setInWebView(detectTelegramWebView());
+    const ready = getMiniAppInitData();
+    if (ready) {
+      setMiniAppInitData(ready);
+      return;
+    }
+    let cancelled = false;
+    let attempts = 0;
+    const tick = () => {
+      if (cancelled) return;
+      attempts++;
+      const id = getMiniAppInitData();
+      if (id) {
+        setMiniAppInitData(id);
+        return;
+      }
+      if (attempts < 30) setTimeout(tick, 100);
+    };
+    setTimeout(tick, 100);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Берём примитивные значения как зависимости, чтобы не пересоздавать
@@ -150,11 +187,91 @@ export default function TelegramLoginWidget(props: Props) {
     };
   }, [botName, authUrl, hasOnAuth, inWebView]);
 
+  if (miniAppInitData) {
+    return <MiniAppLoginButton initData={miniAppInitData} />;
+  }
+
   if (inWebView) {
     return <TgInAppFallback />;
   }
 
   return <div ref={containerRef} className="tg-widget-host" />;
+}
+
+function MiniAppLoginButton({ initData }: { initData: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClick = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      // silent=false → сервер сбрасывает profiles.tg_auto_login_blocked_at
+      // и логинит по подписи. Это та же ручка, что и у silent-автологина,
+      // только без блокировки и со снятием флага «юзер ранее вышел сам».
+      const resp = await fetch('/auth/tg/initdata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData, silent: false }),
+        cache: 'no-store',
+      });
+      if (!resp.ok) {
+        if (resp.status === 403) {
+          setError('Telegram-подпись не прошла. Перезапусти Mini App и попробуй снова.');
+        } else {
+          setError('Не получилось войти. Попробуй ещё раз.');
+        }
+        setBusy(false);
+        return;
+      }
+      const json = (await resp.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+      };
+      if (!json.access_token || !json.refresh_token) {
+        setError('Auth-сервис не вернул сессию.');
+        setBusy(false);
+        return;
+      }
+      const supabase = createClient();
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token: json.access_token,
+        refresh_token: json.refresh_token,
+      });
+      if (setErr) {
+        setError(setErr.message);
+        setBusy(false);
+        return;
+      }
+      try {
+        localStorage.removeItem('tg_explicit_logout');
+      } catch {
+        /* ignore */
+      }
+      // Дать setSession-у долететь до cookie перед reload — иначе SSR
+      // на первом запросе не увидит юзера.
+      await new Promise((r) => setTimeout(r, 100));
+      window.location.href = '/';
+    } catch {
+      setError('Сеть. Попробуй ещё раз.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="tg-miniapp-login">
+      <button
+        type="button"
+        className="btn btn-primary"
+        onClick={handleClick}
+        disabled={busy}
+        style={{ width: '100%' }}
+      >
+        {busy ? 'Входим…' : 'Войти через Telegram'}
+      </button>
+      {error && <div className="auth-error" style={{ marginTop: 8 }}>{error}</div>}
+    </div>
+  );
 }
 
 function TgInAppFallback() {

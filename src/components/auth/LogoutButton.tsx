@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 
@@ -11,116 +11,62 @@ interface Props {
 
 // Универсальная кнопка выхода.
 //
-// Внутри Telegram Mini App «logout» структурно бесполезен: идентичность
-// юзера ЭТО его TG-аккаунт, и при следующем открытии Mini App'а наш
-// auto-login (TelegramMiniAppAutoLogin) сразу его залогинит. tg_explicit_logout
-// флаг в localStorage пытался это блокировать, но в Mac TG Desktop WebView
-// storage между сессиями Mini App'а не всегда переживает закрытие приложения
-// → флаг теряется → юзер бесконечно «выходит и снова входит».
+// Внутри Telegram Mini App «logout» структурно непростой: TG-аккаунт
+// — постоянный, и наш TelegramMiniAppAutoLogin при следующем рендере
+// автоматически восстановит сессию через initData. Поэтому в Mini App
+// перед обычным supabase signOut делаем ещё один шаг: дёргаем
+// /auth/tg/block, который ставит profiles.tg_auto_login_blocked_at.
+// На стороне auth-service-chaptify silent-логин теперь упрётся в этот
+// флаг и вернёт 403 — юзер останется в logged-out состоянии до явного
+// клика «Войти». Флаг сбрасывается в /auth/telegram при silent=false.
 //
-// Поэтому в TG-окружении кнопка переименовывается в «Закрыть» и вызывает
-// Telegram.WebApp.close(): закрывает Mini App. Хочешь логин под другим
-// аккаунтом — переключи аккаунт в Telegram. Хочешь полный signOut с
-// очисткой cookies — открой chaptify.ru в обычном браузере.
-//
-// В обычном браузере поведение прежнее: signOut + hard-reload на '/'.
-
-// NB: глобальный Window.Telegram уже объявлен в TelegramMiniAppAutoLogin.tsx
-// со свойством `ready?`. Объявить его тут ещё раз с другим набором
-// (`close?`) нельзя — TS ругается «Subsequent property declarations must
-// have the same type». Поэтому достаём WebApp через локальный cast,
-// без global-augmentation. Тот же паттерн — в TelegramLoginWidget.tsx.
-type TgWebApp = {
-  initData?: string;
-  close?: () => void;
-};
-
-function getTelegramWebApp(): TgWebApp | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const w = window as unknown as {
-    Telegram?: { WebApp?: TgWebApp };
-  };
-  return w.Telegram?.WebApp;
-}
-
-function hasMiniAppInitData(): boolean {
-  // initData — единственный надёжный признак, что мы именно в Mini App
-  // (а не просто во встроенном браузере TG, где Telegram.WebApp.close()
-  // не доступен / не закроет ничего полезного).
-  return !!getTelegramWebApp()?.initData;
-}
+// Раньше здесь была эвристика «в Mini App вместо выхода закрываем
+// приложение»: проблема в том, что localStorage в Mac TG Desktop не
+// переживает рестарт. Серверный флаг это решает.
 
 export default function LogoutButton({
   className = 'btn btn-ghost',
-  label,
+  label = '↩ Выйти',
 }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  // SSR не знает, что юзер в TG — детектим только на клиенте, чтобы
-  // не было hydration-mismatch'а. До маунта показываем дефолтный
-  // лейбл «Выйти».
-  const [inMiniApp, setInMiniApp] = useState(false);
-
-  useEffect(() => {
-    if (hasMiniAppInitData()) {
-      setInMiniApp(true);
-      return;
-    }
-
-    // SDK telegram-web-app.js может загружаться асинхронно (его
-    // подгружает <Script strategy="afterInteractive"> в
-    // TelegramMiniAppAutoLogin), а LogoutButton маунтится раньше.
-    // Поэтому на первом вызове initData может быть пустой даже в
-    // настоящем Mini App. Поллим до 3 секунд, чтобы поймать момент,
-    // когда SDK подставит initData в window.Telegram.WebApp.
-    let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 30; // 30 * 100ms = 3s
-
-    const tick = () => {
-      if (cancelled) return;
-      attempts++;
-      if (hasMiniAppInitData()) {
-        setInMiniApp(true);
-        return;
-      }
-      if (attempts < maxAttempts) {
-        setTimeout(tick, 100);
-      }
-      // После maxAttempts молча сдаёмся — значит юзер не в Mini App,
-      // оставляем стандартное поведение signOut.
-    };
-    setTimeout(tick, 100);
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handleClick = async () => {
-    if (inMiniApp) {
-      // В Mini App «выход» = закрытие приложения. Не делаем signOut —
-      // супабейс-сессию оставляем как есть, при следующем открытии
-      // юзер просто вернётся залогиненным (что и ожидается в TG).
-      try {
-        getTelegramWebApp()?.close?.();
-      } catch {
-        /* ignore — на старых клиентах метода может не быть */
-      }
-      return;
-    }
-
     if (!confirm('Выйти из аккаунта?')) return;
     setBusy(true);
+
+    // 1. Серверный флаг — главное. Если упадёт сеть, всё равно идём
+    //    дальше: signOut обнулит локальную сессию, юзер увидит logged-out
+    //    UI; в худшем случае при перезаходе в Mini App автологин вернёт
+    //    его обратно — но это лучше, чем «нажал и ничего не произошло».
+    try {
+      await fetch('/auth/tg/block', {
+        method: 'POST',
+        cache: 'no-store',
+      });
+    } catch {
+      /* ignore — пробрасываем юзера на signOut в любом случае */
+    }
+
+    // 2. Локальный флаг как defence in depth: даже если /auth/tg/block
+    //    не отработал, в текущем процессе TelegramMiniAppAutoLogin
+    //    увидит флаг и не будет дёргать silent-login.
+    try {
+      localStorage.setItem('tg_explicit_logout', 'true');
+    } catch {
+      /* private mode */
+    }
+
+    // 3. signOut с scope:'global' — инвалидируем refresh_token серверно.
     const supabase = createClient();
     await supabase.auth.signOut({ scope: 'global' });
-    // Полный редирект, чтобы гарантировать очистку всех кэшей RSC/layout.
-    window.location.href = '/';
+
+    // 4. Hard reload на /login, чтобы SSR layout увидел очищенные cookies
+    //    и юзер сразу попал на форму входа (а не на guest-версию страницы,
+    //    где он только что был).
+    window.location.href = '/login';
     router.refresh();
   };
-
-  const effectiveLabel =
-    label ?? (inMiniApp ? '✕ Закрыть Chaptify' : '↩ Выйти');
 
   return (
     <button
@@ -129,7 +75,7 @@ export default function LogoutButton({
       onClick={handleClick}
       disabled={busy}
     >
-      {busy ? '…' : effectiveLabel}
+      {busy ? '…' : label}
     </button>
   );
 }

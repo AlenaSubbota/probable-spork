@@ -20,25 +20,12 @@ interface Props {
 // Раньше все действия (админка, новая новелла, настройки и т.д.) были
 // прямо в шапке отдельными кнопками — получалось два ряда и тесно.
 // Здесь собираем всё под аватарку; шапка становится компактнее.
-// Внутри TG Mini App «выход» бесполезен: TelegramMiniAppAutoLogin при
-// следующем рендере увидит initData и тут же залогинит юзера обратно.
-// Флаг tg_explicit_logout в localStorage не выживает закрытие Mac TG
-// Desktop. Поэтому в Mini App пункт меню превращается в «Закрыть Chaptify»
-// и вызывает Telegram.WebApp.close() — та же стратегия, что в LogoutButton.
-type TgWebApp = {
-  initData?: string;
-  close?: () => void;
-};
-
-function getTelegramWebApp(): TgWebApp | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const w = window as unknown as { Telegram?: { WebApp?: TgWebApp } };
-  return w.Telegram?.WebApp;
-}
-
-function hasMiniAppInitData(): boolean {
-  return !!getTelegramWebApp()?.initData;
-}
+//
+// Logout-кнопка работает одинаково в обычном браузере и в Telegram
+// Mini App: вызывает /auth/tg/block (серверный флаг
+// profiles.tg_auto_login_blocked_at), затем supabase.auth.signOut и
+// hard-reload на /login. См. подробно в LogoutButton.tsx и
+// auth-service-chaptify /auth/telegram/block.
 
 export default function UserMenu({
   userName,
@@ -50,8 +37,6 @@ export default function UserMenu({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  // Детектим только на клиенте, чтобы не было SSR hydration-mismatch.
-  const [inMiniApp, setInMiniApp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Закрытие на клик вне и на Escape
@@ -71,53 +56,33 @@ export default function UserMenu({
     };
   }, [open]);
 
-  // SDK telegram-web-app.js грузится после маунта (через
-  // TelegramMiniAppAutoLogin → <Script afterInteractive>), поэтому initData
-  // на первом рендере может отсутствовать даже в настоящем Mini App.
-  // Поллим до 3 секунд.
-  useEffect(() => {
-    if (hasMiniAppInitData()) {
-      setInMiniApp(true);
-      return;
-    }
-    let cancelled = false;
-    let attempts = 0;
-    const tick = () => {
-      if (cancelled) return;
-      attempts++;
-      if (hasMiniAppInitData()) {
-        setInMiniApp(true);
-        return;
-      }
-      if (attempts < 30) setTimeout(tick, 100);
-    };
-    setTimeout(tick, 100);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleLogout = async () => {
-    if (inMiniApp) {
-      // В Mini App не делаем signOut: сессия привязана к TG-аккаунту,
-      // и auto-login всё равно вернёт юзера. Просто закрываем приложение.
-      try {
-        getTelegramWebApp()?.close?.();
-      } catch {
-        /* ignore — на старых клиентах метода может не быть */
-      }
-      return;
-    }
-
     if (!confirm('Выйти из аккаунта?')) return;
     setBusy(true);
+
+    // Серверный флаг блокировки автологина из Mini App. Не валим юзера,
+    // если упало (например, auth-service недоступен) — signOut ниже всё
+    // равно очистит локальную сессию.
+    try {
+      await fetch('/auth/tg/block', { method: 'POST', cache: 'no-store' });
+    } catch {
+      /* ignore */
+    }
+    try {
+      localStorage.setItem('tg_explicit_logout', 'true');
+    } catch {
+      /* private mode */
+    }
+
     const supabase = createClient();
     // scope: 'global' инвалидирует refresh_token на сервере Supabase —
     // если он ранее утёк (XSS, расширение, бэкап с диска), злоумышленник
     // не сможет продолжать пользоваться сессией после нашего logout.
     await supabase.auth.signOut({ scope: 'global' });
-    // Hard reload — SSR рендер layout увидит очищенные cookies
-    window.location.href = '/';
+    // Hard reload на /login: SSR layout увидит очищенные cookies, а юзер
+    // сразу попадёт на форму входа (внутри Mini App там есть кнопка
+    // явного входа через initData).
+    window.location.href = '/login';
     router.refresh();
   };
 
@@ -219,12 +184,8 @@ export default function UserMenu({
               <span>…</span>
             ) : (
               <>
-                <span className="user-menu-icon" aria-hidden="true">
-                  {inMiniApp ? '✕' : '↩'}
-                </span>
-                <span>
-                  {inMiniApp ? 'Закрыть Chaptify' : 'Выйти из аккаунта'}
-                </span>
+                <span className="user-menu-icon" aria-hidden="true">↩</span>
+                <span>Выйти из аккаунта</span>
               </>
             )}
           </button>
