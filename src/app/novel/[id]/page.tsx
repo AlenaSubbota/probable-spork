@@ -12,6 +12,7 @@ import MyNovelHistory from '@/components/novel/MyNovelHistory';
 import NovelHero from '@/components/novel/NovelHero';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
 import { fetchTranslators } from '@/lib/translator';
+import { findNovelByParam } from '@/lib/novel-lookup';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -25,11 +26,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: novel } = await supabase
-    .from('novels_view')
-    .select('title, description, cover_url, author, moderation_status, age_rating')
-    .eq('firebase_id', id)
-    .maybeSingle();
+  // Принимаем и firebase_id, и numeric id (формат tene-бота).
+  const { data: novel } = await findNovelByParam(
+    supabase,
+    id,
+    'title, description, cover_url, author, moderation_status, age_rating, firebase_id'
+  );
 
   if (!novel || novel.moderation_status !== 'published') {
     return { title: 'Новелла не найдена', robots: { index: false, follow: false } };
@@ -45,7 +47,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     : `Читайте «${novel.title}» онлайн на Chaptify`;
 
   const cover = getCoverUrl(novel.cover_url);
-  const url = `/novel/${id}`;
+  // Канонический URL — всегда через firebase_id, даже если пришли по numeric.
+  const url = `/novel/${novel.firebase_id ?? id}`;
 
   return {
     title: novel.title,
@@ -100,11 +103,8 @@ export default async function NovelInfoPage({ params }: PageProps) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: novel } = await supabase
-    .from('novels_view')
-    .select('*')
-    .eq('firebase_id', id)
-    .maybeSingle();
+  // findNovelByParam — поддержка и firebase_id, и numeric id.
+  const { data: novel } = await findNovelByParam(supabase, id, '*');
 
   if (!novel) notFound();
 
