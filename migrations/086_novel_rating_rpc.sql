@@ -4,14 +4,16 @@
 -- RPC `set_my_novel_rating(p_novel_id, p_rating)` для проставления/сброса
 -- 5-звёздного рейтинга текущим юзером.
 --
--- Таблица `novel_ratings` живёт в tene-наследии, RLS-политики и триггер
+-- Таблица `novel_ratings` живёт в tene-наследии: RLS-политики и триггер
 -- пересчёта `novel_stats.average_rating`/`rating_count` уже подключены
--- общим Supabase-проектом — поэтому здесь мы только пишем чистую обёртку
--- через SECURITY DEFINER, чтобы:
+-- общим Supabase-проектом — поэтому здесь только чистая SECURITY DEFINER
+-- обёртка, чтобы:
 --   1. валидировать диапазон 1..5 на сервере (а не верить клиенту);
 --   2. дать одну точку для UI: rating=NULL/0 → удалить мою оценку;
---   3. не допускать прямого RAW UPDATE из браузера (даже если RLS
---      разрешит, мы могли бы случайно перезаписать чужую строку).
+--   3. не допускать прямого RAW UPDATE из браузера.
+--
+-- updated_at намеренно НЕ трогаем: если колонка есть — её отдельный
+-- триггер сам пометит, если нет — мы не ломаем INSERT.
 --
 -- Идемпотентно: можно крутить миграцию повторно.
 -- ==========================================================================
@@ -35,7 +37,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'no_novel_id');
   END IF;
 
-  -- 0/NULL — пользователь хочет снять свою оценку.
+  -- 0 или NULL — пользователь хочет снять свою оценку.
   IF p_rating IS NULL OR p_rating = 0 THEN
     DELETE FROM public.novel_ratings
      WHERE novel_id = p_novel_id
@@ -47,31 +49,12 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'rating_out_of_range');
   END IF;
 
-  INSERT INTO public.novel_ratings AS nr (novel_id, user_id, rating)
+  INSERT INTO public.novel_ratings (novel_id, user_id, rating)
   VALUES (p_novel_id, v_user, p_rating)
   ON CONFLICT (novel_id, user_id)
-  DO UPDATE SET
-    rating = EXCLUDED.rating,
-    -- если в схеме есть updated_at — апдейтнем; если нет — IGNORE через SET WHERE
-    updated_at = COALESCE(
-      (SELECT now() WHERE EXISTS (
-        SELECT 1 FROM information_schema.columns
-         WHERE table_schema = 'public'
-           AND table_name   = 'novel_ratings'
-           AND column_name  = 'updated_at'
-      )),
-      nr.updated_at
-    );
+  DO UPDATE SET rating = EXCLUDED.rating;
 
   RETURN jsonb_build_object('ok', true, 'rating', p_rating);
-EXCEPTION
-  WHEN undefined_column THEN
-    -- updated_at нет в schema — пробуем без него.
-    INSERT INTO public.novel_ratings (novel_id, user_id, rating)
-    VALUES (p_novel_id, v_user, p_rating)
-    ON CONFLICT (novel_id, user_id)
-    DO UPDATE SET rating = EXCLUDED.rating;
-    RETURN jsonb_build_object('ok', true, 'rating', p_rating);
 END;
 $$;
 
