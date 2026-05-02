@@ -1,0 +1,110 @@
+/* Стили под StarRating + блок отзывов на странице новеллы.
+   Лежит отдельно от globals.css, чтобы не разрастать монолит и
+   менять можно было прицельно. Импортируется из
+   src/components/novel/StarRating.tsx — Next подхватывает CSS через
+   обычный side-effect import. */
+
+.star-rating {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0 4px;
+  padding: 10px 14px;
+  background: var(--surface, #FAF6EC);
+  border: 1px solid var(--border, #E0D6BF);
+  border-radius: var(--radius, 10px);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.star-rating-row {
+  display: flex;
+  gap: 2px;
+}
+
+.star-rating-row--ro .star-rating-btn {
+  cursor: default;
+}
+
+.star-rating-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ink-mute, #B5A88B);
+  cursor: pointer;
+  transition: transform 120ms ease, color 120ms ease;
+  user-select: none;
+}
+
+.star-rating-btn.is-filled {
+  color: var(--gold, #E0AA3E);
+}
+
+.star-rating-btn:hover:not(:disabled) {
+  transform: scale(1.18);
+}
+
+.star-rating-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.star-rating-btn.is-mine {
+  /* лёгкая визуальная подсказка, что это именно моя текущая оценка */
+  filter: drop-shadow(0 0 2px rgba(224, 170, 62, 0.45));
+}
+
+.star-rating-meta {
+  font-size: 12.5px;
+  color: var(--ink-mute, #8E7E5E);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.star-rating-mine {
+  color: var(--ink-soft, #6E5F47);
+  font-weight: 500;
+}
+
+/* ---- Блок отзывов на странице новеллы ---- */
+
+.novel-reviews-block {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border, #E0D6BF);
+}
+
+.novel-reviews-block h3 {
+  font-family: var(--font-serif, 'PT Serif', Georgia, serif);
+  font-size: 26px;
+  margin: 0 0 14px;
+}
+
+/* Анкорный flash: когда читатель пришёл по ссылке #comment-NNN
+   (например, из уведомления), браузер сам скроллит. Подсветим
+   карточку на 3 секунды лёгким фоном — чтобы человек видел, к
+   какому именно комменту его привели. Реализация чисто CSS:
+   `:target` срабатывает на element с id, совпадающим с hash
+   текущего URL. */
+.comment-item:target {
+  background: var(--accent-soft, rgba(232, 152, 172, 0.18));
+  border-radius: 8px;
+  animation: review-target-flash 2.4s ease-out;
+}
+
+@keyframes review-target-flash {
+  0%   { background: rgba(232, 152, 172, 0.35); }
+  100% { background: transparent; }
+}
+
+/* На мобиле звёзды чуть крупнее — палец не такой точный */
+@media (max-width: 720px) {
+  .star-rating-btn {
+    font-size: 30px;
+    padding: 4px 5px;
+  }
+}
