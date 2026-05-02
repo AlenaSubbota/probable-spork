@@ -35,9 +35,26 @@ interface Props {
       переводчику» — теперь это естественный жест после прочтения, и
       ему место рядом с комментариями, а не отдельной секцией. */
   topSlot?: React.ReactNode;
+  /** Заголовок секции. Дефолт «Обсуждение». В review-режиме передают
+      «Отзывы». */
+  heading?: string;
+  /** Плейсхолдер главного input'а. Дефолт «Напиши что-нибудь о главе…». */
+  inputPlaceholder?: string;
+  /** Текст empty-state, когда ни одного коммента/отзыва нет. */
+  emptyText?: string;
+  /** Подсказка, которую видят гости вместо формы. */
+  guestPrompt?: React.ReactNode;
 }
 
-export default function CommentsSection({ novelId, chapterNumber, topSlot }: Props) {
+export default function CommentsSection({
+  novelId,
+  chapterNumber,
+  topSlot,
+  heading = 'Обсуждение',
+  inputPlaceholder = 'Напиши что-нибудь о главе… Выдели текст и нажми кнопку форматирования.',
+  emptyText = 'Пока никто не оставил отзыв. Стань первым.',
+  guestPrompt,
+}: Props) {
   const supabase = createClient();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -263,6 +280,7 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
     return (
       <div
         key={c.id}
+        id={`comment-${c.id}`}
         data-depth={visualDepth}
         className={`comment-item${depth > 0 ? ' comment-item--reply' : ''}${deleted ? ' comment-item--deleted' : ''}`}
       >
@@ -415,7 +433,7 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
 
   return (
     <section className="comments-section">
-      <h3>Обсуждение {comments.length > 0 && <small>({comments.length})</small>}</h3>
+      <h3>{heading} {comments.length > 0 && <small>({comments.length})</small>}</h3>
 
       {topSlot && (
         <div className="comments-section-top-slot">{topSlot}</div>
@@ -434,7 +452,7 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
             onChange={setNewText}
             rows={3}
             maxLength={2000}
-            placeholder="Напиши что-нибудь о главе… Выдели текст и нажми кнопку форматирования."
+            placeholder={inputPlaceholder}
           />
           <div className="comment-form-foot" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
             <button
@@ -448,16 +466,18 @@ export default function CommentsSection({ novelId, chapterNumber, topSlot }: Pro
         </form>
       ) : (
         <div className="empty-state" style={{ padding: '20px 20px 24px', marginBottom: 18 }}>
-          <Link href="/login" className="more">Войти</Link>, чтобы комментировать.
+          {guestPrompt ?? (
+            <>
+              <Link href="/login" className="more">Войти</Link>, чтобы комментировать.
+            </>
+          )}
         </div>
       )}
 
       {loading ? (
         <p style={{ color: 'var(--ink-mute)' }}>Загружаем комментарии…</p>
       ) : topLevel.length === 0 ? (
-        <p style={{ color: 'var(--ink-mute)' }}>
-          Пока никто не оставил отзыв. Стань первым.
-        </p>
+        <p style={{ color: 'var(--ink-mute)' }}>{emptyText}</p>
       ) : (
         <div className="comments-list">
           {topLevel.map((c) => renderOne(c, 0))}
