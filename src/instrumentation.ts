@@ -1,7 +1,8 @@
 // Next.js instrumentation hook — fires once при старте серверного
-// процесса (Node + Edge runtimes). Используем для валидации
-// обязательных env-переменных: лучше упасть на старте контейнера,
-// чем отдавать «белый экран» каждому SSR-запросу.
+// процесса. Используем как мягкий валидатор env: только логируем,
+// никогда не throw — иначе при первом промахе со переменной весь
+// контейнер уходит в crash-loop, и сайт отдаёт 500 без шанса
+// диагностики из консоли.
 
 const REQUIRED_ENVS = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -13,27 +14,18 @@ const RECOMMENDED_ENVS = [
 ] as const;
 
 export async function register() {
-  // На клиенте этот файл не выполняется, но edge runtime его дёргает —
-  // process.env в edge может быть пустым для приватных ключей. Здесь
-  // нас интересуют только NEXT_PUBLIC_*, которые залиты в build-time.
-
+  // NEXT_PUBLIC_* инлайнятся в build-time, но через process.env они
+  // тоже видны в node-рантайме. В edge-рантайме набор может быть
+  // ограничен — поэтому только warn, не throw.
   const missing: string[] = [];
   for (const key of REQUIRED_ENVS) {
     if (!process.env[key] || String(process.env[key]).trim() === '') {
       missing.push(key);
     }
   }
-
   if (missing.length > 0) {
-    const msg = `[chaptify] Missing required env vars: ${missing.join(', ')}`;
-    if (process.env.NODE_ENV === 'production') {
-      // Падаем — иначе SSR будет валиться на каждом запросе с
-      // непонятной supabase-ошибкой.
-      throw new Error(msg);
-    }
-    console.error(msg);
+    console.error(`[chaptify] Missing required env vars: ${missing.join(', ')}`);
   }
-
   for (const key of RECOMMENDED_ENVS) {
     if (!process.env[key]) {
       console.warn(`[chaptify] Recommended env var not set: ${key}`);
