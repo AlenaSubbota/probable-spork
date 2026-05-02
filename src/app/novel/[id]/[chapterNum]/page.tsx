@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { findNovelByParam } from '@/lib/novel-lookup';
 
 // Локальный escapeHtml — нужен для безопасной inline-вставки сообщений
 // об ошибке загрузки главы, которые рендерятся через
@@ -33,11 +34,15 @@ export default async function ChapterPage({ params }: PageProps) {
   const { id, chapterNum } = await params;
   const num = parseInt(chapterNum, 10);
 
-  const { data: novel } = await supabase
-    .from('novels')
-    .select('id, title, firebase_id, translator_id, moderation_status')
-    .eq('firebase_id', id)
-    .single();
+  // findNovelByParam — поддержка и firebase_id, и numeric id
+  // (формат tene-бота уведомлений). Раньше тут был прямой query
+  // .eq('firebase_id', id) на таблицу novels, и tene-боту-сгенерированные
+  // ссылки `/novel/<numeric>/<chapter>` падали в notFound.
+  const { data: novel } = await findNovelByParam(
+    supabase,
+    id,
+    'id, title, firebase_id, translator_id, moderation_status'
+  );
 
   if (!novel) notFound();
 
@@ -109,7 +114,7 @@ export default async function ChapterPage({ params }: PageProps) {
 
   // Платная глава + анонимный читатель → на логин, не отдаём текст
   if (chapter.is_paid && !user) {
-    const redirectTo = encodeURIComponent(`/novel/${id}/${chapter.chapter_number}`);
+    const redirectTo = encodeURIComponent(`/novel/${novel.firebase_id}/${chapter.chapter_number}`);
     return (
       <div className="reader-page">
         <main className="reader-main">
@@ -129,7 +134,7 @@ export default async function ChapterPage({ params }: PageProps) {
                 Войти
               </Link>
               <Link
-                href={`/novel/${id}`}
+                href={`/novel/${novel.firebase_id}`}
                 className="paywall-back"
               >
                 ← Назад к списку глав
@@ -244,7 +249,7 @@ export default async function ChapterPage({ params }: PageProps) {
       <div className="reader-page">
         <header className="reader-header">
           <div className="container reader-header-row">
-            <Link href={`/novel/${id}`} className="reader-back">
+            <Link href={`/novel/${novel.firebase_id}`} className="reader-back">
               ← {novel.title}
             </Link>
             <div className="reader-chapter-num">Глава {chapter.chapter_number}</div>
@@ -457,7 +462,7 @@ export default async function ChapterPage({ params }: PageProps) {
     <div className="reader-page">
       <header className="reader-header">
         <div className="container reader-header-row">
-          <Link href={`/novel/${id}`} className="reader-back">
+          <Link href={`/novel/${novel.firebase_id}`} className="reader-back">
             ← {novel.title}
           </Link>
           <div className="reader-chapter-num">Глава {chapter.chapter_number}</div>
@@ -508,7 +513,7 @@ export default async function ChapterPage({ params }: PageProps) {
               <nav className="reader-nav">
                 {nextChapter ? (
                   <Link
-                    href={`/novel/${id}/${nextChapter.chapter_number}`}
+                    href={`/novel/${novel.firebase_id}/${nextChapter.chapter_number}`}
                     className="btn btn-primary"
                     style={{ flex: 1, textAlign: 'center' }}
                   >
@@ -516,7 +521,7 @@ export default async function ChapterPage({ params }: PageProps) {
                   </Link>
                 ) : (
                   <Link
-                    href={`/novel/${id}`}
+                    href={`/novel/${novel.firebase_id}`}
                     className="btn btn-ghost"
                     style={{ flex: 1, textAlign: 'center' }}
                   >
