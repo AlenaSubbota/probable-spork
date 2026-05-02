@@ -57,7 +57,14 @@ export async function GET(request: NextRequest) {
     photo_url: url.searchParams.get('photo_url') ?? undefined,
   };
 
-  const authApiUrl = process.env.NEXT_PUBLIC_AUTH_API_URL;
+  // Базовый URL auth-сервиса. Предпочитаем внутренний docker-host
+  // (без TLS, без выхода в интернет, без round-trip через nginx) —
+  // это устраняет сетевую петлю, при которой контейнер chaptify-web
+  // ходил бы на свой же chaptify.ru снаружи и обратно.
+  // Fallback — NEXT_PUBLIC_AUTH_API_URL (он же используется на клиенте,
+  // например для linking-flow на /profile/settings).
+  const authApiUrl =
+    process.env.AUTH_API_INTERNAL_URL || process.env.NEXT_PUBLIC_AUTH_API_URL;
   if (!authApiUrl) {
     // Без явного ENV не отправляем widget-payload никуда — иначе любой,
     // кто контролирует дефолт, мог бы подменить trust-root. Лучше тихий
@@ -72,6 +79,10 @@ export async function GET(request: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ widgetData }),
       cache: 'no-store',
+      // Жёсткий timeout: иначе зависший fetch (DNS/TLS/upstream) дотянет
+      // до nginx upstream_read_timeout и вернёт 502 без шансов на errorHtml.
+      // 10s покрывает медленный COLD-start auth-service-chaptify.
+      signal: AbortSignal.timeout(10_000),
     });
     if (!resp.ok) {
       return htmlResponse(errorHtml('tg_auth_failed'));
