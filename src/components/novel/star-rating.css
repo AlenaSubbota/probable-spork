@@ -25,7 +25,9 @@
   align-items: center;
   gap: 4px;
   margin: 12px auto 0;
-  padding: 8px 0 0;
+  /* нижний padding — чтобы строка «твоя оценка: 5/5» не лепилась
+     к нижней границе карточки */
+  padding: 8px 0 14px;
   width: 100%;
   max-width: 220px;
 }
