@@ -2,7 +2,10 @@ name: Build and Push Chaptify
 
 on:
   push:
-    branches: [ "main" ] 
+    branches: [ "main" ]
+  # Позволяет дёрнуть деплой вручную для существующего main-коммита
+  # (например, если SSH-секреты добавили после merge'а).
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -31,3 +34,37 @@ jobs:
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_TG_BOT_USERNAME=chaptifybot
             NEXT_PUBLIC_AUTH_API_URL=https://chaptify.ru
+
+  deploy:
+    # Идём только если build прошёл. Иначе можно задеплоить старый,
+    # битый или вообще ненастоящий образ (race с другим job-ом).
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and rolling-restart chaptify-web
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Если SSH_PORT не задан в secrets — fallback на 22.
+          port: ${{ secrets.SSH_PORT || 22 }}
+          # Жёсткие таймауты, чтобы зависший SSH не висел 6 часов и не
+          # блокировал последующие запуски.
+          command_timeout: 5m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /root/nginx-proxy
+
+            # Тянем свежий образ. Если уже latest — pull no-op.
+            docker compose pull chaptify-web
+
+            # --no-deps: не трогаем nginx и прочих соседей по compose-файлу.
+            # Контейнер пересоздаётся с новым образом, остальные продолжают
+            # работать без рестарта.
+            docker compose up -d --no-deps chaptify-web
+
+            # Чистим dangling-образы предыдущих версий, чтобы диск
+            # сервера не утекал по 1ГБ за билд.
+            docker image prune -f
