@@ -24,10 +24,20 @@ export function getPresetCss(avatarUrl: string | null | undefined): string | nul
   return AVATAR_PRESETS.find((p) => p.id === id)?.css ?? null;
 }
 
+// Прямые URL на tene.fun storage (исторически часть аватаров хранится
+// именно так) переписываем на same-origin /sb-storage/<...>. Без этого
+// браузер ходит на tene.fun напрямую, и Safari/WKWebView вешает
+// loading-индикатор из-за ITP. См. подробнее в src/lib/format.ts.
+const TENE_STORAGE_RE = /^https?:\/\/(?:www\.)?tene\.fun\/storage\/(.+)$/i;
+
 export function resolveAvatarUrl(avatarUrl: string | null | undefined): string | null {
   if (!avatarUrl) return null;
   if (avatarUrl.startsWith('preset:')) return null;   // пресет → CSS, не URL
-  if (avatarUrl.startsWith('http')) return avatarUrl; // внешний (Telegram / прочий CDN)
+  if (avatarUrl.startsWith('http')) {
+    const m = avatarUrl.match(TENE_STORAGE_RE);
+    if (m) return `/sb-storage/${m[1]}`;
+    return avatarUrl;                                 // внешний (Telegram / прочий CDN)
+  }
   // Relative path в bucket avatars — same-origin через next.config
   // rewrite `/sb-storage/*` → tene.fun/storage/*. Safari desktop
   // не ходит к tene.fun напрямую, поэтому все supabase-storage ссылки
