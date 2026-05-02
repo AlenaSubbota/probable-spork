@@ -6,6 +6,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import HeaderRefreshOnVisibility from "@/components/HeaderRefreshOnVisibility";
 import ReaderKeyboardDetector from "@/components/ReaderKeyboardDetector";
+import TelegramMiniAppAutoLogin from "@/components/auth/TelegramMiniAppAutoLogin";
 
 // UI-шрифт: Manrope — тёплый, современный grotesk с хорошей кириллицей
 // и мягким округлением. Лучше вписывается в «бумажную» палитру сайта,
@@ -109,6 +110,11 @@ export default function RootLayout({
         <SiteHeader />
         <HeaderRefreshOnVisibility />
         <ReaderKeyboardDetector />
+        {/* Silent-логин внутри Telegram Mini App: лениво грузит
+            telegram-web-app.js, проверяет initData и ставит сессию
+            Supabase без видимого браузерного UI. Вне TG ничего
+            не делает (ни рендера, ни сети). */}
+        <TelegramMiniAppAutoLogin />
         <div className="flex-1">{children}</div>
         <SiteFooter />
       </body>

@@ -52,6 +52,15 @@ export default function TgFinalizePage() {
         return;
       }
 
+      // Юзер явно вошёл через TG — снимаем флаг «вышел вручную»,
+      // чтобы в Mini App-окружении следующий визит логинил без ручных
+      // действий.
+      try {
+        localStorage.removeItem('tg_explicit_logout');
+      } catch {
+        /* ignore */
+      }
+
       // Стереть токены из URL-bar до того, как браузер запомнит их в
       // session history. window.location.replace ниже делает hard reload
       // без сохранения текущей записи в history, так что hash не
