@@ -10,28 +10,33 @@ import NovelTabs from '@/components/novel/NovelTabs';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
 import { formatReadingTime } from '@/lib/catalog';
 import { safeUrl } from '@/lib/sanitize';
+import { findNovelByParam } from '@/lib/novel-lookup';
 
 // NovelHero — общая шапка страницы новеллы (обложка + информация +
 // действия + sticky-табы). Используется на всех трёх подстраницах:
 //   /novel/[id]            — «О тайтле» (page.tsx)
 //   /novel/[id]/chapters   — «Главы»
 //   /novel/[id]/reviews    — «Отзывы»
-// Каждая подстраница рендерит <NovelHero firebaseId={id} /> в начале
+// Каждая подстраница рендерит <NovelHero idOrFirebaseId={id} /> в начале
 // своего <main>, потом — собственный контент.
 //
-// Сервер-компонент: сам тянет данные и сам падает в notFound() если
-// новеллы нет или она не опубликована (а смотрит не переводчик/админ).
-export default async function NovelHero({ firebaseId }: { firebaseId: string }) {
+// Параметр idOrFirebaseId принимает:
+//   - firebase_id (каноничный chaptify-формат) — например, "harem-tomb-raider"
+//   - numeric novels.id — формат tene-бота уведомлений ("27")
+// Все внутренние ссылки строятся на novel.firebase_id (после lookup).
+export default async function NovelHero({
+  firebaseId,
+}: {
+  /** Может быть и числовой id, и firebase_id — поддержка обоих форматов
+      нужна для совместимости со ссылками из бота уведомлений tene. */
+  firebaseId: string;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: novel, error: novelError } = await supabase
-    .from('novels_view')
-    .select('*')
-    .eq('firebase_id', firebaseId)
-    .single();
+  const { data: novel } = await findNovelByParam(supabase, firebaseId, '*');
 
-  if (novelError || !novel) notFound();
+  if (!novel) notFound();
 
   // Профиль текущего пользователя — определяет canEdit + bookmarkStatus.
   const { data: viewerProfile } = user
@@ -592,7 +597,9 @@ export default async function NovelHero({ firebaseId }: { firebaseId: string }) 
           </div>
         </div>
 
-        {/* Sticky-табы. Каждый — отдельный роут /novel/<id>/{segment} */}
+        {/* Sticky-табы. Каждый — отдельный роут /novel/<firebase_id>/{segment}.
+            Используем canonical firebase_id, а не входной idOrFirebaseId, —
+            чтобы переходы между табами всегда шли на «красивый» URL. */}
         <NovelTabs
           novelFirebaseId={novel.firebase_id}
           tabs={[
