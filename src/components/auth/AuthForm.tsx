@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 // Убрали useRouter — логин завершается через window.location.href = '/',
 // чтобы SSR-запрос увидел свежие cookies из setSession().
 import Link from 'next/link';
@@ -13,12 +13,10 @@ interface Props {
 }
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TG_BOT_USERNAME || 'tenebrisverbot';
-// AUTH_API_URL — без дефолта. Сервис мин-валидации Telegram-подписи и
-// выпуска Supabase-сессии = trust root. Дефолт на чужой домен ('tene.fun')
-// при отсутствии ENV приводил бы к тому, что любой контролирующий tene.fun
-// мог бы выпускать сессии на chaptify-юзеров. Лучше упасть на этапе сборки
-// /рантайма, чем тихо подменить trust-root.
-const AUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_API_URL;
+// Trust-root для Telegram-входа теперь живёт в server route /auth/tg —
+// он проксирует подписанный widget-payload на auth-service-chaptify
+// (NEXT_PUBLIC_AUTH_API_URL) и ставит cookies. Виджету достаточно
+// абсолютного authUrl на наш домен.
 
 export default function AuthForm({ mode }: Props) {
   const [email, setEmail] = useState('');
@@ -74,50 +72,31 @@ export default function AuthForm({ mode }: Props) {
     );
   };
 
-  const handleTelegramAuth = async (user: {
-    id: number;
-    first_name: string;
-    last_name?: string;
-    username?: string;
-    photo_url?: string;
-    auth_date: number;
-    hash: string;
-  }) => {
-    setError(null);
-    setStatus('busy');
-    if (!AUTH_API_URL) {
-      // Без явного ENV не отправляем widget-payload никуда —
-      // см. комментарий у AUTH_API_URL про trust-root.
-      setError('Auth-сервис не настроен. Сообщи администратору (NEXT_PUBLIC_AUTH_API_URL).');
-      setStatus('error');
-      return;
-    }
-    try {
-      const resp = await fetch(`${AUTH_API_URL}/auth/telegram`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ widgetData: user }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Ошибка входа через Telegram');
+  // authUrl для Telegram-виджета считаем на клиенте (window.location.origin)
+  // и только после монтирования. Telegram требует абсолютный URL; на этапе
+  // SSR origin неизвестен, на клиенте — сейчас нужный (chaptify.ru / dev /
+  // прев/штол).
+  const [tgAuthUrl, setTgAuthUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setTgAuthUrl(`${window.location.origin}/auth/tg`);
+  }, []);
 
-      const supabase = createClient();
-      const { error } = await supabase.auth.setSession({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      });
-      if (error) throw error;
-
-      // setSession пишет cookies асинхронно; router.push/refresh успевают
-      // рендерить SSR до того как cookies оказываются в document.cookie.
-      // Hard reload гарантирует, что Next.js сделает fresh server request
-      // уже с обновлёнными куками.
-      window.location.href = '/';
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Telegram auth failed');
-      setStatus('error');
-    }
-  };
+  // Если на /login пришли с ?error=oauth_failed | tg_*, покажем
+  // дружелюбный текст один раз на маунте (не оверрайдим юзерские формы).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const reason = url.searchParams.get('error');
+    if (!reason) return;
+    const messages: Record<string, string> = {
+      oauth_failed: 'Не удалось войти через провайдера. Попробуй ещё раз.',
+      tg_widget_invalid: 'Telegram прислал неполные данные. Попробуй ещё раз.',
+      tg_not_configured: 'Telegram-вход не настроен на сервере. Сообщи администратору.',
+      tg_auth_failed: 'Telegram-подпись не прошла валидацию. Попробуй ещё раз.',
+      tg_network: 'Не получилось связаться с auth-сервисом. Проверь интернет.',
+      tg_no_session: 'Auth-сервис не вернул сессию. Сообщи администратору.',
+    };
+    setError(messages[reason] ?? 'Ошибка входа.');
+  }, []);
 
   const isRegister = mode === 'register';
 
@@ -141,7 +120,9 @@ export default function AuthForm({ mode }: Props) {
           Быстрый вход через Telegram
         </div>
         <div className="auth-tg-widget">
-          <TelegramLoginWidget botName={BOT_USERNAME} onAuth={handleTelegramAuth} />
+          {tgAuthUrl && (
+            <TelegramLoginWidget botName={BOT_USERNAME} authUrl={tgAuthUrl} />
+          )}
         </div>
         <p className="auth-hint">
           Клик → выбираешь аккаунт → готово. Без паролей.
