@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import NovelHero from '@/components/novel/NovelHero';
 import CommentsSection from '@/components/CommentsSection';
+import { findNovelByParam } from '@/lib/novel-lookup';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -14,14 +15,13 @@ interface PageProps {
 export default async function NovelReviewsPage({ params }: PageProps) {
   const { id } = await params;
 
-  // Нам нужен только novel.id (числовой PK) для CommentsSection.
-  // Делаем минимальный запрос, NovelHero сам тянет остальное.
+  // findNovelByParam принимает и firebase_id (chaptify-канон), и
+  // numeric id (формат tene-бота уведомлений) — иначе старые ссылки
+  // /novel/27/chapter/0 → /novel/27/reviews падают в 404, потому что
+  // "27" в БД лежит как novels.id, а в URL мы привыкли видеть
+  // firebase_id-строку.
   const supabase = await createClient();
-  const { data: novel } = await supabase
-    .from('novels_view')
-    .select('id, moderation_status')
-    .eq('firebase_id', id)
-    .maybeSingle();
+  const { data: novel } = await findNovelByParam(supabase, id, 'id, moderation_status');
 
   if (!novel) notFound();
 
