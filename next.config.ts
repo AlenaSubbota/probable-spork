@@ -12,6 +12,33 @@ const nextConfig: NextConfig = {
   // (src/lib/sanitize.ts) использует sanitize-html — pure JS, htmlparser2,
   // без DOM-глобалов.
 
+  // Legacy-редиректы. Уведомления, отправленные ботом до перехода на
+  // новую URL-схему, ссылались на /novel/<id>/chapter/<n>:
+  //   chapter/0 — это «отзыв на новеллу» (chapter_number=0 у tene),
+  //               сейчас живёт на /novel/<id>/reviews
+  //   chapter/N — это просто читалка главы N, сейчас /novel/<id>/N
+  //
+  // Раньше это делалось через server-component страницу с redirect()
+  // из next/navigation, но в Next 16 + standalone build redirect() из
+  // server-component возвращает 200 с RSC-payload (soft-navigation),
+  // а не HTTP 308. Поисковики и старые ссылки видели 200 + пустой
+  // экран. Конфиг-уровневые redirects() работают на уровне сервера —
+  // отдают чистый 308 Permanent Redirect ДО рендеринга страниц.
+  async redirects() {
+    return [
+      {
+        source: '/novel/:id/chapter/0',
+        destination: '/novel/:id/reviews',
+        permanent: true,
+      },
+      {
+        source: '/novel/:id/chapter/:num',
+        destination: '/novel/:id/:num',
+        permanent: true,
+      },
+    ];
+  },
+
   // Проксируем картинки обложек и аватарок с легаси-домена tene.fun
   // через chaptify.ru. Safari desktop-у плохо резолвится /связывается
   // с tene.fun (DNS/TLS/ITP пакет блокирует ресурсы до одномашинного
