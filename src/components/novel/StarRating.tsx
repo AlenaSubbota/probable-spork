@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { useToasts, ToastStack } from '@/components/ui/Toast';
+import './star-rating.css';
 
 interface Props {
   novelId: number;
