@@ -4,6 +4,21 @@
    src/components/novel/StarRating.tsx — Next подхватывает CSS через
    обычный side-effect import. */
 
+/* ВАЖНО: фикс клиппинга. Глобальный globals.css задаёт
+   .novel-top .cover-large {
+     aspect-ratio: 3/4;
+     overflow: hidden;
+   }
+   что прячет всё, что рендерится после самой обложки (а звёзды у нас
+   прямо под ней). Внутренний .novel-cover уже сам держит aspect-ratio,
+   так что эти правила на родителе — дубль. Сбрасываем здесь. */
+.novel-top .cover-large {
+  aspect-ratio: auto;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
 .star-rating {
   display: flex;
   flex-direction: column;
