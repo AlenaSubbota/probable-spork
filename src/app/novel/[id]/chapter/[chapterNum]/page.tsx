@@ -4,18 +4,16 @@ interface PageProps {
   params: Promise<{ id: string; chapterNum: string }>;
 }
 
-// Legacy-редирект: уведомления, отправленные ботом до перехода на
-// новую URL-схему, ссылались на /novel/<id>/chapter/<n>. Теперь:
-//   - chapter=0 в tene-схеме означал «отзыв на новеллу» (chapter_number=0
-//     в comments). У chaptify своя страница новеллы с секцией #reviews —
-//     туда и редиректим, плюс пробрасываем якорь на конкретный коммент,
-//     если он был в URL.
-//   - остальные chapterNum → канонический /novel/<id>/<n>.
+// Legacy-редирект для уведомлений, отправленных ботом до перехода на
+// новую URL-схему. Старые ссылки:
+//   /novel/<id>/chapter/<n>           → /novel/<id>/<n>     (читалка)
+//   /novel/<id>/chapter/0[#comment-N] → /novel/<id>/reviews (отзывы;
+//      n=0 в tene = «отзыв на новеллу», теперь это отдельный таб).
 export default async function ChapterRedirect({ params }: PageProps) {
   const { id, chapterNum } = await params;
 
   if (chapterNum === '0') {
-    redirect(`/novel/${encodeURIComponent(id)}#reviews`);
+    redirect(`/novel/${encodeURIComponent(id)}/reviews`);
   }
 
   redirect(`/novel/${encodeURIComponent(id)}/${encodeURIComponent(chapterNum)}`);
