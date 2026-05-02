@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import NovelHero from '@/components/novel/NovelHero';
+import { findNovelByParam } from '@/lib/novel-lookup';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -21,11 +22,13 @@ export default async function NovelChaptersPage({ params, searchParams }: PagePr
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: novel } = await supabase
-    .from('novels_view')
-    .select('id, firebase_id, translator_id, moderation_status')
-    .eq('firebase_id', id)
-    .maybeSingle();
+  // findNovelByParam пропускает и firebase_id, и numeric id
+  // (формат tene-бота уведомлений).
+  const { data: novel } = await findNovelByParam(
+    supabase,
+    id,
+    'id, firebase_id, translator_id, moderation_status'
+  );
 
   if (!novel) notFound();
 
