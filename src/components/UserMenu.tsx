@@ -20,6 +20,13 @@ interface Props {
 // Раньше все действия (админка, новая новелла, настройки и т.д.) были
 // прямо в шапке отдельными кнопками — получалось два ряда и тесно.
 // Здесь собираем всё под аватарку; шапка становится компактнее.
+//
+// Logout-кнопка работает одинаково в обычном браузере и в Telegram
+// Mini App: вызывает /auth/tg/block (серверный флаг
+// profiles.tg_auto_login_blocked_at), затем supabase.auth.signOut и
+// hard-reload на /login. См. подробно в LogoutButton.tsx и
+// auth-service-chaptify /auth/telegram/block.
+
 export default function UserMenu({
   userName,
   avatarUrl,
@@ -52,13 +59,30 @@ export default function UserMenu({
   const handleLogout = async () => {
     if (!confirm('Выйти из аккаунта?')) return;
     setBusy(true);
+
+    // Серверный флаг блокировки автологина из Mini App. Не валим юзера,
+    // если упало (например, auth-service недоступен) — signOut ниже всё
+    // равно очистит локальную сессию.
+    try {
+      await fetch('/auth/tg/block', { method: 'POST', cache: 'no-store' });
+    } catch {
+      /* ignore */
+    }
+    try {
+      localStorage.setItem('tg_explicit_logout', 'true');
+    } catch {
+      /* private mode */
+    }
+
     const supabase = createClient();
     // scope: 'global' инвалидирует refresh_token на сервере Supabase —
     // если он ранее утёк (XSS, расширение, бэкап с диска), злоумышленник
     // не сможет продолжать пользоваться сессией после нашего logout.
     await supabase.auth.signOut({ scope: 'global' });
-    // Hard reload — SSR рендер layout увидит очищенные cookies
-    window.location.href = '/';
+    // Hard reload на /login: SSR layout увидит очищенные cookies, а юзер
+    // сразу попадёт на форму входа (внутри Mini App там есть кнопка
+    // явного входа через initData).
+    window.location.href = '/login';
     router.refresh();
   };
 

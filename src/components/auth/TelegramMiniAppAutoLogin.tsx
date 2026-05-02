@@ -11,13 +11,15 @@ import { createClient } from '@/utils/supabase/client';
 //   1) Детектим, что мы вообще внутри TG (UA / TelegramWebviewProxy).
 //      Если нет — ничего не грузим, не делаем сетевых запросов.
 //   2) Если уже залогинены через Supabase — стоп (cookie/local есть).
-//   3) Если стоит флаг tg_explicit_logout — юзер только что вышел сам,
-//      не возвращаем его автоматически (иначе кнопка «Выйти» в TG
-//      бесполезна).
+//   3) Локальный флаг tg_explicit_logout — быстрый skip без сетевого
+//      запроса. Сервер всё равно перепроверит через
+//      profiles.tg_auto_login_blocked_at, поэтому потеря localStorage
+//      в Mac TG Desktop не возвращает юзера в систему.
 //   4) Лениво грузим telegram-web-app.js, ждём до 2 секунд появления
 //      window.Telegram.WebApp.initData (десктопная версия инициализирует
-//      WebApp с задержкой), POST'им на /auth/tg/initdata и ставим сессию
-//      через supabase.auth.setSession(...).
+//      WebApp с задержкой), POST'им на /auth/tg/initdata с silent=true.
+//      Сервер проверяет tg_auto_login_blocked_at и, если выставлен, шлёт
+//      403 auto_login_blocked — мы молча выходим без setSession.
 //   5) Делаем hard-reload, чтобы SSR-шапка увидела свежие cookies.
 
 declare global {
@@ -96,13 +98,40 @@ export default function TelegramMiniAppAutoLogin() {
         resp = await fetch('/auth/tg/initdata', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData }),
+          // silent=true → сервер уважает profiles.tg_auto_login_blocked_at.
+          // Если юзер вышел кнопкой — получим 403 auto_login_blocked, не
+          // восстановим сессию, останемся в logged-out UI.
+          body: JSON.stringify({ initData, silent: true }),
           cache: 'no-store',
         });
       } catch {
         return;
       }
-      if (cancelled || !resp.ok) return;
+      if (cancelled) return;
+      if (resp.status === 403) {
+        // Может быть auto_login_blocked (юзер вышел сам) либо реальный
+        // fail подписи. В обоих случаях молча — на /login есть явная
+        // кнопка «Войти», там разберёмся.
+        try {
+          const j = (await resp.json()) as { error?: string };
+          if (j.error === 'auto_login_blocked') {
+            // Подстраховка: если localStorage вдруг был очищен (новый
+            // запуск Mac TG Desktop), серверный отказ всё равно даёт нам
+            // источник правды. Восстанавливаем локальный флаг, чтобы
+            // следующая навигация в этой сессии не дёргала /auth/tg/initdata
+            // вхолостую.
+            try {
+              localStorage.setItem('tg_explicit_logout', 'true');
+            } catch {
+              /* private mode — ок, серверная проверка остаётся */
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      if (!resp.ok) return;
 
       let json: { access_token?: string; refresh_token?: string };
       try {

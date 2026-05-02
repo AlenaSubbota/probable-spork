@@ -23,7 +23,7 @@ interface AuthSession {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { initData?: unknown } = {};
+  let body: { initData?: unknown; silent?: unknown } = {};
   try {
     body = await request.json();
   } catch {
@@ -42,6 +42,14 @@ export async function POST(request: NextRequest) {
     return jsonNoStore({ error: 'malformed' }, 400);
   }
 
+  // silent=true → фоновый автологин (TelegramMiniAppAutoLogin). На сервере
+  // это включает проверку profiles.tg_auto_login_blocked_at: если юзер
+  // недавно нажал «Выйти», получим 403 auto_login_blocked, и фронт молча
+  // оставит юзера в logged-out состоянии. Явный клик «Войти» шлёт
+  // silent=false (или не шлёт вообще) — тогда сервер сбрасывает флаг
+  // и логинит как обычно.
+  const silent = body.silent === true;
+
   const authApiUrl =
     process.env.AUTH_API_INTERNAL_URL || process.env.NEXT_PUBLIC_AUTH_API_URL;
   if (!authApiUrl) {
@@ -53,13 +61,25 @@ export async function POST(request: NextRequest) {
     const resp = await fetch(`${authApiUrl}/auth/telegram`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData }),
+      body: JSON.stringify({ initData, silent }),
       cache: 'no-store',
       // Жёсткий таймаут, чтобы не дотянуть до nginx upstream timeout —
       // фронт получит чистую ошибку и сможет молча отступить.
       signal: AbortSignal.timeout(10_000),
     });
     if (resp.status === 403) {
+      // Пробрасываем спец-код auto_login_blocked отдельно от обычного
+      // отказа подписи — фронту нужно различать «silent заблокирован, не
+      // показывай ошибку» vs «реальный fail подписи».
+      let upstream: { error?: string } = {};
+      try {
+        upstream = (await resp.json()) as typeof upstream;
+      } catch {
+        /* upstream вернул не-JSON — считаем стандартным auth_failed */
+      }
+      if (upstream.error === 'auto_login_blocked') {
+        return jsonNoStore({ error: 'auto_login_blocked' }, 403);
+      }
       return jsonNoStore({ error: 'auth_failed' }, 403);
     }
     if (!resp.ok) {
