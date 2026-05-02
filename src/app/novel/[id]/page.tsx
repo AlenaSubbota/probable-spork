@@ -7,34 +7,20 @@ import NovelCard from '@/components/NovelCard';
 import FirstChapterPreview from '@/components/FirstChapterPreview';
 import SimilarByReaders from '@/components/SimilarByReaders';
 import ReleasePace from '@/components/ReleasePace';
-import BookmarkButton from '@/components/BookmarkButton';
-import NovelClaimButton from '@/components/NovelClaimButton';
-import ReportButton from '@/components/ReportButton';
-import AdultGate from '@/components/AdultGate';
 import NovelCredits, { type CreditRow } from '@/components/novel/NovelCredits';
 import MyNovelHistory from '@/components/novel/MyNovelHistory';
-import StarRating from '@/components/novel/StarRating';
-import NovelTabs from '@/components/novel/NovelTabs';
-import CommentsSection from '@/components/CommentsSection';
+import NovelHero from '@/components/novel/NovelHero';
 import { getCoverUrl, cleanGenres } from '@/lib/format';
-import { formatReadingTime } from '@/lib/catalog';
 import { fetchTranslators } from '@/lib/translator';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string }>;
 }
 
-const CHAPTERS_PER_PAGE = 50;
-
 // generateMetadata: динамические OG/Twitter-метаданные на превью в
-// Telegram/VK/Twitter. Без этой функции мессенджеры показывали только
-// глобальный title из layout.tsx, без обложки и описания. Теперь:
-//   - Title: «<Название> — Chaptify» через template из layout
-//   - Description: первое предложение описания (или дефолт)
-//   - OG image: обложка новеллы (через /covers proxy → tene.fun)
-//
-// Запрос идёт ОТДЕЛЬНО от render — Next кэширует обе вызова.
+// Telegram/VK/Twitter. Метаданные тут — для канонического URL
+// /novel/<id>; подстраницы /chapters и /reviews наследуют title.template
+// из RootLayout.
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const supabase = await createClient();
@@ -49,7 +35,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Новелла не найдена', robots: { index: false, follow: false } };
   }
 
-  // Описание для og:description — берём первое предложение текстом без HTML.
   const rawDesc = String(novel.description ?? '');
   const plainDesc = rawDesc
     .replace(/<[^>]+>/g, ' ')
@@ -78,7 +63,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       images: cover ? [cover] : undefined,
     },
-    // 18+ новеллы не индексируем — снижает шанс блокировки в Яндекс/Google.
     robots: novel.age_rating === '18+'
       ? { index: false, follow: false }
       : { index: true, follow: true },
@@ -86,24 +70,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-function formatChapterDate(published: string | null) {
-  if (!published) return '';
-  const date = new Date(published);
-  const diffDays = Math.floor((Date.now() - date.getTime()) / 86_400_000);
-  if (diffDays <= 0) return `сегодня, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  if (diffDays === 1) return `вчера, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  if (diffDays < 7) return `${diffDays} дн. назад`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} нед. назад`;
-  return date.toLocaleDateString('ru-RU');
-}
-
-function formatCount(n: number | null | undefined) {
-  if (!n) return '0';
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`.replace('.0', '');
-  return n.toLocaleString('ru-RU');
-}
-
-// Текст первого абзаца без html, подрезанный до ~280 символов.
 function extractFirstParagraph(html: string, limit = 280): string {
   const text = html
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -117,204 +83,65 @@ function extractFirstParagraph(html: string, limit = 280): string {
   return (lastSpace > limit / 2 ? slice.slice(0, lastSpace) : slice) + '…';
 }
 
-export default async function NovelPage({ params, searchParams }: PageProps) {
-  const supabase = await createClient();
-  const { id } = await params;
-  const { page: pageRaw } = await searchParams;
-  const page = Math.max(1, parseInt(pageRaw ?? '1', 10) || 1);
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
 
+// «О тайтле» — корневая страница карточки новеллы.
+//   Шапка с обложкой/звёздами/действиями/табами рендерится через NovelHero.
+//   Сюда падает контент таба: описание, превью, темп, оригинал-ссылки,
+//   credits, личная история, похожее.
+export default async function NovelInfoPage({ params }: PageProps) {
+  const { id } = await params;
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: novel, error: novelError } = await supabase
+  const { data: novel } = await supabase
     .from('novels_view')
     .select('*')
     .eq('firebase_id', id)
-    .single();
+    .maybeSingle();
 
-  if (novelError || !novel) notFound();
+  if (!novel) notFound();
 
-  // Explicit column list — раньше был `select('*')`, но мигр. 083 отзывает
-  // SELECT на payout_tribute_secret/payout_tribute_webhook_token у roles
-  // anon/authenticated. SELECT * стал бы permission denied.
+  // Профиль читателя — нужен для canEdit-чека (NovelHero делает то же
+  // самое, но мы хотим скрыть draft/scheduled данные ещё на этом уровне).
   const { data: viewerProfile } = user
     ? await supabase
         .from('profiles')
-        .select('role, is_admin, bookmarks, last_read')
+        .select('role, is_admin')
         .eq('id', user.id)
         .maybeSingle()
     : { data: null };
-
-  const vp = viewerProfile as {
-    role?: string;
-    is_admin?: boolean;
-    bookmarks?: unknown;
-    last_read?: unknown;
-  } | null;
+  const vp = viewerProfile as { role?: string; is_admin?: boolean } | null;
   const viewerIsAdmin = vp?.is_admin === true || vp?.role === 'admin';
-
-  // Моя оценка из novel_ratings — нужна для подсветки звёзд под обложкой.
-  // Тянем только если есть user; не падаем, если миграция/таблица не
-  // развёрнута (legacy tene-таблица).
-  let myRating: number | null = null;
-  if (user) {
-    try {
-      const { data: rrow } = await supabase
-        .from('novel_ratings')
-        .select('rating')
-        .eq('novel_id', novel.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-      const r = (rrow as { rating?: number } | null)?.rating;
-      myRating = typeof r === 'number' && r >= 1 && r <= 5 ? r : null;
-    } catch {
-      myRating = null;
-    }
-  }
-
-  // Текущий статус в закладках для переключателя
-  let bookmarkStatus: string | null = null;
-  if (vp?.bookmarks) {
-    const bm = vp.bookmarks;
-    if (Array.isArray(bm)) {
-      if ((bm as string[]).includes(novel.firebase_id)) bookmarkStatus = 'reading';
-    } else if (typeof bm === 'object') {
-      const s = (bm as Record<string, unknown>)[novel.firebase_id];
-      if (typeof s === 'string') bookmarkStatus = s;
-    }
-  }
-
   const canEdit = !!user && (novel.translator_id === user.id || viewerIsAdmin);
 
-  // Скрываем неопубликованные новеллы от посторонних. Переводчик и админ
-  // видят draft/pending/rejected, чтобы подготовить карточку и нажать «на модерацию».
   if (novel.moderation_status !== 'published' && !canEdit) {
     notFound();
   }
 
-  // Команда, которой принадлежит новелла (если novels.team_id задан).
-  // Если есть — UI показывает «Перевод команды [name]» вместо одиночного
-  // переводчика. Это и есть «бренд» новеллы для читателя. Подтягиваем
-  // банер, описание, кол-во участников и ТОП-5 аватарок для стопки —
-  // карточка должна выглядеть «дорого-богато», а не служебной плашкой.
-  const novelTeamId = (novel as { team_id?: number | null }).team_id ?? null;
-  let teamProfile: {
-    id: number;
-    slug: string;
-    name: string;
-    avatarUrl: string | null;
-    bannerUrl: string | null;
-    description: string | null;
-    memberCount: number;
-    novelCount: number;
-    leaderName: string | null;
-    memberAvatars: Array<{ url: string | null; initial: string }>;
-  } | null = null;
-  if (novelTeamId) {
-    const [{ data: tv }, { data: tm }] = await Promise.all([
-      supabase
-        .from('team_view')
-        .select(
-          'id, slug, name, avatar_url, banner_url, description, member_count, novel_count, owner_display_name, owner_user_name'
-        )
-        .eq('id', novelTeamId)
-        .maybeSingle(),
-      supabase
-        .from('team_members_view')
-        .select('user_id, avatar_url, translator_display_name, user_name, sort_order, role')
-        .eq('team_id', novelTeamId)
-        // лидер первым (sort_order = 0), потом по порядку
-        .order('sort_order', { ascending: true })
-        .limit(5),
-    ]);
-    if (tv) {
-      const t = tv as {
-        id: number;
-        slug: string;
-        name: string;
-        avatar_url: string | null;
-        banner_url: string | null;
-        description: string | null;
-        member_count: number | null;
-        novel_count: number | null;
-        owner_display_name: string | null;
-        owner_user_name: string | null;
-      };
-      const members = (tm ?? []) as Array<{
-        user_id: string;
-        avatar_url: string | null;
-        translator_display_name: string | null;
-        user_name: string | null;
-      }>;
-      teamProfile = {
-        id: t.id,
-        slug: t.slug,
-        name: t.name,
-        avatarUrl: t.avatar_url,
-        bannerUrl: t.banner_url,
-        description: t.description,
-        memberCount: t.member_count ?? members.length,
-        novelCount: t.novel_count ?? 0,
-        leaderName: t.owner_display_name || t.owner_user_name || null,
-        memberAvatars: members.map((m) => ({
-          url: m.avatar_url,
-          initial:
-            (m.translator_display_name || m.user_name || '?').slice(0, 1).toUpperCase(),
-        })),
-      };
-    }
-  }
-
-  // Профиль переводчика для блока «Переводчик»
-  let translatorProfile: {
-    slug: string | null;
-    displayName: string | null;
-    avatarUrl: string | null;
-  } | null = null;
+  // Translator profile — нужен для блока «Похожее от <переводчик>».
+  let translatorProfile: { displayName: string | null } | null = null;
   if (novel.translator_id) {
     const { data: tp } = await supabase
       .from('profiles')
-      .select('translator_slug, translator_display_name, translator_avatar_url, user_name')
+      .select('translator_display_name, user_name')
       .eq('id', novel.translator_id)
       .maybeSingle();
-    const p = tp as {
-      translator_slug?: string | null;
-      translator_display_name?: string | null;
-      translator_avatar_url?: string | null;
-      user_name?: string | null;
-    } | null;
+    const p = tp as { translator_display_name?: string | null; user_name?: string | null } | null;
     if (p) {
       translatorProfile = {
-        slug: p.translator_slug || p.user_name || null,
         displayName: p.translator_display_name || p.user_name || null,
-        avatarUrl: p.translator_avatar_url || null,
       };
     }
   }
-  // Fallback (legacy): если translator_id не задан — ищем по совпадению user_name с novel.author
-  if (!translatorProfile && novel.author) {
-    const { data: tp } = await supabase
-      .from('profiles')
-      .select('translator_slug, translator_display_name, translator_avatar_url, user_name')
-      .ilike('user_name', novel.author)
-      .maybeSingle();
-    const p = tp as {
-      translator_slug?: string | null;
-      translator_display_name?: string | null;
-      translator_avatar_url?: string | null;
-      user_name?: string | null;
-    } | null;
-    if (p) {
-      translatorProfile = {
-        slug: p.translator_slug || p.user_name || null,
-        displayName: p.translator_display_name || p.user_name || null,
-        avatarUrl: p.translator_avatar_url || null,
-      };
-    }
-  }
-  const translatorSlug = translatorProfile?.slug ?? null;
 
-  // Команда новеллы — novel_translators + имена/аватарки. Если миграция 034
-  // ещё не накачена, view отсутствует — пропускаем.
+  // Novel credits (команда новеллы — переводчик/редактор/корректор/...)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let novelCredits: any[] = [];
   try {
@@ -328,86 +155,63 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     novelCredits = [];
   }
 
-  // Fallback: если в novel_translators по каким-то причинам нет записи
-  // (например миграция 039 не накатана, или бэкфилл не прошёл), но у
-  // новеллы есть главный переводчик — строим виртуальную строку, чтобы
-  // блок «Над новеллой работают» всегда показывал хотя бы одного
-  // читателям — не надо искать, на кого подписываться.
-  if (novelCredits.length === 0 && novel.translator_id && translatorProfile) {
-    novelCredits = [
-      {
-        id: -1,
-        user_id: novel.translator_id,
-        role: 'translator',
-        share_percent: 100,
-        note: null,
-        user_name: translatorProfile.displayName ?? null,
-        avatar_url: translatorProfile.avatarUrl ?? null,
-        translator_slug: translatorProfile.slug ?? null,
-        display_name: translatorProfile.displayName ?? null,
-      },
-    ];
+  // Чтобы блок «Над новеллой работают» не пустовал у одиночек, добавляем
+  // виртуальную строку с главным переводчиком, если в novel_translators
+  // нет записей.
+  if (novelCredits.length === 0 && novel.translator_id) {
+    const { data: tp } = await supabase
+      .from('profiles')
+      .select('translator_slug, translator_display_name, translator_avatar_url, user_name')
+      .eq('id', novel.translator_id)
+      .maybeSingle();
+    const p = tp as {
+      translator_slug?: string | null;
+      translator_display_name?: string | null;
+      translator_avatar_url?: string | null;
+      user_name?: string | null;
+    } | null;
+    if (p) {
+      const display = p.translator_display_name || p.user_name || null;
+      novelCredits = [
+        {
+          id: -1,
+          user_id: novel.translator_id,
+          role: 'translator',
+          share_percent: 100,
+          note: null,
+          user_name: display,
+          avatar_url: p.translator_avatar_url ?? null,
+          translator_slug: p.translator_slug || p.user_name || null,
+          display_name: display,
+        },
+      ];
+    }
   }
 
-  // Пагинация: от пагинации зависят и выборка, и счётчик.
-  // Переводчик / админ видит все главы (в т.ч. черновики и запланированные).
-  // Читатель видит только опубликованные (published_at <= now()).
+  // Параллельно: первая глава для превью + similar + release pace
   const nowIso = new Date().toISOString();
-  const from = (page - 1) * CHAPTERS_PER_PAGE;
-  const to = from + CHAPTERS_PER_PAGE - 1;
-
-  const chaptersQuery = supabase
-    .from('chapters')
-    .select(
-      'id, chapter_number, is_paid, price_coins, published_at, content_path',
-      { count: 'exact' }
-    )
-    .eq('novel_id', novel.id)
-    .order('chapter_number', { ascending: false })
-    .range(from, to);
-
-  if (!canEdit) {
-    chaptersQuery
-      .not('published_at', 'is', null)
-      .lte('published_at', nowIso);
-  }
-
-  // Для firstChapter (кнопка «Читать первую») нужна самая ранняя
-  // опубликованная глава, независимо от страницы. Берём лёгкий отдельный
-  // запрос — только один ряд.
-  const firstChapterQuery = supabase
-    .from('chapters')
-    .select('chapter_number, content_path')
-    .eq('novel_id', novel.id)
-    .not('published_at', 'is', null)
-    .lte('published_at', nowIso)
-    .order('chapter_number', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
   const [
-    { data: chaptersDesc, count: chaptersCount },
     { data: firstChapterRow },
     { data: similarByReaders },
     { data: paceRaw },
   ] = await Promise.all([
-    chaptersQuery,
-    firstChapterQuery,
+    supabase
+      .from('chapters')
+      .select('chapter_number, content_path')
+      .eq('novel_id', novel.id)
+      .not('published_at', 'is', null)
+      .lte('published_at', nowIso)
+      .order('chapter_number', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
     supabase.rpc('get_similar_novels_by_readers', { p_novel_id: novel.id, p_limit: 6 }),
     supabase.rpc('get_release_pace', { p_novel_id: novel.id, p_days: 90 }),
   ]);
 
-  const chapters = chaptersDesc ?? [];
-  const totalChapters = chaptersCount ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalChapters / CHAPTERS_PER_PAGE));
   const firstChapter = firstChapterRow ?? null;
+  const firstChapterNumber = firstChapter?.chapter_number ?? 1;
 
-  // ---- Личная история читателя с этой новеллой ----
-  // Тянется только для залогиненного. Переводчик свою же новеллу видит
-  // тоже — там может быть забавная картина «начал 3 мес назад, дочитал
-  // до 57». Собирается из уже-подгружённых profiles + параллельные лёгкие
-  // запросы к user_quotes / chapter_thanks / reading_days. Всё падает
-  // в try/catch — если миграций нет, блок просто не появится.
+  // Личная история читателя
   let myHistory: {
     currentChapter: number | null;
     startedAt: string | null;
@@ -417,12 +221,6 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
   } | null = null;
   if (user) {
     try {
-      const lr = (vp?.bookmarks && (vp as unknown as { last_read?: unknown }).last_read) as
-        | Record<string, { chapterId?: number; timestamp?: string }>
-        | undefined;
-      const profileLastRead = lr ?? null;
-      // Нам нужен last_read из самого profile (собственного). Из vp уже всё
-      // есть, но last_read там не запрашивали — делаем лёгкий select.
       const { data: lrRow } = await supabase
         .from('profiles')
         .select('last_read')
@@ -430,7 +228,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
         .maybeSingle();
       const lrObj =
         (lrRow as { last_read?: Record<string, { chapterId?: number; timestamp?: string }> } | null)
-          ?.last_read ?? profileLastRead ?? {};
+          ?.last_read ?? {};
       const entry = lrObj[String(novel.id)];
       const currentChapter =
         typeof entry?.chapterId === 'number' && entry.chapterId > 0
@@ -438,7 +236,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           : null;
       const startedAt = entry?.timestamp ?? null;
 
-      const [{ count: qCount }, { count: tCount }, { data: days }] = await Promise.all([
+      const [{ count: qCount }, { count: tCount }] = await Promise.all([
         supabase
           .from('user_quotes')
           .select('id', { count: 'exact', head: true })
@@ -449,24 +247,13 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           .select('user_id', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('novel_id', novel.id),
-        // reading_days без новеллы не разбит — считаем только
-        // общий стрик. Для «дней с этой книгой» берём UNIQUE DATE(timestamp)
-        // из last_read + timestamp самой записи. Это приближение: одна
-        // строка на новеллу в last_read. Честная разбивка — отдельная
-        // миграция + RPC, пока обходимся стартом чтения.
-        Promise.resolve({ data: null as null }),
       ]);
 
-      // «Дней с книгой» — прикидка: от startedAt до сегодня, но не больше
-      // чем общее число активных дней юзера за период. Поскольку честной
-      // разбивки нет, покажем просто число дней с первого открытия
-      // (если есть старт) — читателю это звучит как «книга со мной N дней».
       let activeDays = 0;
       if (startedAt) {
         const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 86_400_000);
         activeDays = Math.max(0, diff);
       }
-      void days;
 
       myHistory = {
         currentChapter,
@@ -480,78 +267,12 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     }
   }
 
-  // Какие главы уже куплены текущим читателем — для подсветки в списке.
-  // RPC из миграции 018; если её ещё нет, тихо падаем и не подсвечиваем.
-  let purchasedChapters: Set<number> = new Set();
-  if (user) {
-    try {
-      const { data: purchased } = await supabase.rpc('my_purchased_chapters', {
-        p_novel: novel.id,
-      });
-      if (Array.isArray(purchased)) {
-        purchasedChapters = new Set(purchased as number[]);
-      }
-    } catch {
-      // миграция 018 не накачена
-    }
-  }
-
-  // Есть ли активная подписка (любая — Boosty claim, tribute, etc.)?
-  // Если есть — все платные главы показываем как открытые.
-  let hasActiveSubscription = false;
-  if (user && novel.translator_id) {
-    const { data: sub } = await supabase
-      .from('chaptify_subscriptions')
-      .select('id, expires_at')
-      .eq('user_id', user.id)
-      .eq('translator_id', novel.translator_id)
-      .eq('status', 'active')
-      .limit(1)
-      .maybeSingle();
-    if (sub) {
-      const exp = (sub as { expires_at?: string | null }).expires_at;
-      hasActiveSubscription = !exp || new Date(exp).getTime() > Date.now();
-    }
-  }
-
-  // Член команды новеллы (основной переводчик, редактор, корректор…) читает
-  // всё платное бесплатно — can_read_chapter их пропускает (миграция 034).
-  // Здесь этот флаг нужен только для UI: не рисовать «Купить».
-  const isTeam = canEdit; // canEdit уже = translator_id===user.id || admin
-  let isExtendedTeam = isTeam;
-  if (user && !isTeam) {
-    try {
-      const { data: memberRow } = await supabase
-        .from('novel_translators')
-        .select('id')
-        .eq('novel_id', novel.id)
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
-      if (memberRow) isExtendedTeam = true;
-    } catch {
-      /* миграция 034 не накачена */
-    }
-  }
-
-  // Fallback для новелл без коллаборативки: ранжируем кандидатов по score.
-  // Раньше брали только новеллы того же автора — мимо если переводчик
-  // одиночка; теперь собираем пул по жанрам / переводчику / стране
-  // и сортируем.
-  //   +3  тот же переводчик (сильнее всего — читатели часто смотрят
-  //       что ещё переводит тот же человек)
-  //   +1  за каждый общий жанр
-  //   +0.5 тот же author (редкий случай: один автор — разные переводы)
-  //   +0.5 та же страна
-  //   -1  если age_rating 18+ у кандидата, а у текущей не 18+ (не суём
-  //       18+ новеллу читателю детской новеллы)
+  // Fallback similar (если по читателям ничего не пришло) — взвешенный
+  // пул по переводчику/жанрам/автору/стране.
   let fallbackSimilar: unknown[] = [];
   if (!similarByReaders || similarByReaders.length === 0) {
     const currentGenres = cleanGenres(novel.genres);
 
-    // Собираем пул-кандидатов: объединение разных критериев через отдельные
-    // лёгкие запросы + дедупликация. Пулу хватает ~60 штук, чтобы потом
-    // отсортировать в JS.
     const candidateMap = new Map<number, Record<string, unknown>>();
     const addAll = (rows: Record<string, unknown>[] | null | undefined) => {
       for (const r of rows ?? []) {
@@ -601,7 +322,6 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
       score += commonGenres.length;
       if (c.age_rating === '18+' && novel.age_rating !== '18+') score -= 1;
       const rating = Number(c.average_rating ?? 0);
-      // Тайбрейкер: при равном score — более высокий рейтинг
       const tiebreak = rating * 0.01;
       return { ...c, score, _tiebreak: tiebreak };
     });
@@ -614,7 +334,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
       .slice(0, 6);
   }
 
-  // Подтягиваем превью первого абзаца
+  // Превью первого абзаца
   let previewText = '';
   let previewMinutes = 0;
   if (firstChapter?.content_path) {
@@ -625,7 +345,6 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
       if (fileData) {
         const rawHtml = await fileData.text();
         previewText = extractFirstParagraph(rawHtml, 320);
-        // ~1500 символов на минуту чтения
         const charCount = rawHtml.replace(/<[^>]+>/g, '').length;
         previewMinutes = Math.max(1, Math.round(charCount / 1500));
       }
@@ -634,26 +353,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     }
   }
 
-  const coverUrl = getCoverUrl(novel.cover_url);
-  const genres = cleanGenres(novel.genres);
-  const primaryGenre = genres[0];
-  const firstChapterNumber = firstChapter?.chapter_number ?? 1;
-
-  // Автор в трёх вариантах: оригинал / английский / русский.
-  // Формат вывода: «оригинал / английский / русский»
-  // Показываем только заполненные, разделяем через « / »
-  const authorVariants = [
-    novel.author_original as string | undefined,
-    novel.author_en as string | undefined,
-    novel.author as string | undefined,
-  ].filter((s): s is string => !!s && s.trim().length > 0);
-  const authorDisplay = authorVariants.length > 0 ? authorVariants.join(' / ') : null;
-
-  const translatorInitial =
-    (translatorProfile?.displayName || 'П').trim().charAt(0).toUpperCase();
-
-  // Мапа переводчиков (slug + display name) для блоков «Похожее»
-  // — коллаборативка и fallback.
+  // Slug map для блоков «Похожее».
   const similarTranslatorMap = await fetchTranslators(
     supabase,
     [
@@ -666,389 +366,22 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
     ]
   );
 
+  // Используем для счётчика глав. NovelHero показывает novel.chapter_count,
+  // а здесь нужно для блока «Личная история» (totalChapters). Делаем
+  // отдельный count-only запрос на тот случай, если novel.chapter_count
+  // в view устарел.
+  const { count: totalChapters } = await supabase
+    .from('chapters')
+    .select('id', { count: 'exact', head: true })
+    .eq('novel_id', novel.id)
+    .not('published_at', 'is', null)
+    .lte('published_at', nowIso);
+
   return (
     <main>
-      {novel.age_rating === '18+' && (
-        <AdultGate novelTitle={novel.title} scope={novel.firebase_id} />
-      )}
+      <NovelHero firebaseId={id} />
+
       <section className="container">
-        <div className="novel-top">
-          <div className="cover-large">
-            <div
-              className="novel-cover"
-              style={{ aspectRatio: '3/4', borderRadius: 'var(--radius)' }}
-            >
-              {coverUrl ? (
-                <img
-                  src={coverUrl}
-                  alt={novel.title}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <div className="placeholder p1" style={{ fontSize: 22 }}>
-                  {novel.title}
-                </div>
-              )}
-              <span className="rating-chip">
-                <span className="star">★</span>
-                {novel.average_rating > 0 ? Number(novel.average_rating).toFixed(1) : '—'}
-              </span>
-            </div>
-
-            {/* Звёзды живут под обложкой — компактно, центрированно.
-                Раньше блок был внутри .novel-info вместе с метриками,
-                но дизайн просил «аккуратно под обложкой» — там у блока
-                естественная узкая ширина и выделяющийся акцент. */}
-            <StarRating
-              novelId={novel.id}
-              initialMyRating={myRating}
-              averageRating={novel.average_rating ?? null}
-              ratingCount={novel.rating_count ?? null}
-              isLoggedIn={!!user}
-            />
-          </div>
-
-          <div className="novel-info">
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              {primaryGenre && <span className="note">{primaryGenre}</span>}
-              <span
-                className="note"
-                style={
-                  novel.is_completed
-                    ? { background: '#E6DCC8', color: 'var(--ink-soft)' }
-                    : { background: '#E3EBD6', color: '#4C6A34' }
-                }
-              >
-                {novel.is_completed ? 'Завершена' : 'Обновляется'}
-              </span>
-              {novel.chapter_count > 0 && (
-                <span className="note" style={{ background: 'var(--bg-soft)', color: 'var(--ink-soft)' }}>
-                  {formatReadingTime(novel.chapter_count)}
-                </span>
-              )}
-            </div>
-
-            <h1>{novel.title}</h1>
-            {authorDisplay && (
-              <div className="subtitle">
-                Автор: {authorDisplay}
-              </div>
-            )}
-
-            <div className="info-row">
-              <div className="metric">
-                <div className="val">
-                  <span className="star">★</span>{' '}
-                  {novel.average_rating > 0 ? Number(novel.average_rating).toFixed(1) : '—'}
-                </div>
-                <div className="label">
-                  {novel.rating_count || 0}{' '}
-                  {novel.rating_count === 1 ? 'оценка' : 'оценок'}
-                </div>
-              </div>
-              <div className="metric">
-                <div className="val">{totalChapters}</div>
-                <div className="label">глав</div>
-              </div>
-              <div className="metric">
-                <div className="val">{formatCount(novel.views)}</div>
-                <div className="label">прочтений</div>
-              </div>
-            </div>
-
-            {genres.length > 0 && (
-              <div className="tags">
-                {genres.map((g) => (
-                  <Link
-                    key={g}
-                    href={`/catalog?genre=${encodeURIComponent(g)}`}
-                    className="tag tag--link"
-                  >
-                    {g}
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            {teamProfile && (() => {
-              // Подавляем дубль «Лидер: X», если имя команды и имя лидера
-              // совпадают (соло-команда вроде "Tenebris" с лидером
-              // "Tenebris" — в карточке не нужен повтор).
-              const showLeader =
-                teamProfile.leaderName &&
-                teamProfile.leaderName.trim().toLowerCase() !==
-                  teamProfile.name.trim().toLowerCase();
-              // Стопку аватарок показываем только если в команде >1 человек.
-              // С одним участником на «стек» из одного кружка справа
-              // смотреть стрёмно — лучше совсем убрать.
-              const showStack = teamProfile.memberCount > 1 &&
-                teamProfile.memberAvatars.length > 0;
-              return (
-                <Link
-                  href={`/team/${teamProfile.slug}`}
-                  className={`novel-team-card${
-                    teamProfile.bannerUrl ? ' has-banner' : ''
-                  }`}
-                  aria-label={`Перевод команды ${teamProfile.name}`}
-                  style={
-                    teamProfile.bannerUrl
-                      ? ({ ['--ntc-banner' as string]: `url(${teamProfile.bannerUrl})` } as React.CSSProperties)
-                      : undefined
-                  }
-                >
-                  {/* Декоративный «🪶» в углу, чтобы карточка не выглядела
-                      пустой даже без баннера. На мобиле скрыт. */}
-                  <span className="novel-team-card-deco" aria-hidden="true">🪶</span>
-
-                  <div className="novel-team-card-avatar" aria-hidden="true">
-                    {teamProfile.avatarUrl ? (
-                      <img src={teamProfile.avatarUrl} alt="" />
-                    ) : (
-                      <span>{teamProfile.name.slice(0, 1).toUpperCase()}</span>
-                    )}
-                  </div>
-
-                  <div className="novel-team-card-text">
-                    <div className="novel-team-card-eyebrow">
-                      <span className="novel-team-card-eyebrow-icon" aria-hidden="true">🪶</span>
-                      Перевод команды
-                    </div>
-                    <div className="novel-team-card-name">{teamProfile.name}</div>
-                    {teamProfile.description && (
-                      <div className="novel-team-card-desc">
-                        {teamProfile.description}
-                      </div>
-                    )}
-                    <div className="novel-team-card-meta">
-                      <strong>{teamProfile.memberCount}</strong>{' '}
-                      {pluralMembers(teamProfile.memberCount)}
-                      <span className="novel-team-card-meta-sep" aria-hidden="true">·</span>
-                      <strong>{teamProfile.novelCount}</strong>{' '}
-                      {pluralNovels(teamProfile.novelCount)}
-                      {showLeader && (
-                        <>
-                          <span className="novel-team-card-meta-sep" aria-hidden="true">·</span>
-                          лидер{' '}
-                          <strong className="novel-team-card-leader-inline">
-                            {teamProfile.leaderName}
-                          </strong>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {showStack && (
-                    <div
-                      className="novel-team-card-stack"
-                      aria-hidden="true"
-                      title={`${teamProfile.memberCount} ${pluralMembers(
-                        teamProfile.memberCount
-                      )} в команде`}
-                    >
-                      {teamProfile.memberAvatars.map((a, i) => (
-                        <span
-                          key={i}
-                          className={`novel-team-card-stack-item${
-                            !a.url ? ' is-fallback' : ''
-                          }`}
-                          style={{ zIndex: 5 - i }}
-                        >
-                          {a.url ? <img src={a.url} alt="" /> : <span>{a.initial}</span>}
-                        </span>
-                      ))}
-                      {teamProfile.memberCount > teamProfile.memberAvatars.length && (
-                        <span
-                          className="novel-team-card-stack-item novel-team-card-stack-more"
-                          style={{ zIndex: 0 }}
-                        >
-                          +{teamProfile.memberCount - teamProfile.memberAvatars.length}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <span className="novel-team-card-cta">
-                    Зайти в команду
-                    <span className="novel-team-card-cta-arrow" aria-hidden="true">→</span>
-                  </span>
-                </Link>
-              );
-            })()}
-
-            {/* Если новелла в команде — карточку одиночного переводчика
-                не рендерим: лидер уже внутри team-card как «Лидер: …»,
-                и дублирование путает. Команда — приоритетный «бренд». */}
-            {!teamProfile && translatorProfile && (
-              <div className="translator-card">
-                <Link
-                  href={translatorSlug ? `/t/${translatorSlug}` : '#'}
-                  className="translator-card-link"
-                  aria-label={`Профиль ${translatorProfile.displayName ?? 'переводчика'}`}
-                >
-                  <div className="avatar">
-                    {translatorProfile.avatarUrl ? (
-                      <img src={translatorProfile.avatarUrl} alt="" />
-                    ) : (
-                      <span>{translatorInitial}</span>
-                    )}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div className="name">
-                      {translatorProfile.displayName ?? 'Переводчик'}
-                    </div>
-                    <div className="role">Переводчик</div>
-                  </div>
-                </Link>
-                <div className="translator-card-actions">
-                  {translatorSlug && (
-                    <Link href={`/t/${translatorSlug}`} className="btn btn-ghost">
-                      Профиль →
-                    </Link>
-                  )}
-                  {user && novel.translator_id && user.id !== novel.translator_id && (
-                    <Link
-                      href={`/messages/${novel.translator_id}`}
-                      className="btn btn-primary"
-                      title="Написать переводчику в личку"
-                    >
-                      💬 В ЛС
-                    </Link>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {!translatorProfile && novel.external_translator_name && (
-              <div className="translator-card translator-card--external">
-                <div
-                  className="avatar"
-                  style={{
-                    background:
-                      'linear-gradient(135deg, var(--ink-mute), var(--ink-soft))',
-                  }}
-                  aria-hidden="true"
-                >
-                  <span>
-                    {novel.external_translator_name.trim().charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div className="name">{novel.external_translator_name}</div>
-                  <div className="role">
-                    Внешний переводчик · не зарегистрирован у нас
-                  </div>
-                </div>
-                {safeUrl(novel.external_translator_url) ? (
-                  <a
-                    href={safeUrl(novel.external_translator_url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-ghost"
-                  >
-                    Профиль ↗
-                  </a>
-                ) : null}
-                {user && (viewerIsAdmin || vp?.role === 'translator') && (
-                  <NovelClaimButton
-                    novelId={novel.id}
-                    novelTitle={novel.title}
-                    externalName={novel.external_translator_name}
-                  />
-                )}
-              </div>
-            )}
-
-            <div className="actions-row">
-              {/* Если читатель уже что-то открывал в этой новелле — кнопка
-                  становится «Продолжить с N главы» и ведёт ровно туда.
-                  Если глав ещё нет (новелла только добавлена / переводчик
-                  не загрузил) — показываем неактивный вид с явным
-                  пояснением, чтобы клик не приводил на 404.
-                  Иначе обычное «Читать с 1-й главы». */}
-              {myHistory?.currentChapter ? (
-                <Link
-                  href={`/novel/${novel.firebase_id}/${myHistory.currentChapter}`}
-                  className="btn btn-primary"
-                >
-                  Продолжить с {myHistory.currentChapter}-й главы
-                </Link>
-              ) : firstChapter ? (
-                <Link
-                  href={`/novel/${novel.firebase_id}/${firstChapterNumber}`}
-                  className="btn btn-primary"
-                >
-                  Читать с 1-й главы
-                </Link>
-              ) : (
-                <span
-                  className="btn btn-ghost"
-                  aria-disabled="true"
-                  title="Переводчик ещё не выложил ни одной главы. Загляни попозже."
-                  style={{ cursor: 'not-allowed', opacity: 0.7 }}
-                >
-                  Главы ещё не вышли
-                </span>
-              )}
-              {user && (
-                <BookmarkButton
-                  novelFirebaseId={novel.firebase_id}
-                  initialStatus={bookmarkStatus}
-                />
-              )}
-              {/* EPUB: если переводчик загрузил готовый файл в epub_path —
-                 отдадим его, иначе сервер соберёт на лету по уровню
-                 доступа читателя (бесплатные / купленные / подписка). */}
-              <a
-                href={`/api/novel/${novel.firebase_id}/epub`}
-                className="btn btn-ghost"
-                title="Скачать для чтения офлайн. Подписчики получают все главы, остальные — те, что им доступны."
-              >
-                📘 EPUB
-              </a>
-              {/* «Пожаловаться» — для всех пользователей; canEdit (свой
-                  админ-владелец/админ) этой кнопки не показываем —
-                  у них есть прямая редактура. Не залогинен — кнопка
-                  всё равно есть, тыкнет → подскажет войти. */}
-              {!canEdit && (
-                <ReportButton
-                  targetType="novel"
-                  targetId={novel.id}
-                  isLoggedIn={!!user}
-                />
-              )}
-              {canEdit && (
-                <>
-                  <Link
-                    href={`/admin/novels/${novel.firebase_id}/chapters/new`}
-                    className="btn btn-ghost"
-                    style={{ borderColor: 'var(--accent-soft)', color: 'var(--accent)' }}
-                  >
-                    + Добавить главу
-                  </Link>
-                  <Link
-                    href={`/admin/novels/${novel.firebase_id}/edit`}
-                    className="btn btn-ghost"
-                  >
-                    Редактировать
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Sticky-навигация: прокрутка к разделам страницы. Якоря —
-            id="info"/"chapters"/"reviews" ниже. NovelTabs сам выбирает
-            активный таб через IntersectionObserver. */}
-        <NovelTabs
-          tabs={[
-            { id: 'info', label: 'О тайтле' },
-            { id: 'chapters', label: 'Главы' },
-            { id: 'reviews', label: 'Отзывы' },
-          ]}
-        />
-
-        <div id="info" className="novel-info-block">
         {novel.description && (
           <div className="desc">
             <strong>Описание.</strong>{' '}
@@ -1056,7 +389,6 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           </div>
         )}
 
-        {/* Киллер-фича #1 — предпросмотр первой главы */}
         {previewText && (
           <FirstChapterPreview
             novelFirebaseId={novel.firebase_id}
@@ -1066,14 +398,13 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           />
         )}
 
-        {/* Киллер-фича #3 — темп перевода */}
         {paceRaw && paceRaw.length > 0 && (
           <ReleasePace
             days={paceRaw.map((d: { day: string; chapters: number }) => ({
               day: d.day,
               chapters: d.chapters,
             }))}
-            totalChapters={totalChapters}
+            totalChapters={totalChapters ?? 0}
             isCompleted={!!novel.is_completed}
           />
         )}
@@ -1109,7 +440,7 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
           <MyNovelHistory
             novelId={novel.id}
             novelFirebaseId={novel.firebase_id}
-            totalChapters={totalChapters}
+            totalChapters={totalChapters ?? 0}
             currentChapter={myHistory.currentChapter}
             startedAt={myHistory.startedAt}
             quotesCount={myHistory.quotesCount}
@@ -1118,158 +449,11 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             novelIsCompleted={!!novel.is_completed}
           />
         )}
-        </div>
 
-        <div id="chapters" className="chapter-list">
-          <div className="chapter-list-head">
-            <h3>Главы ({totalChapters})</h3>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
-                Новые сверху
-              </span>
-            </div>
-          </div>
-
-          {totalChapters === 0 && (
-            <div style={{ padding: 20, color: 'var(--ink-mute)' }}>Глав пока нет.</div>
-          )}
-
-          {chapters.map((chapter) => {
-            const displayTitle = `Глава ${chapter.chapter_number}`;
-            const isOwned = purchasedChapters.has(chapter.chapter_number);
-            const price = chapter.price_coins ?? 10;
-            const publishedMs = chapter.published_at
-              ? new Date(chapter.published_at).getTime()
-              : null;
-            const isDraft = publishedMs === null;
-            const isScheduled = publishedMs !== null && publishedMs > Date.now();
-            // Доступ к главе уже есть: платная + куплена, бесплатная, член
-            // команды (переводчик/редактор/…) или активная подписка.
-            const hasAccess =
-              !chapter.is_paid || isOwned || isExtendedTeam || hasActiveSubscription;
-            return (
-              <div
-                key={chapter.id}
-                className={`chapter-item${hasAccess && chapter.is_paid ? ' chapter-item--owned' : ''}${
-                  isDraft ? ' chapter-item--draft' : ''
-                }${isScheduled ? ' chapter-item--scheduled' : ''}`}
-                style={{ position: 'relative' }}
-              >
-                {/* Overlay-link поверх всей карточки, чтобы клик по любой
-                    части (название, дата, ценник) открывал главу. Кнопки
-                    внизу имеют z-index выше — ловят клики раньше. */}
-                <Link
-                  href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
-                  className="chapter-item-overlay"
-                  aria-label={`Открыть главу ${chapter.chapter_number}`}
-                />
-                <div>
-                  <div className="title">
-                    {displayTitle}
-                    {isOwned && (
-                      <span className="chapter-owned-badge" title="Эта глава куплена">
-                        ✓ куплено
-                      </span>
-                    )}
-                    {isDraft && (
-                      <span className="chapter-status-badge chapter-status-badge--draft">
-                        📝 черновик
-                      </span>
-                    )}
-                    {isScheduled && (
-                      <span className="chapter-status-badge chapter-status-badge--scheduled">
-                        ⏰ выйдет {formatScheduled(chapter.published_at)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="date">
-                    {isDraft
-                      ? 'не опубликована'
-                      : isScheduled
-                      ? 'запланирована'
-                      : formatChapterDate(chapter.published_at)}
-                  </div>
-                </div>
-                <span
-                  className={`tag-price ${
-                    chapter.is_paid ? (hasAccess ? 'owned' : 'paid') : 'free'
-                  }`}
-                >
-                  {chapter.is_paid
-                    ? hasAccess
-                      ? isExtendedTeam
-                        ? '✓ команда'
-                        : hasActiveSubscription
-                          ? '✓ подписка'
-                          : `✓ ${price} монет`
-                      : `${price} ${pluralCoins(price)}`
-                    : 'Бесплатно'}
-                </span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {canEdit && (
-                    <Link
-                      href={`/admin/novels/${novel.firebase_id}/chapters/${chapter.chapter_number}/edit`}
-                      className="btn btn-ghost"
-                      style={{ height: 32, padding: '0 10px', fontSize: 12 }}
-                    >
-                      Править
-                    </Link>
-                  )}
-                  <Link
-                    href={`/novel/${novel.firebase_id}/${chapter.chapter_number}`}
-                    className={hasAccess ? 'btn btn-primary' : 'btn btn-ghost'}
-                    style={{ height: 32, padding: '0 14px', fontSize: 13 }}
-                  >
-                    {isDraft || isScheduled
-                      ? 'Предпросмотр'
-                      : hasAccess
-                      ? 'Читать'
-                      : 'Открыть'}
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
-
-          {totalPages > 1 && (
-            <nav className="chapter-pagination" aria-label="Страницы глав">
-              {page > 1 ? (
-                <Link
-                  href={`/novel/${novel.firebase_id}${page === 2 ? '' : `?page=${page - 1}`}`}
-                  className="btn btn-ghost"
-                >
-                  ← Новее
-                </Link>
-              ) : (
-                <span className="btn btn-ghost is-disabled" aria-disabled="true">
-                  ← Новее
-                </span>
-              )}
-              <span className="chapter-pagination-info">
-                Страница {page} из {totalPages}
-              </span>
-              {page < totalPages ? (
-                <Link
-                  href={`/novel/${novel.firebase_id}?page=${page + 1}`}
-                  className="btn btn-ghost"
-                >
-                  Старее →
-                </Link>
-              ) : (
-                <span className="btn btn-ghost is-disabled" aria-disabled="true">
-                  Старее →
-                </span>
-              )}
-            </nav>
-          )}
-        </div>
-
-        {/* Киллер-фича #2 — созвучие читателей */}
         {similarByReaders && similarByReaders.length > 0 && (
           <SimilarByReaders novels={similarByReaders} translators={similarTranslatorMap} />
         )}
 
-        {/* Фолбэк: «Похожее от <переводчик>» — пул взвешен по переводчику */}
         {(!similarByReaders || similarByReaders.length === 0) && fallbackSimilar.length > 0 && (
           <>
             <div className="section-head">
@@ -1311,94 +495,19 @@ export default async function NovelPage({ params, searchParams }: PageProps) {
             </div>
           </>
         )}
-      </section>
 
-      {/* Отзывы на новеллу. Работают поверх таблицы comments через
-          chapter_number=0 (та же схема, что у tene). Сам id="reviews"
-          нужен для якоря из уведомлений: legacy URL
-          /novel/<id>/chapter/0#comment-707 редиректится на
-          /novel/<id>#reviews и далее браузер сам скроллит к
-          #comment-707, который теперь генерируется в
-          CommentsSection. */}
-      <section id="reviews" className="container section novel-reviews-block">
-        <CommentsSection
-          novelId={novel.id}
-          chapterNumber={0}
-          heading="Отзывы"
-          inputPlaceholder="Что понравилось, что нет — пара строк уже помогает другим читателям выбрать."
-          emptyText="Отзывов пока нет. Стань первым — переводчику и читателям важно твоё мнение."
-          guestPrompt={
-            <>
-              <Link href="/login" className="more">Войти</Link>, чтобы оставить отзыв.
-            </>
-          }
-        />
+        {/* Подсказка для перехода на главы — на info-табе видно сразу. */}
+        {(totalChapters ?? 0) > 0 && (
+          <div style={{ textAlign: 'center', marginTop: 32 }}>
+            <Link
+              href={`/novel/${novel.firebase_id}/chapters`}
+              className="btn btn-ghost"
+            >
+              Список глав ({totalChapters}) →
+            </Link>
+          </div>
+        )}
       </section>
     </main>
   );
-}
-
-function formatScheduled(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMs = d.getTime() - now.getTime();
-  const diffMin = Math.round(diffMs / 60000);
-  if (diffMin < 60) return `через ${diffMin} мин`;
-  const diffHr = Math.round(diffMin / 60);
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) {
-    return `сегодня в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  }
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  if (
-    d.getFullYear() === tomorrow.getFullYear() &&
-    d.getMonth() === tomorrow.getMonth() &&
-    d.getDate() === tomorrow.getDate()
-  ) {
-    return `завтра в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-  }
-  if (diffHr < 24 * 7) {
-    return d.toLocaleString('ru-RU', {
-      weekday: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
-  return d.toLocaleDateString('ru-RU');
-}
-
-function hostnameOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
-
-function pluralCoins(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 19) return 'монет';
-  if (mod10 === 1) return 'монета';
-  if (mod10 >= 2 && mod10 <= 4) return 'монеты';
-  return 'монет';
-}
-
-function pluralMembers(n: number): string {
-  const m10 = n % 10, m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return 'участник';
-  if ([2, 3, 4].includes(m10) && ![12, 13, 14].includes(m100)) return 'участника';
-  return 'участников';
-}
-
-function pluralNovels(n: number): string {
-  const m10 = n % 10, m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return 'новелла';
-  if ([2, 3, 4].includes(m10) && ![12, 13, 14].includes(m100)) return 'новеллы';
-  return 'новелл';
 }
