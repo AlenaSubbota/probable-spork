@@ -43,7 +43,7 @@ function getTelegramWebApp(): TgWebApp | undefined {
   return w.Telegram?.WebApp;
 }
 
-function isTelegramMiniApp(): boolean {
+function hasMiniAppInitData(): boolean {
   // initData — единственный надёжный признак, что мы именно в Mini App
   // (а не просто во встроенном браузере TG, где Telegram.WebApp.close()
   // не доступен / не закроет ничего полезного).
@@ -62,7 +62,39 @@ export default function LogoutButton({
   const [inMiniApp, setInMiniApp] = useState(false);
 
   useEffect(() => {
-    setInMiniApp(isTelegramMiniApp());
+    if (hasMiniAppInitData()) {
+      setInMiniApp(true);
+      return;
+    }
+
+    // SDK telegram-web-app.js может загружаться асинхронно (его
+    // подгружает <Script strategy="afterInteractive"> в
+    // TelegramMiniAppAutoLogin), а LogoutButton маунтится раньше.
+    // Поэтому на первом вызове initData может быть пустой даже в
+    // настоящем Mini App. Поллим до 3 секунд, чтобы поймать момент,
+    // когда SDK подставит initData в window.Telegram.WebApp.
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 * 100ms = 3s
+
+    const tick = () => {
+      if (cancelled) return;
+      attempts++;
+      if (hasMiniAppInitData()) {
+        setInMiniApp(true);
+        return;
+      }
+      if (attempts < maxAttempts) {
+        setTimeout(tick, 100);
+      }
+      // После maxAttempts молча сдаёмся — значит юзер не в Mini App,
+      // оставляем стандартное поведение signOut.
+    };
+    setTimeout(tick, 100);
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleClick = async () => {
