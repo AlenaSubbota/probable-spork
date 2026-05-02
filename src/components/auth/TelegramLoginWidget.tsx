@@ -102,7 +102,6 @@ export default function TelegramLoginWidget(props: Props) {
   // SSR/первый рендер на клиенте: считаем что НЕ в WebView, чтобы
   // hydration совпал. Реальный детект — в useEffect после маунта.
   const [inWebView, setInWebView] = useState(false);
-  const [hintExpanded, setHintExpanded] = useState(false);
 
   useEffect(() => {
     setInWebView(detectTelegramWebView());
@@ -152,80 +151,47 @@ export default function TelegramLoginWidget(props: Props) {
   }, [botName, authUrl, hasOnAuth, inWebView]);
 
   if (inWebView) {
-    return <TgInAppFallback hintExpanded={hintExpanded} setHintExpanded={setHintExpanded} />;
+    return <TgInAppFallback />;
   }
 
   return <div ref={containerRef} className="tg-widget-host" />;
 }
 
-interface FallbackProps {
-  hintExpanded: boolean;
-  setHintExpanded: (b: boolean) => void;
-}
-
-function TgInAppFallback({ hintExpanded, setHintExpanded }: FallbackProps) {
-  // Кнопка «Открыть в браузере» делает сразу несколько попыток:
-  //   1) Если страница — Telegram WebApp с openLink (try_browser=true) —
-  //      попросим TG открыть в системном браузере. Это самый чистый путь.
-  //   2) Иначе window.open(url, '_system') / target=_blank — некоторые
-  //      WebView поддерживают.
-  //   3) Если ничего из этого не сработало, юзер увидит инструкцию по
-  //      развёрнутой подсказке (3 точки → «Открыть в браузере»).
-  // Вход через email/пароль и Google по-прежнему работает — этот блок
-  // только заменяет TG-виджет.
-  const onOpenExternal = () => {
-    const url =
-      typeof window !== 'undefined' ? window.location.href : 'https://chaptify.ru/login';
-    const w = window as unknown as {
-      Telegram?: { WebApp?: { openLink?: (u: string, opts?: { try_instant_view?: boolean }) => void } };
-    };
-    try {
-      if (w.Telegram?.WebApp?.openLink) {
-        w.Telegram.WebApp.openLink(url, { try_instant_view: false });
-        return;
-      }
-    } catch {
-      /* ignore — попробуем дальше */
-    }
-    try {
-      window.open(url, '_blank');
-    } catch {
-      /* ignore */
-    }
-  };
-
+function TgInAppFallback() {
+  // Программно вытащить юзера из in-app TG в Safari/Chrome — нельзя:
+  // - window.open(url, '_blank') открывает новую вкладку ВНУТРИ TG-браузера
+  // - Telegram.WebApp.openLink доступен только в WebApp-launch (через
+  //   menu button бота), а не в обычном in-app browser, открытом по ссылке
+  // - cookies между TG WebView и Safari/Chrome изолированы — даже если
+  //   юзер войдёт в Safari, в TG он останется не залогинен
+  //
+  // Поэтому НЕ показываем кнопку «Открыть в браузере» (она вводила в
+  // заблуждение, открывая страницу снова в TG WebView). Только инструкция
+  // — это пользовательский экшен через нативный TG UI, программно
+  // вызвать его нельзя, но он всегда работает.
+  //
+  // Полноценный нативный логин внутри TG возможен через Telegram WebApp
+  // и initData — это требует отдельной настройки @chaptifybot через
+  // BotFather (/setmenubutton) + backend-обработчик initData. Этот
+  // компонент про обычный in-app browser flow.
   return (
     <div className="tg-inapp-fallback">
       <p className="tg-inapp-title">
-        Вход через Telegram-виджет не работает внутри Telegram. Открой страницу в обычном браузере.
+        Вход через Telegram работает только в обычном браузере
       </p>
-      <button type="button" className="btn btn-primary" onClick={onOpenExternal}>
-        Открыть в браузере
-      </button>
-      <button
-        type="button"
-        className="tg-inapp-howto-toggle"
-        onClick={() => setHintExpanded(!hintExpanded)}
-        aria-expanded={hintExpanded}
-      >
-        {hintExpanded ? 'Скрыть инструкцию' : 'Не сработало? Покажи как'}
-      </button>
-      {hintExpanded && (
-        <ol className="tg-inapp-howto">
-          <li>
-            Нажми <strong>«⋮»</strong> (три точки) или <strong>«…»</strong> в правом верхнем
-            углу окна Telegram.
-          </li>
-          <li>
-            Выбери <strong>«Открыть в Safari»</strong> (iOS) или
-            <strong> «Открыть в браузере»</strong> (Android).
-          </li>
-          <li>В обычном браузере виджет Telegram заработает как надо.</li>
-        </ol>
-      )}
+      <ol className="tg-inapp-howto">
+        <li>
+          Нажми <strong>«⋮»</strong> (три точки) сверху справа в этом окне Telegram
+        </li>
+        <li>
+          Выбери <strong>«Открыть в Safari»</strong> (iPhone) или
+          <strong> «Открыть в браузере»</strong> (Android)
+        </li>
+        <li>В браузере уже сможешь войти через Telegram-виджет</li>
+      </ol>
       <p className="tg-inapp-altline">
-        Можно войти прямо отсюда через <strong>Google</strong> или <strong>email</strong> —
-        они работают и здесь.
+        Если не хочешь переключаться — войди прямо тут через
+        <strong> Google</strong> или <strong>email</strong>. Они работают и в Telegram.
       </p>
     </div>
   );
