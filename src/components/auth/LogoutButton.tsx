@@ -25,23 +25,29 @@ interface Props {
 //
 // В обычном браузере поведение прежнее: signOut + hard-reload на '/'.
 
-declare global {
-  interface Window {
-    Telegram?: {
-      WebApp?: {
-        initData?: string;
-        close?: () => void;
-      };
-    };
-  }
+// NB: глобальный Window.Telegram уже объявлен в TelegramMiniAppAutoLogin.tsx
+// со свойством `ready?`. Объявить его тут ещё раз с другим набором
+// (`close?`) нельзя — TS ругается «Subsequent property declarations must
+// have the same type». Поэтому достаём WebApp через локальный cast,
+// без global-augmentation. Тот же паттерн — в TelegramLoginWidget.tsx.
+type TgWebApp = {
+  initData?: string;
+  close?: () => void;
+};
+
+function getTelegramWebApp(): TgWebApp | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const w = window as unknown as {
+    Telegram?: { WebApp?: TgWebApp };
+  };
+  return w.Telegram?.WebApp;
 }
 
 function isTelegramMiniApp(): boolean {
-  if (typeof window === 'undefined') return false;
   // initData — единственный надёжный признак, что мы именно в Mini App
   // (а не просто во встроенном браузере TG, где Telegram.WebApp.close()
   // не доступен / не закроет ничего полезного).
-  return !!window.Telegram?.WebApp?.initData;
+  return !!getTelegramWebApp()?.initData;
 }
 
 export default function LogoutButton({
@@ -65,7 +71,7 @@ export default function LogoutButton({
       // супабейс-сессию оставляем как есть, при следующем открытии
       // юзер просто вернётся залогиненным (что и ожидается в TG).
       try {
-        window.Telegram?.WebApp?.close?.();
+        getTelegramWebApp()?.close?.();
       } catch {
         /* ignore — на старых клиентах метода может не быть */
       }
