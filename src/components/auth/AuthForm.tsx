@@ -65,11 +65,13 @@ export default function AuthForm({ mode }: Props) {
     if (error) setError(error.message);
   };
 
-  const handleYandexAuth = async () => {
-    // Yandex не поддерживается Supabase нативно, нужен кастомный OIDC-провайдер
-    setError(
-      'Вход через Яндекс скоро появится. Пока используй Telegram или Google.'
-    );
+  const handleYandexAuth = () => {
+    // Yandex не поддерживается Supabase нативно — флоу проксируется
+    // через auth-service-chaptify (POST /auth/yandex). Server-route
+    // /auth/yandex редиректит на oauth.yandex.ru, callback обменивает
+    // code на supabase-session, finalize пишет cookies на клиенте.
+    setError(null);
+    window.location.href = '/auth/yandex';
   };
 
   // authUrl для Telegram-виджета считаем на клиенте (window.location.origin)
@@ -81,7 +83,7 @@ export default function AuthForm({ mode }: Props) {
     setTgAuthUrl(`${window.location.origin}/auth/tg`);
   }, []);
 
-  // Если на /login пришли с ?error=oauth_failed | tg_*, покажем
+  // Если на /login пришли с ?error=oauth_failed | tg_* | yandex_*, покажем
   // дружелюбный текст один раз на маунте (не оверрайдим юзерские формы).
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -94,6 +96,15 @@ export default function AuthForm({ mode }: Props) {
       tg_auth_failed: 'Telegram-подпись не прошла валидацию. Попробуй ещё раз.',
       tg_network: 'Не получилось связаться с auth-сервисом. Проверь интернет.',
       tg_no_session: 'Auth-сервис не вернул сессию. Сообщи администратору.',
+      yandex_user_denied: 'Вход через Яндекс отменён.',
+      yandex_widget_invalid: 'Яндекс прислал неполные данные. Попробуй ещё раз.',
+      yandex_state_mismatch: 'Сессия входа через Яндекс устарела. Попробуй ещё раз.',
+      yandex_not_configured: 'Вход через Яндекс не настроен на сервере. Сообщи администратору.',
+      yandex_auth_failed: 'Яндекс не подтвердил вход. Попробуй ещё раз.',
+      yandex_network: 'Не получилось связаться с auth-сервисом. Проверь интернет.',
+      yandex_no_session: 'Auth-сервис не вернул сессию. Сообщи администратору.',
+      yandex_handoff_missing: 'Токены входа потерялись. Попробуй ещё раз.',
+      yandex_setsession_failed: 'Не удалось установить сессию. Попробуй ещё раз.',
     };
     setError(messages[reason] ?? 'Ошибка входа.');
   }, []);
@@ -147,7 +158,6 @@ export default function AuthForm({ mode }: Props) {
           className="auth-oauth-btn"
           onClick={handleYandexAuth}
           disabled={status === 'busy'}
-          title="Скоро"
         >
           <YandexIcon />
           <span>Яндекс</span>
