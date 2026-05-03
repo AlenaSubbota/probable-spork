@@ -10,11 +10,13 @@
 // Что делает скрипт:
 //   1. SELECT id, title, cover_url FROM novels WHERE cover_url LIKE 'covers/%'
 //   2. Для каждой записи качает https://tene.fun/<cover_url>
-//   3. Загружает файл в Supabase Storage bucket `covers` под тем же именем
-//      (`<имя>.webp`, без префикса `covers/`).
+//   3. Транслитерирует кириллицу в имени (Supabase Storage не принимает
+//      кириллицу в ключах: `Invalid key: скан.webp`) и загружает в bucket
+//      `covers` под ASCII-именем (`скан.webp` → `skan.webp`).
 //   4. БД НЕ ТРОГАЕТ — иначе у tene.fun обложки потеряются (БД shared).
-//      Парный код-фикс в src/lib/format.ts: ветка для `covers/<...>` теперь
-//      возвращает `/sb-storage/v1/object/public/covers/<...>` вместо `/covers/`.
+//      Парный код-фикс в src/lib/format.ts: ветка для `covers/<имя>` теперь
+//      применяет ту же транслитерацию и возвращает
+//      `/sb-storage/v1/object/public/covers/<ascii>`.
 //
 // Идемпотентен: если файл уже в bucket, пропускает.
 //
@@ -29,6 +31,26 @@
 import { createClient } from '@supabase/supabase-js';
 import { Buffer } from 'node:buffer';
 import process from 'node:process';
+
+// ВАЖНО: эта таблица должна быть синхронизирована с src/lib/translit.ts.
+// Если меняешь одно — меняй оба, иначе фронт и bucket разойдутся.
+const RU_TO_LAT = {
+  а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'yo', ж:'zh', з:'z', и:'i',
+  й:'y', к:'k', л:'l', м:'m', н:'n', о:'o', п:'p', р:'r', с:'s', т:'t',
+  у:'u', ф:'f', х:'h', ц:'c', ч:'ch', ш:'sh', щ:'sch', ъ:'', ы:'y', ь:'',
+  э:'e', ю:'yu', я:'ya',
+};
+
+function transliterateRu(s) {
+  return s
+    .split('')
+    .map((ch) => {
+      const lower = ch.toLowerCase();
+      if (lower in RU_TO_LAT) return RU_TO_LAT[lower];
+      return ch;
+    })
+    .join('');
+}
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -73,36 +95,40 @@ const failures = [];
 
 for (const n of novels) {
   const filename = n.cover_url.slice('covers/'.length);
-  const sourceUrl = `${TENE_BASE}/${n.cover_url}`;
+  // Транслитерируем для bucket (Supabase не принимает кириллицу в ключах).
+  // Если оригинал и так ASCII — функция вернёт его как есть.
+  const bucketKey = transliterateRu(filename);
+  const renamed = bucketKey !== filename;
 
   // Идемпотентность: если файл уже в bucket, пропускаем без скачивания.
   const { data: existingList, error: listErr } = await sb.storage
     .from(BUCKET)
-    .list('', { search: filename, limit: 5 });
+    .list('', { search: bucketKey, limit: 5 });
   if (listErr) {
     console.error(`[fail] list bucket "${BUCKET}":`, listErr.message);
     failed++;
     failures.push({ id: n.id, title: n.title, reason: listErr.message });
     continue;
   }
-  if (existingList?.some((f) => f.name === filename)) {
+  if (existingList?.some((f) => f.name === bucketKey)) {
     console.log(
-      `[skip ] #${n.id} «${n.title}»: ${filename} уже в bucket`,
+      `[skip ] #${n.id} «${n.title}»: ${bucketKey} уже в bucket`,
     );
     skipped++;
     continue;
   }
 
+  const renameTag = renamed ? ` (${filename} → ${bucketKey})` : '';
+
   if (DRY) {
     console.log(
-      `[dry  ] #${n.id} «${n.title}»: GET ${sourceUrl} → upload ${BUCKET}/${filename}`,
+      `[dry  ] #${n.id} «${n.title}»: GET ${TENE_BASE}/covers/${filename} → upload ${BUCKET}/${bucketKey}${renameTag}`,
     );
     continue;
   }
 
-  // Качаем с tene.fun. URL уже URL-safe (cover_url хранится с кириллицей,
-  // но fetch() её сам закодирует в Request URL). На всякий — encode-им
-  // только pathname-часть.
+  // Качаем с tene.fun. fetch() сам URL-кодирует кириллицу. Используем
+  // оригинальное имя файла — там оно как есть на FS у tene-frontend-app.
   const encodedSource = `${TENE_BASE}/covers/${encodeURIComponent(filename)}`;
   let resp;
   try {
@@ -134,19 +160,19 @@ for (const n of novels) {
   // оказался между list и upload (race с другим запуском).
   const { error: upErr } = await sb.storage
     .from(BUCKET)
-    .upload(filename, body, {
+    .upload(bucketKey, body, {
       contentType,
       upsert: false,
     });
   if (upErr) {
-    console.error(`[fail] #${n.id}: upload "${filename}":`, upErr.message);
+    console.error(`[fail] #${n.id}: upload "${bucketKey}":`, upErr.message);
     failed++;
     failures.push({ id: n.id, title: n.title, reason: upErr.message });
     continue;
   }
 
   console.log(
-    `[ok   ] #${n.id} «${n.title}»: ${filename} (${(body.length / 1024).toFixed(1)} КБ, ${contentType})`,
+    `[ok   ] #${n.id} «${n.title}»: ${bucketKey}${renameTag} (${(body.length / 1024).toFixed(1)} КБ, ${contentType})`,
   );
   uploaded++;
 }
