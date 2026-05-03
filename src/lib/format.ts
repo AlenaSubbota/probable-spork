@@ -1,3 +1,5 @@
+import { transliterateRu } from './translit';
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 // Timestamp-rand формат, который создаёт наш CoverUpload: `<ms>-<rand>.<ext>`
 const UPLOAD_RE = /^\d{10,}-[a-z0-9]{4,}\./i;
@@ -29,11 +31,18 @@ export function getCoverUrl(path: string | null | undefined) {
   // backend на tene.fun. Прямые https://tene.fun ссылки из браузера
   // не работали в Safari desktop (ITP/TLS вешали соединение).
 
-  // В старой базе tene cover_url часто лежит с префиксом «covers/» —
-  // не добавляем его повторно, только кодируем имя файла.
+  // В старой базе tene cover_url часто лежит с префиксом «covers/» — это
+  // 22 легаси-новеллы (см. scripts/migrate-legacy-covers-to-storage.mjs).
+  // После миграции файлы лежат в Supabase Storage bucket `covers` под
+  // транслитерированными ASCII-именами (Supabase отказывает на кириллице
+  // в ключах: «Invalid key: скан.webp»). Применяем ту же транслитерацию,
+  // что и скрипт миграции, чтобы фронт и bucket сошлись на одном имени.
+  // На tene.fun cover_url в БД не меняли — там путь по-прежнему обслуживает
+  // tene-frontend-app:80/covers/<оригинал>.webp с кириллицей.
   if (path.startsWith('covers/')) {
     const filename = path.slice('covers/'.length);
-    return `/covers/${encodeURIComponent(filename)}`;
+    const ascii = transliterateRu(filename);
+    return `/sb-storage/v1/object/public/covers/${encodeURIComponent(ascii)}`;
   }
 
   // Новые загрузки через CoverUpload: UUID-like или timestamp-rand имена → Supabase Storage
