@@ -29,11 +29,15 @@ export function getCoverUrl(path: string | null | undefined) {
   // backend на tene.fun. Прямые https://tene.fun ссылки из браузера
   // не работали в Safari desktop (ITP/TLS вешали соединение).
 
-  // В старой базе tene cover_url часто лежит с префиксом «covers/» —
-  // не добавляем его повторно, только кодируем имя файла.
+  // В старой базе tene cover_url часто лежит с префиксом «covers/» — это
+  // 22 легаси-новеллы (см. scripts/migrate-legacy-covers-to-storage.mjs).
+  // После одноразовой миграции эти файлы залиты в Supabase Storage bucket
+  // `covers` под теми же именами, и теперь идут через chaptify.ru-nginx-кэш.
+  // На tene.fun cover_url в БД не меняли — там этот путь по-прежнему
+  // обслуживает tene-frontend-app:80/covers/<имя>.webp.
   if (path.startsWith('covers/')) {
     const filename = path.slice('covers/'.length);
-    return `/covers/${encodeURIComponent(filename)}`;
+    return `/sb-storage/v1/object/public/covers/${encodeURIComponent(filename)}`;
   }
 
   // Новые загрузки через CoverUpload: UUID-like или timestamp-rand имена → Supabase Storage
