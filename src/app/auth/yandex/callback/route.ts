@@ -10,6 +10,15 @@ interface AuthSession {
   refresh_token: string;
 }
 
+// См. комментарий в /auth/yandex/route.ts про docker-internal hostname
+// vs публичный origin от nginx.
+function getPublicOrigin(request: NextRequest): string {
+  const fwdHost = request.headers.get('x-forwarded-host');
+  const fwdProto = request.headers.get('x-forwarded-proto') || 'https';
+  if (fwdHost) return `${fwdProto}://${fwdHost}`;
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
@@ -36,10 +45,12 @@ export async function GET(request: NextRequest) {
   }
 
   // Тот же redirect_uri, что отправляли на /authorize. Yandex проверит
-  // совпадение байт-в-байт при обмене code → token.
+  // совпадение байт-в-байт при обмене code → token. Берём публичный
+  // origin (а не request.nextUrl.origin, который в docker-контейнере
+  // = internal hostname).
   const redirectUri =
     process.env.YANDEX_REDIRECT_URI ||
-    `${url.origin}/auth/yandex/callback`;
+    `${getPublicOrigin(request)}/auth/yandex/callback`;
 
   let session: AuthSession | null = null;
   try {

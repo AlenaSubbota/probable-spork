@@ -18,6 +18,18 @@ const PROTECTED_PREFIXES = [
 // гостя просто отправит на /login — а там уже можно решить чем заняться.
 const ADMIN_PREFIXES = ['/admin'];
 
+// Пути, у которых СВОЙ обработчик OAuth-кода. Их нельзя попадать под
+// «code-bounce → /auth/callback» (тот ждёт supabase-PKCE-кода, а у этих
+// провайдеров формат другой). Любой провайдер, который мы хостим сами
+// через auth-service, добавляется сюда.
+function isOurOwnOauthCallback(path: string): boolean {
+  return (
+    path.startsWith('/auth/callback') ||
+    path.startsWith('/auth/yandex/callback') ||
+    path.startsWith('/auth/yandex')
+  );
+}
+
 function isPrefixMatch(path: string, prefixes: readonly string[]): boolean {
   return prefixes.some(
     (p) => path === p || path.startsWith(p + '/') || path.startsWith(p + '?')
@@ -39,8 +51,13 @@ export async function proxy(req: NextRequest) {
   // приземлиться (домашняя/auth-пути), и — критически — отдаём в
   // callback ТОЛЬКО `code`, без user-supplied `next`. Защита от
   // открытого редиректа на стороне callback-страницы тоже остаётся.
+  //
+  // ВАЖНО: bounce НЕ применяется к нашим собственным OAuth-callback'ам
+  // (/auth/yandex/callback и т.п.) — у них свой формат code и свой
+  // обработчик в /src/app/auth/<provider>/callback. Иначе Yandex-флоу
+  // улетал бы в /auth/callback, который умеет только supabase-PKCE.
   const codeBounceWhitelist = path === '/' || path.startsWith('/auth/');
-  if (code && !path.startsWith('/auth/callback') && codeBounceWhitelist) {
+  if (code && !isOurOwnOauthCallback(path) && codeBounceWhitelist) {
     const callbackUrl = req.nextUrl.clone();
     callbackUrl.pathname = '/auth/callback';
     callbackUrl.search = '';

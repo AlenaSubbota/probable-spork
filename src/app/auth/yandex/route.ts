@@ -3,7 +3,7 @@ import crypto from 'crypto';
 
 // Стартовый шаг OAuth-входа через Яндекс.
 //
-// Yandex не поддерживается self-hosted Supabase натив но (нет
+// Yandex не поддерживается self-hosted Supabase нативно (нет
 // GOTRUE_EXTERNAL_YANDEX_*), поэтому весь обмен code → session делаем
 // через auth-service-chaptify (см. POST /auth/yandex там). Cookie-handoff
 // устроен как в Telegram-флоу: токены приходят в URL fragment на
@@ -17,12 +17,23 @@ import crypto from 'crypto';
 
 const YANDEX_AUTHORIZE_URL = 'https://oauth.yandex.ru/authorize';
 
+// Внутри docker-контейнера request.nextUrl.origin часто превращается
+// в `https://<container-id>:3000` — Host header идёт сырой от внешнего
+// nginx. Yandex такой redirect_uri отклонит (не совпадёт с тем, что
+// зарегистрирован), а если мы шлём юзера на /login — Safari ловит
+// «не удаётся найти сервер d4d4542b6c80». Берём публичный origin из
+// x-forwarded-* заголовков, которые ставит nginx-proxy.
+function getPublicOrigin(request: NextRequest): string {
+  const fwdHost = request.headers.get('x-forwarded-host');
+  const fwdProto = request.headers.get('x-forwarded-proto') || 'https';
+  if (fwdHost) return `${fwdProto}://${fwdHost}`;
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
   const clientId = process.env.YANDEX_CLIENT_ID;
   if (!clientId) {
-    return NextResponse.redirect(
-      new URL('/login?error=yandex_not_configured', request.url),
-    );
+    return htmlResponse(errorHtml('yandex_not_configured'));
   }
 
   // state защищает от CSRF — проверим равенство в callback. 32 байта
@@ -30,12 +41,12 @@ export async function GET(request: NextRequest) {
   const state = crypto.randomBytes(32).toString('base64url');
 
   // Redirect URI обязан побайтно совпадать с тем, что зарегистрирован
-  // в Yandex OAuth dashboard. Дефолт строим от текущего origin'а
-  // (production = chaptify.ru, dev = localhost), но даём env-override
-  // на случай нестандартного proxy-rewrite.
+  // в Yandex OAuth dashboard. Дефолт строим от публичного origin'а
+  // (production = chaptify.ru), env-override на случай нестандартного
+  // proxy-rewrite.
   const redirectUri =
     process.env.YANDEX_REDIRECT_URI ||
-    `${request.nextUrl.origin}/auth/yandex/callback`;
+    `${getPublicOrigin(request)}/auth/yandex/callback`;
 
   const authorizeUrl = new URL(YANDEX_AUTHORIZE_URL);
   authorizeUrl.searchParams.set('response_type', 'code');
@@ -58,4 +69,37 @@ export async function GET(request: NextRequest) {
     maxAge: 600,
   });
   return resp;
+}
+
+// Server-side error → клиентский редирект на /login?error=<reason>.
+// Не используем NextResponse.redirect(new URL('/login?...', request.url)):
+// внутри docker-контейнера request.url содержит internal hostname
+// (e.g. https://d4d4542b6c80:3000), и Safari потом не может его
+// зарезолвить. window.location.replace() в браузере резолвится
+// относительно текущего домена (chaptify.ru) — вне зависимости от
+// того, какой Host видел Next.
+function htmlResponse(html: string): NextResponse {
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+    },
+  });
+}
+
+function errorHtml(reason: string): string {
+  const encoded = encodeURIComponent(reason);
+  return `<!doctype html>
+<meta charset="utf-8">
+<title>Ошибка входа</title>
+<script>
+  (function () {
+    window.location.replace('/login?error=${encoded}');
+  })();
+</script>
+<noscript>
+  <p>Не получилось войти через Яндекс. <a href="/login?error=${encoded}">Вернись на страницу входа</a>.</p>
+</noscript>`;
 }
